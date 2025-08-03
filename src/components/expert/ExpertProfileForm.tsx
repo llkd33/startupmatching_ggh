@@ -7,7 +7,6 @@ import { CareerItem, EducationItem } from '@/types/supabase'
 import CareerInput from './CareerInput'
 import EducationInput from './EducationInput'
 import HashtagManager from './HashtagManager'
-import RegionSelector from './RegionSelector'
 
 interface ExpertProfileFormProps {
   expertId: string
@@ -28,9 +27,6 @@ export default function ExpertProfileForm({ expertId, initialData }: ExpertProfi
   )
   const [hashtags, setHashtags] = useState<string[]>(
     initialData?.hashtags || []
-  )
-  const [serviceRegions, setServiceRegions] = useState<string[]>(
-    initialData?.service_regions || []
   )
   const [isAvailable, setIsAvailable] = useState(
     initialData?.is_available ?? true
@@ -68,7 +64,6 @@ export default function ExpertProfileForm({ expertId, initialData }: ExpertProfi
         career_history: careerHistory,
         education: education,
         hashtags: hashtags,
-        service_regions: serviceRegions,
         is_available: isAvailable,
       })
 
@@ -86,8 +81,7 @@ export default function ExpertProfileForm({ expertId, initialData }: ExpertProfi
     return (
       careerHistory.length > 0 &&
       education.length > 0 &&
-      hashtags.length > 0 &&
-      serviceRegions.length > 0
+      hashtags.length > 0
     )
   }
 
@@ -138,7 +132,7 @@ export default function ExpertProfileForm({ expertId, initialData }: ExpertProfi
               전문 분야 태그
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              경력과 학력을 기반으로 자동 생성된 태그를 확인하고, 필요시 추가/삭제해주세요.
+              전문 분야 태그를 입력해주세요. 추가하거나 삭제할 수 있습니다.
             </p>
           </div>
           <div className="mt-5 md:col-span-2 md:mt-0">
@@ -152,24 +146,6 @@ export default function ExpertProfileForm({ expertId, initialData }: ExpertProfi
         </div>
       </div>
 
-      <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
-        <div className="md:grid md:grid-cols-3 md:gap-6">
-          <div className="md:col-span-1">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">
-              서비스 제공 지역
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              서비스 제공이 가능한 지역을 선택해주세요.
-            </p>
-          </div>
-          <div className="mt-5 md:col-span-2 md:mt-0">
-            <RegionSelector
-              selectedRegions={serviceRegions}
-              onChange={setServiceRegions}
-            />
-          </div>
-        </div>
-      </div>
 
       <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
         <div className="md:grid md:grid-cols-3 md:gap-6">

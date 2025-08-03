@@ -311,3 +311,21 @@ export type Enums<T extends keyof Database['public']['Enums']> = Database['publi
 
 export type UserRole = 'expert' | 'organization' | 'admin'
 export type CampaignType = 'mentoring' | 'investment' | 'service' | 'lecture_mentoring' | 'investor_matching' | 'service_outsourcing'
+
+// Additional types for forms
+export interface CareerItem {
+  company: string
+  position: string
+  start_date: string
+  end_date?: string
+  is_current?: boolean
+  description?: string
+}
+
+export interface EducationItem {
+  school: string
+  major: string
+  degree: string
+  status: '졸업' | '졸업예정' | '재학' | '휴학' | '중퇴'
+  graduation_year: string
+}

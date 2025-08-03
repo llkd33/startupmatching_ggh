@@ -29,6 +29,14 @@ const DEGREE_OPTIONS = [
   { value: '전문학사', label: '전문학사' },
 ]
 
+const STATUS_OPTIONS = [
+  { value: '졸업', label: '졸업' },
+  { value: '졸업예정', label: '졸업예정' },
+  { value: '재학', label: '재학' },
+  { value: '휴학', label: '휴학' },
+  { value: '중퇴', label: '중퇴' },
+]
+
 export default function EducationInput({ educations, onChange }: EducationInputProps) {
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState<number | null>(null)
   const [showMajorSuggestions, setShowMajorSuggestions] = useState<number | null>(null)
@@ -40,6 +48,7 @@ export default function EducationInput({ educations, onChange }: EducationInputP
         school: '',
         major: '',
         degree: '학사',
+        status: '졸업',
         graduation_year: '',
       },
     ])
@@ -65,7 +74,7 @@ export default function EducationInput({ educations, onChange }: EducationInputP
     <div className="space-y-4">
       {educations.map((education, index) => (
         <div key={index} className="border border-gray-200 rounded-lg p-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700">
                 학교명
@@ -142,6 +151,23 @@ export default function EducationInput({ educations, onChange }: EducationInputP
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               >
                 {DEGREE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                졸업 상태
+              </label>
+              <select
+                value={education.status || '졸업'}
+                onChange={(e) => updateEducation(index, 'status', e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              >
+                {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
