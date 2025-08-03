@@ -1,0 +1,134 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Set up Next.js project with TypeScript and Tailwind CSS",
+        "description": "Initialize the frontend project with Next.js, TypeScript, Tailwind CSS, ESLint, and Prettier for the expert matching platform.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "details": "Create Next.js 14+ project with App Router, configure TypeScript with strict mode, set up Tailwind CSS with custom config, add ESLint and Prettier configurations, create basic folder structure for components, pages, types, and utils.",
+        "testStrategy": "Verify project builds successfully, TypeScript compilation works, Tailwind styles apply correctly, and linting passes."
+      },
+      {
+        "id": 2,
+        "title": "Integrate Supabase client and authentication",
+        "description": "Set up Supabase client, authentication, and type safety for the expert matching platform.",
+        "status": "done",
+        "dependencies": [
+          1
+        ],
+        "priority": "high",
+        "details": "Install @supabase/supabase-js and @supabase/auth-helpers-nextjs, configure environment variables, set up the Supabase client with TypeScript types, create authentication context and hooks, implement login/signup/logout functionality.",
+        "testStrategy": "Test authentication flows work correctly, Supabase connection is established, and TypeScript types are properly imported."
+      },
+      {
+        "id": 3,
+        "title": "Create user registration and profile components",
+        "description": "Build registration forms for experts and organizations with profile creation functionality.",
+        "status": "done",
+        "dependencies": [
+          2
+        ],
+        "priority": "high",
+        "details": "Create registration forms with role selection (expert/organization), implement expert profile creation with career history and education input, build organization profile form with verification fields, add form validation with react-hook-form and zod.",
+        "testStrategy": "Test registration flows for both user types, validate form submissions, ensure profile data is correctly saved to Supabase."
+      },
+      {
+        "id": 4,
+        "title": "Implement expert profile management interface",
+        "description": "Build comprehensive profile management for experts including career history, education, and hashtag management.",
+        "status": "done",
+        "dependencies": [
+          3
+        ],
+        "priority": "medium",
+        "details": "Create profile editing interface with step-by-step career input, education management, auto-hashtag generation preview, service region selection, and profile completeness indicators.",
+        "testStrategy": "Verify experts can update their profiles, hashtags are auto-generated correctly, and profile completeness is tracked accurately."
+      },
+      {
+        "id": 5,
+        "title": "Create campaign management interface for organizations",
+        "description": "Build campaign creation and management interface for organizations to post matching requests.",
+        "status": "done",
+        "dependencies": [
+          3
+        ],
+        "priority": "medium",
+        "details": "Create campaign creation form with type-specific templates (lecture/mentoring, investor matching, service outsourcing), keyword input, budget range selection, file upload for attachments, and campaign status management.",
+        "testStrategy": "Test campaign creation for all types, verify file uploads work, and ensure campaigns are properly saved and displayable."
+      },
+      {
+        "id": 6,
+        "title": "Build expert search and matching interface",
+        "description": "Implement expert search functionality with filtering and matching score display.",
+        "status": "done",
+        "dependencies": [
+          4
+        ],
+        "priority": "medium",
+        "details": "Create search interface with keyword filters, location filters, availability status, rating filters, implement search results display with expert profiles, match scores, and contact options.",
+        "testStrategy": "Test search functionality with various filters, verify match scores are displayed correctly, and ensure expert profiles are accessible."
+      },
+      {
+        "id": 7,
+        "title": "Implement proposal submission and management system",
+        "description": "Build interface for experts to submit proposals and organizations to review them.",
+        "status": "done",
+        "dependencies": [
+          5,
+          6
+        ],
+        "priority": "medium",
+        "details": "Create proposal submission form for experts with rich text editor, budget estimation, timeline selection, portfolio links, implement proposal review interface for organizations with comparison tools and status updates.",
+        "testStrategy": "Test proposal submission process, verify proposals are received by organizations, and ensure status updates work correctly."
+      },
+      {
+        "id": 8,
+        "title": "Create messaging and communication interface",
+        "description": "Build real-time messaging system for campaign-scoped communication between experts and organizations.",
+        "status": "cancelled",
+        "dependencies": [
+          7
+        ],
+        "priority": "medium",
+        "details": "Implement chat interface with real-time messaging using Supabase realtime, message history, read status indicators, and file sharing capabilities within campaign context.",
+        "testStrategy": "Test real-time messaging works, messages are properly scoped to campaigns, and read status tracking functions correctly."
+      },
+      {
+        "id": 9,
+        "title": "Build notification system and dashboard",
+        "description": "Implement notification center and user dashboard showing campaign status, matches, and activities.",
+        "status": "done",
+        "dependencies": [
+          7
+        ],
+        "priority": "low",
+        "details": "Create notification center with unread counts, notification types (matches, proposals, messages), implement dashboard with campaign overview, recent activities, and key metrics for both user types.",
+        "testStrategy": "Verify notifications are displayed correctly, unread counts update properly, and dashboard shows relevant information for each user type."
+      },
+      {
+        "id": 10,
+        "title": "Implement rating and review system",
+        "description": "Build rating and review functionality for completed campaigns.",
+        "status": "cancelled",
+        "dependencies": [
+          9
+        ],
+        "priority": "low",
+        "details": "Create rating interface for bidirectional reviews, implement review display on profiles, calculate and update average ratings, add review moderation features.",
+        "testStrategy": "Test rating submission works for both parties, reviews are displayed correctly on profiles, and average ratings are calculated accurately."
+      }
+    ],
+    "metadata": {
+      "version": "1.0",
+      "created_at": "2025-08-02T15:14:40.000Z",
+      "project_name": "Expert Matching Platform",
+      "total_tasks": 10,
+      "created": "2025-08-02T16:12:26.189Z",
+      "description": "Tasks for master context",
+      "updated": "2025-08-03T11:28:15.576Z"
+    }
+  }
+}
