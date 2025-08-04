@@ -42,17 +42,45 @@ export default function CompleteExpertProfilePage() {
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
+    console.log('User:', user)
+    
     if (!user) {
       router.push('/auth/login')
       return
     }
 
     // Get expert profile
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('expert_profiles')
       .select('id, is_profile_complete')
       .eq('user_id', user.id)
       .single()
+    
+    console.log('Expert profile:', profile)
+    console.log('Profile error:', error)
+
+    if (error && error.code === 'PGRST116') {
+      // No profile found - create one
+      console.log('Creating new expert profile for user:', user.id)
+      const { data: newProfile, error: createError } = await supabase
+        .from('expert_profiles')
+        .insert({
+          user_id: user.id,
+          name: user.email?.split('@')[0] || 'Expert',
+          is_profile_complete: false,
+        })
+        .select()
+        .single()
+      
+      if (createError) {
+        console.error('Failed to create profile:', createError)
+        alert('프로필 생성 중 오류가 발생했습니다. 다시 시도해주세요.')
+        return
+      }
+      
+      setExpertId(newProfile?.id || null)
+      return
+    }
 
     if (profile?.is_profile_complete) {
       router.push('/dashboard')
@@ -134,7 +162,15 @@ export default function CompleteExpertProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!expertId) return
+    
+    console.log('Submit clicked - expertId:', expertId)
+    console.log('Form data:', formData)
+    
+    if (!expertId) {
+      console.error('No expert ID found')
+      alert('전문가 프로필을 찾을 수 없습니다. 다시 로그인해주세요.')
+      return
+    }
 
     setLoading(true)
 
@@ -147,15 +183,22 @@ export default function CompleteExpertProfilePage() {
         is_profile_complete: true,
       })
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Update error:', updateError)
+        throw updateError
+      }
 
-      // Generate auto hashtags
-      await db.experts.updateHashtags(expertId)
+      // Generate auto hashtags - optional, don't fail if this doesn't work
+      try {
+        await db.experts.updateHashtags(expertId)
+      } catch (hashtagError) {
+        console.warn('Failed to generate hashtags:', hashtagError)
+      }
 
       router.push('/dashboard')
     } catch (error: any) {
       console.error('Error updating profile:', error)
-      alert('프로필 업데이트 중 오류가 발생했습니다.')
+      alert(`프로필 업데이트 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
     } finally {
       setLoading(false)
     }
@@ -359,7 +402,12 @@ export default function CompleteExpertProfilePage() {
               </div>
 
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={loading}
+                onClick={() => console.log('Button clicked!')}
+              >
                 {loading ? '저장 중...' : '프로필 완성하기'}
               </Button>
             </form>
