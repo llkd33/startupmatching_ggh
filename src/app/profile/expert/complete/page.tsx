@@ -21,6 +21,7 @@ interface EducationItem {
   school: string
   major: string
   degree: string
+  status: '졸업' | '졸업예정' | '재학' | '휴학' | '중퇴'
   graduation_year: string
 }
 
@@ -32,9 +33,7 @@ export default function CompleteExpertProfilePage() {
     career: [] as CareerItem[],
     education: [] as EducationItem[],
     hashtags: [] as string[],
-    serviceRegions: [] as string[],
     newHashtag: '',
-    newRegion: '',
   })
 
   useEffect(() => {
@@ -96,6 +95,7 @@ export default function CompleteExpertProfilePage() {
         school: '',
         major: '',
         degree: '',
+        status: '졸업',
         graduation_year: ''
       }]
     })
@@ -131,22 +131,6 @@ export default function CompleteExpertProfilePage() {
     })
   }
 
-  const addRegion = () => {
-    if (formData.newRegion && !formData.serviceRegions.includes(formData.newRegion)) {
-      setFormData({
-        ...formData,
-        serviceRegions: [...formData.serviceRegions, formData.newRegion],
-        newRegion: ''
-      })
-    }
-  }
-
-  const removeRegion = (region: string) => {
-    setFormData({
-      ...formData,
-      serviceRegions: formData.serviceRegions.filter(r => r !== region)
-    })
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -160,7 +144,7 @@ export default function CompleteExpertProfilePage() {
         career_history: formData.career,
         education: formData.education,
         hashtags: formData.hashtags,
-        service_regions: formData.serviceRegions,
+        is_profile_complete: true,
       })
 
       if (updateError) throw updateError
@@ -284,7 +268,7 @@ export default function CompleteExpertProfilePage() {
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
                           <Label>학교명</Label>
                           <Input
@@ -311,6 +295,20 @@ export default function CompleteExpertProfilePage() {
                           />
                         </div>
                         <div>
+                          <Label>졸업상태</Label>
+                          <select
+                            value={item.status || '졸업'}
+                            onChange={(e) => updateEducationItem(index, 'status', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          >
+                            <option value="졸업">졸업</option>
+                            <option value="졸업예정">졸업예정</option>
+                            <option value="재학">재학</option>
+                            <option value="휴학">휴학</option>
+                            <option value="중퇴">중퇴</option>
+                          </select>
+                        </div>
+                        <div>
                           <Label>졸업년도</Label>
                           <Input
                             type="number"
@@ -330,7 +328,7 @@ export default function CompleteExpertProfilePage() {
               <div>
                 <Label className="text-lg">전문 분야 태그</Label>
                 <p className="text-sm text-gray-600 mb-2">
-                  경력과 학력을 기반으로 자동 생성되며, 추가로 입력할 수 있습니다.
+                  전문 분야 태그를 추가해주세요.
                 </p>
                 <div className="flex gap-2 mb-2">
                   <Input
@@ -360,36 +358,6 @@ export default function CompleteExpertProfilePage() {
                 </div>
               </div>
 
-              {/* Service Regions */}
-              <div>
-                <Label className="text-lg">서비스 가능 지역</Label>
-                <div className="flex gap-2 mb-2">
-                  <Input
-                    value={formData.newRegion}
-                    onChange={(e) => setFormData({ ...formData, newRegion: e.target.value })}
-                    placeholder="지역 추가 (예: 서울, 경기, 전국)"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addRegion())}
-                  />
-                  <Button type="button" onClick={addRegion}>추가</Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {formData.serviceRegions.map((region) => (
-                    <span
-                      key={region}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800"
-                    >
-                      {region}
-                      <button
-                        type="button"
-                        onClick={() => removeRegion(region)}
-                        className="ml-2"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? '저장 중...' : '프로필 완성하기'}
