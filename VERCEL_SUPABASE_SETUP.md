@@ -57,13 +57,27 @@ CREATE POLICY "Experts can insert own profile" ON public.expert_profiles
     FOR INSERT WITH CHECK (user_id = auth.uid());
 ```
 
-### 4단계: 테이블 존재 확인
+### 4단계: 테이블 존재 및 구조 확인
 ```sql
--- 필요한 테이블들이 존재하는지 확인
+-- 1. 필요한 테이블들이 존재하는지 확인
 SELECT table_name 
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
 AND table_name IN ('users', 'expert_profiles', 'organization_profiles');
+
+-- 2. expert_profiles 테이블 구조 확인
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'expert_profiles'
+ORDER BY ordinal_position;
+
+-- 3. is_profile_complete 컬럼이 없다면 추가
+ALTER TABLE expert_profiles 
+ADD COLUMN IF NOT EXISTS is_profile_complete BOOLEAN DEFAULT FALSE;
+
+-- 4. hashtags 컬럼이 TEXT[]인지 확인 (JSON이면 변경 필요)
+-- 만약 JSON 타입이라면:
+-- ALTER TABLE expert_profiles ALTER COLUMN hashtags TYPE TEXT[] USING hashtags::TEXT[];
 ```
 
 ### 5단계: 환경 변수 재확인
@@ -90,6 +104,45 @@ console.log('URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
 - ✅ 400 오류 해결 (Expert profiles 조회 가능)
 - ✅ 회원가입/로그인 정상 작동
 - ✅ 대시보드 정상 로딩
+- ✅ 프로필 완성 버튼 정상 작동
+
+## 🔧 추가 문제 해결
+
+### 프로필 완성 버튼이 작동하지 않는 경우:
+```sql
+-- expert_profiles 테이블의 is_profile_complete 컬럼 확인
+SELECT id, user_id, name, is_profile_complete 
+FROM expert_profiles 
+WHERE user_id = 'YOUR_USER_ID';
+
+-- is_profile_complete 컬럼이 없다면 추가
+ALTER TABLE expert_profiles 
+ADD COLUMN IF NOT EXISTS is_profile_complete BOOLEAN DEFAULT FALSE;
+
+-- 기존 완성된 프로필들 업데이트
+UPDATE expert_profiles 
+SET is_profile_complete = TRUE 
+WHERE career_history IS NOT NULL 
+  AND education IS NOT NULL 
+  AND hashtags IS NOT NULL 
+  AND array_length(hashtags, 1) > 0;
+```
+
+### 인증 토큰 오류 (400) 해결:
+```sql
+-- RLS 정책 재설정
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.expert_profiles;
+CREATE POLICY "Enable read access for authenticated users" ON public.expert_profiles
+    FOR SELECT USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.expert_profiles;
+CREATE POLICY "Enable insert for authenticated users" ON public.expert_profiles
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Enable update for profile owner" ON public.expert_profiles;
+CREATE POLICY "Enable update for profile owner" ON public.expert_profiles
+    FOR UPDATE USING (auth.uid() = user_id);
+```
 
 ## 📋 완료 체크리스트
 - [ ] Supabase Site URL 설정
