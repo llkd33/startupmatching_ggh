@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { auth, db } from '@/lib/supabase'
+import { auth, db, supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { UserRole } from '@/types/supabase'
 
@@ -22,7 +22,7 @@ export function useAuth() {
     loadUser()
 
     // Listen for auth changes
-    const { data: { subscription } } = auth.supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           await loadUserProfile(session.user)
