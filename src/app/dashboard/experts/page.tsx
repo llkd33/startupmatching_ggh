@@ -52,9 +52,12 @@ interface SearchFilters {
   location: string
   minRating: number
   maxHourlyRate: number | null
+  minHourlyRate: number | null
   availability: string
   experienceYears: number
   skills: string[]
+  sortBy: 'rating' | 'experience' | 'hourlyRate' | 'responseTime' | 'completionRate' | 'newest'
+  sortOrder: 'asc' | 'desc'
 }
 
 export default function ExpertSearchPage() {
@@ -73,9 +76,12 @@ export default function ExpertSearchPage() {
     location: '',
     minRating: 0,
     maxHourlyRate: null,
+    minHourlyRate: null,
     availability: 'all',
     experienceYears: 0,
-    skills: []
+    skills: [],
+    sortBy: 'rating',
+    sortOrder: 'desc'
   })
 
   useEffect(() => {
@@ -84,6 +90,13 @@ export default function ExpertSearchPage() {
 
   useEffect(() => {
     filterExperts()
+    // Log search after a delay to avoid too many logs
+    const timer = setTimeout(() => {
+      if (filters.keywords || filters.location || filters.minRating > 0) {
+        logSearch()
+      }
+    }, 1000)
+    return () => clearTimeout(timer)
   }, [experts, filters])
 
   const checkAuthAndLoadExperts = async () => {
@@ -123,23 +136,70 @@ export default function ExpertSearchPage() {
     setLoading(true)
     
     try {
+      // Use the enhanced view for better performance
       const { data, error } = await supabase
-        .from('expert_profiles')
-        .select(`
-          *,
-          users!inner(email)
-        `)
-        .eq('profile_completeness', 100) // Only show completed profiles
+        .from('expert_search_view')
+        .select('*')
+        .gte('profile_completeness', 70) // Show profiles that are at least 70% complete
         .order('rating_average', { ascending: false })
 
       if (error) throw error
 
-      setExperts(data || [])
+      // Transform the data to match our interface
+      const transformedData = (data || []).map(expert => ({
+        ...expert,
+        skills: expert.skills || [],
+        hashtags: expert.hashtags || [],
+        career_history: expert.career_history || [],
+        education: expert.education || [],
+        // Ensure all numeric fields have defaults
+        experience_years: expert.experience_years || 0,
+        rating_average: expert.rating_average || 0,
+        total_reviews: expert.total_reviews || 0,
+        completion_rate: expert.completion_rate || 0,
+        response_time_hours: expert.response_time_hours || 24,
+        profile_completeness: expert.profile_completeness || 0
+      }))
+
+      setExperts(transformedData)
     } catch (error) {
       console.error('Error loading experts:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const sortExperts = (experts: ExpertProfile[]) => {
+    const sorted = [...experts]
+    
+    sorted.sort((a, b) => {
+      let compareValue = 0
+      
+      switch (filters.sortBy) {
+        case 'rating':
+          compareValue = a.rating_average - b.rating_average
+          break
+        case 'experience':
+          compareValue = a.experience_years - b.experience_years
+          break
+        case 'hourlyRate':
+          compareValue = (a.hourly_rate || 0) - (b.hourly_rate || 0)
+          break
+        case 'responseTime':
+          compareValue = a.response_time_hours - b.response_time_hours
+          break
+        case 'completionRate':
+          compareValue = a.completion_rate - b.completion_rate
+          break
+        case 'newest':
+          compareValue = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          break
+      }
+      
+      return filters.sortOrder === 'desc' ? -compareValue : compareValue
+    })
+    
+    return sorted
   }
 
   const filterExperts = () => {
@@ -176,6 +236,12 @@ export default function ExpertSearchPage() {
         expert.hourly_rate && expert.hourly_rate <= filters.maxHourlyRate!
       )
     }
+    
+    if (filters.minHourlyRate) {
+      filtered = filtered.filter(expert => 
+        expert.hourly_rate && expert.hourly_rate >= filters.minHourlyRate!
+      )
+    }
 
     // Availability filter
     if (filters.availability !== 'all') {
@@ -186,6 +252,9 @@ export default function ExpertSearchPage() {
     if (filters.experienceYears > 0) {
       filtered = filtered.filter(expert => expert.experience_years >= filters.experienceYears)
     }
+
+    // Apply sorting
+    filtered = sortExperts(filtered)
 
     setFilteredExperts(filtered)
   }
@@ -257,9 +326,34 @@ export default function ExpertSearchPage() {
     setSelectedExpert(null)
   }
 
+  const logSearch = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    try {
+      await supabase
+        .from('search_logs')
+        .insert({
+          user_id: user.id,
+          search_query: filters.keywords,
+          filters: {
+            location: filters.location,
+            minRating: filters.minRating,
+            availability: filters.availability,
+            experienceYears: filters.experienceYears,
+            sortBy: filters.sortBy
+          },
+          results_count: filteredExperts.length
+        })
+    } catch (error) {
+      // Silently fail - logging is not critical
+      console.log('Failed to log search:', error)
+    }
+  }
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         <div className="flex items-center justify-center min-h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
@@ -271,17 +365,59 @@ export default function ExpertSearchPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">전문가 검색</h1>
-          <p className="text-gray-600 mt-2">
-            프로젝트에 적합한 전문가를 찾아보세요
-          </p>
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">전문가 검색</h1>
+            <p className="text-gray-600 mt-2">
+              프로젝트에 적합한 전문가를 찾아보세요
+            </p>
+          </div>
+          <div className="text-left sm:text-right">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{filteredExperts.length}명</div>
+            <div className="text-sm text-gray-500">검색된 전문가</div>
+          </div>
         </div>
-        <div className="text-sm text-gray-500">
-          총 {filteredExperts.length}명의 전문가
+        
+        {/* Quick Filter Chips */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={filters.availability === 'available' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('availability', filters.availability === 'available' ? 'all' : 'available')}
+            className="text-xs"
+          >
+            즉시 가능
+          </Button>
+          <Button
+            variant={filters.minRating >= 4.5 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('minRating', filters.minRating >= 4.5 ? 0 : 4.5)}
+            className="text-xs"
+          >
+            ⭐ 4.5 이상
+          </Button>
+          <Button
+            variant={filters.experienceYears >= 5 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleFilterChange('experienceYears', filters.experienceYears >= 5 ? 0 : 5)}
+            className="text-xs"
+          >
+            5년+ 경력
+          </Button>
+          <Button
+            variant={filters.sortBy === 'responseTime' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              handleFilterChange('sortBy', 'responseTime')
+              handleFilterChange('sortOrder', 'asc')
+            }}
+            className="text-xs"
+          >
+            빠른 응답
+          </Button>
         </div>
       </div>
 
@@ -314,60 +450,142 @@ export default function ExpertSearchPage() {
 
             {/* Advanced filters */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
-                <div>
-                  <Label htmlFor="location">지역</Label>
-                  <Input
-                    id="location"
-                    placeholder="예: 서울"
-                    value={filters.location}
-                    onChange={(e) => handleFilterChange('location', e.target.value)}
-                  />
+              <div className="space-y-4 pt-4 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <Label htmlFor="location">지역</Label>
+                    <Input
+                      id="location"
+                      placeholder="예: 서울, 부산, 대구"
+                      value={filters.location}
+                      onChange={(e) => handleFilterChange('location', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="minRating">최소 평점</Label>
+                    <select
+                      id="minRating"
+                      value={filters.minRating}
+                      onChange={(e) => handleFilterChange('minRating', parseFloat(e.target.value))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value={0}>전체</option>
+                      <option value={3}>3점 이상</option>
+                      <option value={4}>4점 이상</option>
+                      <option value={4.5}>4.5점 이상</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="availability">활동 상태</Label>
+                    <select
+                      id="availability"
+                      value={filters.availability}
+                      onChange={(e) => handleFilterChange('availability', e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="all">전체</option>
+                      <option value="available">즉시 가능</option>
+                      <option value="busy">협의 가능</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="experience">최소 경력</Label>
+                    <select
+                      id="experience"
+                      value={filters.experienceYears}
+                      onChange={(e) => handleFilterChange('experienceYears', parseInt(e.target.value))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value={0}>전체</option>
+                      <option value={1}>1년 이상</option>
+                      <option value={3}>3년 이상</option>
+                      <option value={5}>5년 이상</option>
+                      <option value={10}>10년 이상</option>
+                    </select>
+                  </div>
                 </div>
                 
-                <div>
-                  <Label htmlFor="minRating">최소 평점</Label>
-                  <select
-                    id="minRating"
-                    value={filters.minRating}
-                    onChange={(e) => handleFilterChange('minRating', parseFloat(e.target.value))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value={0}>전체</option>
-                    <option value={3}>3점 이상</option>
-                    <option value={4}>4점 이상</option>
-                    <option value={4.5}>4.5점 이상</option>
-                  </select>
+                {/* Hourly Rate Range */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="minHourlyRate">최소 시급</Label>
+                    <Input
+                      id="minHourlyRate"
+                      type="number"
+                      placeholder="예: 50000"
+                      value={filters.minHourlyRate || ''}
+                      onChange={(e) => handleFilterChange('minHourlyRate', e.target.value ? parseInt(e.target.value) : null)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="maxHourlyRate">최대 시급</Label>
+                    <Input
+                      id="maxHourlyRate"
+                      type="number"
+                      placeholder="예: 200000"
+                      value={filters.maxHourlyRate || ''}
+                      onChange={(e) => handleFilterChange('maxHourlyRate', e.target.value ? parseInt(e.target.value) : null)}
+                    />
+                  </div>
+                </div>
+                
+                {/* Sorting Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
+                  <div>
+                    <Label htmlFor="sortBy">정렬 기준</Label>
+                    <select
+                      id="sortBy"
+                      value={filters.sortBy}
+                      onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="rating">평점순</option>
+                      <option value="experience">경력순</option>
+                      <option value="hourlyRate">시급순</option>
+                      <option value="responseTime">응답 속도순</option>
+                      <option value="completionRate">완료율순</option>
+                      <option value="newest">최신 등록순</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="sortOrder">정렬 순서</Label>
+                    <select
+                      id="sortOrder"
+                      value={filters.sortOrder}
+                      onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="desc">높은순</option>
+                      <option value="asc">낮은순</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="availability">활동 상태</Label>
-                  <select
-                    id="availability"
-                    value={filters.availability}
-                    onChange={(e) => handleFilterChange('availability', e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                {/* Reset Filters */}
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFilters({
+                        keywords: '',
+                        location: '',
+                        minRating: 0,
+                        maxHourlyRate: null,
+                        minHourlyRate: null,
+                        availability: 'all',
+                        experienceYears: 0,
+                        skills: [],
+                        sortBy: 'rating',
+                        sortOrder: 'desc'
+                      })
+                    }}
                   >
-                    <option value="all">전체</option>
-                    <option value="available">즉시 가능</option>
-                    <option value="busy">협의 가능</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label htmlFor="experience">최소 경력</Label>
-                  <select
-                    id="experience"
-                    value={filters.experienceYears}
-                    onChange={(e) => handleFilterChange('experienceYears', parseInt(e.target.value))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value={0}>전체</option>
-                    <option value={1}>1년 이상</option>
-                    <option value={3}>3년 이상</option>
-                    <option value={5}>5년 이상</option>
-                    <option value={10}>10년 이상</option>
-                  </select>
+                    필터 초기화
+                  </Button>
                 </div>
               </div>
             )}
@@ -377,14 +595,72 @@ export default function ExpertSearchPage() {
 
       {/* Expert List */}
       {filteredExperts.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <div className="text-gray-500">
-              <h3 className="text-lg font-medium mb-2">검색 결과가 없습니다</h3>
-              <p className="text-sm">다른 키워드나 필터로 검색해보세요</p>
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="text-center py-12">
+              <div className="text-gray-500">
+                <h3 className="text-lg font-medium mb-2">검색 결과가 없습니다</h3>
+                <p className="text-sm mb-4">다른 키워드나 필터로 검색해보세요</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilters({
+                      keywords: '',
+                      location: '',
+                      minRating: 0,
+                      maxHourlyRate: null,
+                      minHourlyRate: null,
+                      availability: 'all',
+                      experienceYears: 0,
+                      skills: [],
+                      sortBy: 'rating',
+                      sortOrder: 'desc'
+                    })
+                  }}
+                >
+                  필터 초기화
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Show top rated experts as suggestions */}
+          {experts.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">추천 전문가</h3>
+              <div className="grid gap-4">
+                {experts.slice(0, 3).map((expert) => {
+                  const matchScore = calculateMatchScore(expert)
+                  return (
+                    <Card key={expert.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                                {expert.name.charAt(0)}
+                              </div>
+                              <div>
+                                <CardTitle className="text-lg">{expert.name}</CardTitle>
+                                <p className="text-sm text-gray-600">{expert.title}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <Button size="sm" asChild>
+                            <Link href={`/dashboard/experts/${expert.id}`}>
+                              프로필 보기
+                            </Link>
+                          </Button>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  )
+                })}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       ) : (
         <div className="grid gap-6">
           {filteredExperts.map((expert) => {
@@ -393,37 +669,42 @@ export default function ExpertSearchPage() {
             return (
               <Card key={expert.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
-                  <div className="flex justify-between items-start">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-base sm:text-lg">
                           {expert.name.charAt(0)}
                         </div>
                         <div>
-                          <CardTitle className="text-xl">{expert.name}</CardTitle>
-                          <p className="text-gray-600">{expert.title}</p>
+                          <CardTitle className="text-lg sm:text-xl">{expert.name}</CardTitle>
+                          <p className="text-gray-600 text-sm sm:text-base">{expert.title}</p>
                           {expert.company && (
-                            <p className="text-sm text-gray-500">{expert.company}</p>
+                            <p className="text-xs sm:text-sm text-gray-500">{expert.company}</p>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 mb-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
                         <Badge className={getAvailabilityColor(expert.availability_status)}>
                           {getAvailabilityText(expert.availability_status)}
                         </Badge>
                         <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                          <span className="font-medium">{expert.rating_average.toFixed(1)}</span>
-                          <span className="text-gray-500">({expert.total_reviews}개 리뷰)</span>
+                          <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500 fill-current" />
+                          <span className="font-medium text-sm sm:text-base">{expert.rating_average.toFixed(1)}</span>
+                          <span className="text-gray-500 text-xs sm:text-sm">({expert.total_reviews}개 리뷰)</span>
                         </div>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        {expert.hourly_rate && (
+                          <div className="text-xs sm:text-sm font-medium text-gray-700">
+                            ₩{expert.hourly_rate.toLocaleString()}/시간
+                          </div>
+                        )}
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 text-xs">
                           매치율 {matchScore}%
                         </Badge>
                       </div>
                     </div>
                     
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 self-start">
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/dashboard/experts/${expert.id}`}>
                           <Eye className="h-4 w-4" />
@@ -433,8 +714,9 @@ export default function ExpertSearchPage() {
                         <Button 
                           size="sm"
                           onClick={() => handleConnectionRequest(expert)}
+                          className="text-xs sm:text-sm"
                         >
-                          <MessageCircle className="h-4 w-4 mr-2" />
+                          <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                           연결 요청
                         </Button>
                       )}
@@ -447,21 +729,21 @@ export default function ExpertSearchPage() {
                     {expert.bio}
                   </CardDescription>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <MapPin className="h-4 w-4" />
-                      {expert.location}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="truncate">{expert.location}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Award className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                      <Award className="h-3 w-3 sm:h-4 sm:w-4" />
                       {expert.experience_years}년 경력
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                      <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                       평균 {expert.response_time_hours}시간 응답
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <TrendingUp className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                      <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
                       완료율 {expert.completion_rate}%
                     </div>
                   </div>

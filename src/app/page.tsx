@@ -59,43 +59,43 @@ export default function Home() {
       <Header />
       
       {/* Hero Section with Animation */}
-      <section className="relative pt-32 pb-20 px-4 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-transparent to-purple-50 opacity-70"></div>
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center">
-            <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-full mb-6">
-              <Star className="w-4 h-4 text-yellow-500 mr-2" />
-              <span className="text-sm font-medium text-blue-700">국내 1위 전문가 매칭 플랫폼</span>
+            <div className="inline-flex items-center px-3 sm:px-4 py-2 bg-blue-50 rounded-full mb-4 sm:mb-6">
+              <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 mr-2" />
+              <span className="text-xs sm:text-sm font-medium text-blue-700">국내 1위 전문가 매칭 플랫폼</span>
             </div>
             
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 bg-clip-text text-transparent leading-tight">
               창업 성공을 위한<br />
               최고의 전문가를 만나보세요
             </h1>
             
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              AI 기반 스마트 매칭으로 5,000명 이상의 검증된 전문가와<br />
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto px-4">
+              AI 기반 스마트 매칭으로 5,000명 이상의 검증된 전문가와<br className="hidden sm:block" />
               1,200개 창업지원기관을 연결합니다
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Link href="/auth/register?type=organization">
-                <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all">
-                  <Building className="w-5 h-5 mr-2" />
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-8 sm:mb-12 px-4">
+              <Link href="/auth/register?type=organization" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg rounded-xl shadow-lg hover:shadow-xl transition-all">
+                  <Building className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   기관으로 시작하기
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                 </Button>
               </Link>
-              <Link href="/auth/register?type=expert">
-                <Button size="lg" variant="outline" className="border-2 px-8 py-6 text-lg rounded-xl hover:bg-gray-50">
-                  <UserCheck className="w-5 h-5 mr-2" />
+              <Link href="/auth/register?type=expert" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-2 px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg rounded-xl hover:bg-gray-50">
+                  <UserCheck className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   전문가로 시작하기
                 </Button>
               </Link>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 max-w-4xl mx-auto px-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-gray-900">5,000+</div>
                 <div className="text-sm text-gray-600">검증된 전문가</div>

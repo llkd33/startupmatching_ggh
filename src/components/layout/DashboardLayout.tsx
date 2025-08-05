@@ -16,6 +16,7 @@ import {
   MagnifyingGlassIcon,
   Bars3Icon,
   XMarkIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 
 interface DashboardLayoutProps {
@@ -73,6 +74,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     ] : []),
     { name: '메시지', href: '/dashboard/messages', icon: ChatBubbleLeftRightIcon },
     { name: '알림', href: '/dashboard/notifications', icon: BellIcon },
+    { name: '설정', href: '/settings/notifications', icon: Cog6ToothIcon },
   ]
 
   return (

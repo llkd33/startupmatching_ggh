@@ -2,8 +2,26 @@
 
 ## 🚨 현재 오류 상황
 ```
-bgnuyghvjkqgwwvghqzo.supabase.co/rest/v1/users?select=*:1  Failed to load resource: the server responded with a status of 409 ()
-bgnuyghvjkqgwwvghqzo.supabase.co/rest/v1/expert_profiles?select=id%2Cis_profile_complete&user_id=eq.4adb1959-675b-429e-8ca3-def0942d3f0f:1  Failed to load resource: the server responded with a status of 400 ()
+409 (Conflict): Users 테이블 RLS 정책 충돌
+400 (Bad Request): Expert profiles 테이블 접근 권한 문제
+Missing tables: connection_requests, notifications, messages
+```
+
+## ⚡ 빠른 해결 방법
+
+### 🔥 원클릭 설정 (추천)
+1. **Supabase Dashboard** → **SQL Editor** 접속
+2. **New Query** 클릭
+3. 아래 파일 내용을 **순서대로** 복사-붙여넣기-실행:
+
+**1단계: 전체 스키마 설정**
+```sql
+-- 파일: supabase/schema.sql 내용 전체 복사하여 실행
+```
+
+**2단계: 문제 해결 및 점검**
+```sql
+-- 파일: supabase/check_and_fix.sql 내용 전체 복사하여 실행
 ```
 
 ## ✅ 해결 방법
