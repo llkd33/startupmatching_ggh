@@ -9,6 +9,8 @@ interface ResumeParserProps {
 export default function ResumeParser({ onParseComplete }: ResumeParserProps) {
   const [resumeText, setResumeText] = useState('')
   const [parsing, setParsing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const parseResume = () => {
     setParsing(true)
@@ -130,9 +132,58 @@ export default function ResumeParser({ onParseComplete }: ResumeParserProps) {
     }, 1500)
   }
 
+  const handleFileDrop = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    if (file.type === 'text/plain') {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const text = e.target?.result as string
+        setResumeText(text)
+        setError(null)
+      }
+      reader.readAsText(file)
+    } else {
+      setError('지원되지 않는 파일 형식입니다. .txt 파일을 드롭하거나 내용을 직접 붙여넣어 주세요.')
+    }
+  }, [])
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    handleFileDrop(e.dataTransfer.files)
+  }
+
+
   return (
     <div className="space-y-4">
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+      <div 
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-lg p-6 transition-colors duration-200 ${
+          isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
+        }`}>
         <div className="space-y-4">
           <div className="flex items-center justify-center">
             <svg
@@ -158,11 +209,15 @@ export default function ResumeParser({ onParseComplete }: ResumeParserProps) {
               id="resume-text"
               rows={10}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="이력서 내용을 복사하여 붙여넣기 해주세요 (Ctrl+V 또는 Cmd+V)&#10;&#10;예시:&#10;홍길동&#10;010-1234-5678&#10;email@example.com&#10;&#10;경력사항&#10;2020.03 - 현재 ABC회사 마케팅팀 과장&#10;2018.01 - 2020.02 XYZ스타트업 개발팀 대리&#10;&#10;학력사항&#10;2018 서울대학교 컴퓨터공학과 졸업"
+              placeholder="여기에 이력서 내용을 붙여넣거나, .txt 파일을 드래그 앤 드롭하세요.&#10;&#10;예시:&#10;홍길동&#10;010-1234-5678&#10;email@example.com&#10;&#10;경력사항&#10;2020.03 - 현재 ABC회사 마케팅팀 과장&#10;2018.01 - 2020.02 XYZ스타트업 개발팀 대리&#10;&#10;학력사항&#10;2018 서울대학교 컴퓨터공학과 졸업"
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
             />
           </div>
+
+          {error && (
+            <p className="text-sm text-red-600 text-center">{error}</p>
+          )}
 
           <div className="text-center">
             <button

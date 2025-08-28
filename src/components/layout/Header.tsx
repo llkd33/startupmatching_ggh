@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Menu, X, ChevronDown } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { Menu, X } from 'lucide-react'
+import { useAuth } from '@/components/auth/AuthContext'
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [user, setUser] = useState<any>(null)
   const router = useRouter()
+  const { user, signOut } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,18 +21,8 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-  }
-
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
+    await signOut()
     router.push('/')
   }
 
@@ -50,16 +40,13 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/how-it-works" className="text-gray-700 hover:text-primary transition">
+            <Link href="#how-it-works" className="text-gray-700 hover:text-primary transition">
               이용방법
             </Link>
-            <Link href="/experts" className="text-gray-700 hover:text-primary transition">
+            <Link href="#features" className="text-gray-700 hover:text-primary transition">
               전문가 찾기
             </Link>
-            <Link href="/pricing" className="text-gray-700 hover:text-primary transition">
-              요금안내
-            </Link>
-            <Link href="/about" className="text-gray-700 hover:text-primary transition">
+            <Link href="#cta" className="text-gray-700 hover:text-primary transition">
               회사소개
             </Link>
           </div>
@@ -93,6 +80,8 @@ export default function Header() {
           <button
             className="md:hidden"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="모바일 메뉴 토글"
+            aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -100,37 +89,47 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-16 left-0 w-full bg-white shadow-lg">
-            <div className="px-4 py-4 space-y-4">
-              <Link href="/how-it-works" className="block text-gray-700 hover:text-primary">
+          <div className="md:hidden absolute top-16 left-0 w-full bg-white shadow-lg border-t">
+            <div className="px-4 py-4 space-y-1">
+              <Link 
+                href="#how-it-works" 
+                className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+              >
                 이용방법
               </Link>
-              <Link href="/experts" className="block text-gray-700 hover:text-primary">
+              <Link 
+                href="#features" 
+                className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+              >
                 전문가 찾기
               </Link>
-              <Link href="/pricing" className="block text-gray-700 hover:text-primary">
-                요금안내
-              </Link>
-              <Link href="/about" className="block text-gray-700 hover:text-primary">
+              <Link 
+                href="#cta" 
+                className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+              >
                 회사소개
               </Link>
-              <div className="pt-4 border-t space-y-2">
+              <div className="pt-4 border-t space-y-3">
                 {user ? (
                   <>
                     <Link href="/dashboard" className="block">
-                      <Button variant="outline" className="w-full">대시보드</Button>
+                      <Button variant="outline" className="w-full min-h-[44px]">대시보드</Button>
                     </Link>
-                    <Button variant="outline" className="w-full" onClick={handleLogout}>
+                    <Button 
+                      variant="outline" 
+                      className="w-full min-h-[44px]" 
+                      onClick={handleLogout}
+                    >
                       로그아웃
                     </Button>
                   </>
                 ) : (
                   <>
                     <Link href="/auth/login" className="block">
-                      <Button variant="outline" className="w-full">로그인</Button>
+                      <Button variant="outline" className="w-full min-h-[44px]">로그인</Button>
                     </Link>
                     <Link href="/auth/register" className="block">
-                      <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
+                      <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 min-h-[44px]">
                         무료 시작하기
                       </Button>
                     </Link>

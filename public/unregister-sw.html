@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Service Worker 정리</title>
+</head>
+<body>
+    <h1>Service Worker 정리 중...</h1>
+    <div id="status"></div>
+    <script>
+        async function cleanupServiceWorkers() {
+            const statusDiv = document.getElementById('status');
+            
+            try {
+                // 1. 모든 Service Worker 등록 해제
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        statusDiv.innerHTML += `<p>Service Worker 해제: ${registration.scope}</p>`;
+                    }
+                }
+                
+                // 2. 모든 캐시 삭제
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let name of cacheNames) {
+                        await caches.delete(name);
+                        statusDiv.innerHTML += `<p>캐시 삭제: ${name}</p>`;
+                    }
+                }
+                
+                // 3. IndexedDB 정리
+                if ('indexedDB' in window) {
+                    const databases = await indexedDB.databases();
+                    for (let db of databases) {
+                        indexedDB.deleteDatabase(db.name);
+                        statusDiv.innerHTML += `<p>IndexedDB 삭제: ${db.name}</p>`;
+                    }
+                }
+                
+                // 4. Local Storage 정리
+                localStorage.clear();
+                statusDiv.innerHTML += `<p>Local Storage 정리 완료</p>`;
+                
+                // 5. Session Storage 정리
+                sessionStorage.clear();
+                statusDiv.innerHTML += `<p>Session Storage 정리 완료</p>`;
+                
+                statusDiv.innerHTML += `<h2 style="color: green;">모든 정리 완료!</h2>`;
+                statusDiv.innerHTML += `<p>3초 후 메인 페이지로 이동합니다...</p>`;
+                
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+                
+            } catch (error) {
+                statusDiv.innerHTML += `<p style="color: red;">에러 발생: ${error.message}</p>`;
+            }
+        }
+        
+        // 실행
+        cleanupServiceWorkers();
+    </script>
+</body>
+</html>

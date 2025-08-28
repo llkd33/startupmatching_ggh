@@ -119,16 +119,245 @@
         "priority": "low",
         "details": "Create rating interface for bidirectional reviews, implement review display on profiles, calculate and update average ratings, add review moderation features.",
         "testStrategy": "Test rating submission works for both parties, reviews are displayed correctly on profiles, and average ratings are calculated accurately."
+      },
+      {
+        "id": 11,
+        "title": "Urgent Security Enhancements",
+        "description": "Strengthen the platform's security by reviewing and reinforcing Supabase RLS policies, securing API endpoints, and implementing robust file upload validation.",
+        "details": "Based on PRD section 4. This includes: 4.1 Supabase RLS policy review and reinforcement, 4.2 API Route security middleware implementation, 4.3 Input validation and sanitization, 4.4 Secure file uploads (virus scan, type validation), 4.5 Rate limiting and DDoS protection.",
+        "testStrategy": "Security audit, penetration testing, and specific unit/integration tests for RLS policies and input validation rules.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Supabase RLS Policy Review and Reinforcement",
+            "description": "Conduct a comprehensive review of existing Supabase Row Level Security (RLS) policies and reinforce them to ensure data access is strictly controlled and aligned with application roles and permissions.",
+            "dependencies": [],
+            "details": "Analyze current RLS policies for all relevant tables (e.g., `profiles`, `campaigns`, `proposals`, `reviews`). Identify potential vulnerabilities or overly permissive rules. Implement stricter policies where necessary, ensuring proper `SELECT`, `INSERT`, `UPDATE`, `DELETE` controls based on user roles (e.g., `authenticated`, `anon`, `service_role`, `expert`, `organization`). Test policy effectiveness.\n<info added on 2025-08-19T04:55:47.498Z>\nCompleted comprehensive RLS policy review and created security audit report. Identified key vulnerabilities: overly permissive SELECT policies, missing DELETE policies, weak admin verification. Created migration script 006_security_enhancement_phase1.sql with improved policies, rate limiting, and audit trails.\n</info added on 2025-08-19T04:55:47.498Z>",
+            "status": "pending",
+            "testStrategy": "Conduct specific unit and integration tests for RLS policies. Attempt unauthorized data access to verify policies prevent it. Perform a security audit focusing on data access."
+          },
+          {
+            "id": 2,
+            "title": "API Route Security Middleware Implementation",
+            "description": "Develop and integrate security middleware for all critical API routes to enforce authentication, authorization, and other security checks before processing requests.",
+            "dependencies": [],
+            "details": "Design and implement middleware functions for Next.js API routes or similar. This includes verifying user authentication tokens, checking user roles against required permissions for specific endpoints, and potentially logging access attempts. Apply middleware to sensitive routes like `POST /api/proposals`, `PUT /api/profiles`, `DELETE /api/campaigns`.",
+            "status": "pending",
+            "testStrategy": "Write integration tests to ensure unauthorized requests are rejected by the middleware. Verify authenticated requests with correct roles are processed. Perform penetration testing on API endpoints."
+          },
+          {
+            "id": 3,
+            "title": "Input Validation and Sanitization Implementation",
+            "description": "Implement robust input validation and sanitization across all user-facing forms and API endpoints to prevent common web vulnerabilities such as XSS, SQL injection, and command injection.",
+            "dependencies": [],
+            "details": "Identify all user input fields (e.g., profile descriptions, proposal content, review text, search queries). Utilize libraries like `zod` or `joi` for schema validation on the backend. Implement sanitization techniques (e.g., `DOMPurify` for HTML content, escaping special characters) to neutralize malicious input before it's stored or processed.",
+            "status": "pending",
+            "testStrategy": "Develop unit tests for validation rules. Conduct integration tests by submitting malicious payloads (e.g., `<script>alert('XSS')</script>`, SQL injection strings) to verify they are rejected or sanitized."
+          },
+          {
+            "id": 4,
+            "title": "Secure File Uploads Implementation",
+            "description": "Enhance the file upload mechanism to include robust security measures such as virus scanning, file type validation, and size limits to prevent malicious file uploads.",
+            "dependencies": [],
+            "details": "Integrate with a cloud-based virus scanning service (e.g., ClamAV, AWS S3 virus scanning integration). Implement server-side validation for allowed file types (MIME types) and maximum file sizes. Store uploaded files securely in Supabase Storage with appropriate RLS policies.",
+            "status": "pending",
+            "testStrategy": "Attempt to upload malicious files (e.g., EICAR test file), disallowed file types (e.g., `.exe`, `.php`), and oversized files to ensure they are rejected. Verify only allowed file types are successfully uploaded and accessible."
+          },
+          {
+            "id": 5,
+            "title": "Rate Limiting and DDoS Protection Setup",
+            "description": "Configure and deploy rate limiting and basic DDoS protection mechanisms to safeguard the platform against abuse, brute-force attacks, and denial-of-service attempts.",
+            "dependencies": [],
+            "details": "Implement rate limiting on critical endpoints (e.g., login, signup, password reset, API calls) using a reverse proxy (e.g., Nginx, Cloudflare) or a dedicated service. Configure basic DDoS protection rules. Monitor traffic patterns for anomalies.",
+            "status": "pending",
+            "testStrategy": "Simulate high-volume requests to rate-limited endpoints to verify the limits are enforced. Observe system behavior under simulated DDoS conditions (e.g., using `ab` or `locust`) to ensure basic protection is active."
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Core Architecture and Code Structure Refactoring",
+        "description": "Redesign the project architecture to improve modularity, reduce coupling, and enhance maintainability by applying Clean Architecture and Atomic Design principles.",
+        "details": "Based on PRD section 1. This includes: 1.1 Redesigning project architecture with Clean Architecture, 1.2 Refactoring component structure with Atomic Design, 1.3 Removing duplicate code and consolidating utilities, 1.4 Centralizing and strengthening the TypeScript type system.",
+        "testStrategy": "Static code analysis for code quality metrics. Unit tests for refactored components and utilities. E2E tests to ensure no regressions in functionality.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "State Management and Data Flow Optimization",
+        "description": "Implement a modern state management solution and optimize server state handling to improve data consistency and application performance.",
+        "details": "Based on PRD section 2. This includes: 2.1 Introducing a global state management solution (Zustand), 2.2 Adopting TanStack Query for server state management, 2.3 Optimizing real-time subscriptions to prevent memory leaks, 2.4 Implementing data caching strategies, 2.5 Implementing Optimistic UI patterns.",
+        "testStrategy": "Unit tests for state management logic (stores, hooks). Integration tests for components using TanStack Query to verify data fetching, caching, and invalidation.",
+        "priority": "high",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Frontend Performance Optimization",
+        "description": "Improve application load times and responsiveness by optimizing the frontend build and rendering processes.",
+        "details": "Based on PRD section 3. This includes: 3.1 Implementing code splitting and dynamic imports, 3.2 Optimizing images with Next/Image and WebP, 3.3 Analyzing and reducing bundle size, 3.4 Improving Web Vitals (LCP, FID, CLS), 3.5 Optimizing SSR and SSG strategies.",
+        "testStrategy": "Performance profiling using Lighthouse and WebPageTest. Monitoring Web Vitals in production. Bundle size analysis tools integrated into the CI pipeline.",
+        "priority": "high",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "User Experience and UI/UX Improvements",
+        "description": "Enhance the overall user experience by implementing consistent loading states, better error handling, and improved accessibility.",
+        "details": "Based on PRD section 5. This includes: 5.1 Implementing Error Boundaries and fallback UIs, 5.2 Implementing skeleton loading screens, 5.3 Improving form validation and error messages, 5.4 Adding multi-language support (i18n), 5.5 Adding dark mode support.",
+        "testStrategy": "Manual UX/UI review. E2E tests for user flows involving forms and error states. Accessibility audit using tools like Axe.",
+        "priority": "medium",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Error Boundaries and Fallback UIs",
+            "description": "Develop and integrate error boundaries across the application to gracefully handle runtime errors and display user-friendly fallback UIs instead of crashing.",
+            "dependencies": [],
+            "details": "Based on PRD section 5.1. Focus on critical sections and user flows to ensure robust error handling and a smooth user experience even during unexpected issues.",
+            "status": "pending",
+            "testStrategy": "Test various error scenarios (e.g., API failures, component rendering errors) to ensure error boundaries catch them and display appropriate fallback UIs. Verify no unhandled exceptions crash the application."
+          },
+          {
+            "id": 2,
+            "title": "Implement Skeleton Loading Screens",
+            "description": "Introduce skeleton loading screens for data-intensive sections and asynchronous operations to provide visual feedback during content loading, improving perceived performance and reducing user frustration.",
+            "dependencies": [],
+            "details": "Based on PRD section 5.2. Identify key areas like dashboards, profile pages, and search results for implementation. Design skeleton states that mimic the final content layout.",
+            "status": "pending",
+            "testStrategy": "Verify skeleton screens appear correctly during data fetching, match the layout of the loaded content, and disappear smoothly once data is rendered. Test on various network speeds."
+          },
+          {
+            "id": 3,
+            "title": "Improve Form Validation and Error Messages",
+            "description": "Enhance the robustness of form validation logic and clarity of error messages across all user input forms to guide users effectively, reduce submission errors, and improve data quality.",
+            "dependencies": [],
+            "details": "Based on PRD section 5.3. Review existing forms (e.g., login, registration, profile updates, proposal submission) and implement consistent validation rules and user-friendly, actionable error feedback.",
+            "status": "pending",
+            "testStrategy": "Test all form fields with valid and invalid inputs, ensuring correct validation triggers and clear, actionable error messages are displayed. Verify real-time feedback where applicable."
+          },
+          {
+            "id": 4,
+            "title": "Add Multi-Language Support (i18n)",
+            "description": "Integrate internationalization (i18n) capabilities to allow the application's content to be displayed in multiple languages, starting with a primary set of supported languages.",
+            "dependencies": [],
+            "details": "Based on PRD section 5.4. Implement a robust i18n framework, extract all user-facing strings into translation files, and provide initial translations for key languages (e.g., English, Spanish).",
+            "status": "pending",
+            "testStrategy": "Verify text elements are correctly translated when switching languages, including static content, dynamic data, and UI labels. Check for proper text alignment and truncation in different languages."
+          },
+          {
+            "id": 5,
+            "title": "Add Dark Mode Support",
+            "description": "Implement a dark mode theme for the application, allowing users to switch between light and dark visual styles based on their preference or system settings, enhancing user comfort.",
+            "dependencies": [],
+            "details": "Based on PRD section 5.5. Define a comprehensive dark mode color palette and apply it consistently across all UI components, including text, backgrounds, icons, and interactive elements. Provide a user toggle for switching modes.",
+            "status": "pending",
+            "testStrategy": "Verify all UI components render correctly in dark mode, ensuring legibility, contrast, and aesthetic appeal. Test the dark mode toggle functionality and persistence across sessions."
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Establish Testing Framework and Quality Assurance",
+        "description": "Build a comprehensive testing suite to ensure code quality, prevent regressions, and increase development velocity. Aim for 80%+ code coverage.",
+        "details": "Based on PRD section 6. This includes: 6.1 Setting up Jest and React Testing Library for unit tests, 6.2 Implementing E2E tests with Playwright, 6.3 Building a component library with Storybook, 6.4 Setting a code coverage target of 80% or more.",
+        "testStrategy": "This task is about creating the test strategy itself. Success is measured by the successful setup and integration of testing frameworks and achieving the coverage goal.",
+        "priority": "medium",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "CI/CD Pipeline and Development Environment Setup",
+        "description": "Automate the build, test, and deployment process using GitHub Actions and establish a robust development and deployment workflow.",
+        "details": "Based on PRD section 7. This includes: 7.1 Building a GitHub Actions CI/CD pipeline, 7.2 Establishing deployment strategies for dev, staging, and production, 7.3 Containerizing the application with Docker, 7.4 Setting up monitoring and logging (Sentry).",
+        "testStrategy": "Verify that the CI/CD pipeline runs successfully on pull requests and merges. Confirm successful deployments to staging and production environments.",
+        "priority": "medium",
+        "dependencies": [
+          16
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Advanced Feature Development",
+        "description": "Implement high-value features to enhance the platform's core offering, including an AI matching algorithm and an advanced notification system.",
+        "details": "Based on PRD section 9. This includes: 9.1 Implementing an AI-based matching algorithm, 9.2 Enhancing the real-time notification system, 9.3 Migrating the messaging system to WebSockets, 9.4 Adding advanced search and filtering capabilities.",
+        "testStrategy": "Unit and integration tests for new algorithms and services. E2E tests for new user-facing features. A/B testing for the new matching algorithm.",
+        "priority": "low",
+        "dependencies": [
+          12,
+          13,
+          14
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Comprehensive Project Documentation",
+        "description": "Create detailed documentation for the project's architecture, APIs, and components to facilitate onboarding and future development.",
+        "details": "Based on PRD section 8. This includes: 8.1 API documentation with OpenAPI/Swagger, 8.2 Component documentation and usage guides (in Storybook), 8.3 Architecture diagrams, 8.4 Onboarding and troubleshooting guides.",
+        "testStrategy": "Peer review of documentation for clarity, completeness, and accuracy. New developer onboarding sessions to test the effectiveness of the guides.",
+        "priority": "low",
+        "dependencies": [
+          12,
+          17
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Scalability and Infrastructure Planning",
+        "description": "Review and plan for future scalability by exploring microservices, an API Gateway, and event-driven architecture.",
+        "details": "Based on PRD section 10. This includes: 10.1 Reviewing a potential move to a microservices architecture, 10.2 Implementing an API Gateway, 10.3 Introducing event-driven architecture patterns, 10.4 Establishing backup and disaster recovery strategies.",
+        "testStrategy": "Architectural review sessions and proof-of-concept (PoC) implementations for new infrastructure patterns. Load testing to validate scalability improvements.",
+        "priority": "low",
+        "dependencies": [
+          12,
+          17
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Implement Comprehensive Error Handling System",
+        "description": "Implement a robust error handling system across the application, including toast notifications, React error boundaries, and user-friendly fallback UIs, while eliminating `console.error()` as the sole error reporting mechanism.",
+        "details": "1.  **Error Boundary Implementation:** Utilize a library like `react-error-boundary` or implement custom class-based error boundaries. Strategically place error boundaries around major application sections (e.g., main content areas, complex widgets, data-fetching components) to prevent a single component failure from crashing the entire app. Design and implement visually distinct and informative fallback UIs for each boundary, providing options like 'Reload Page' or 'Contact Support'.\n2.  **Toast Notification System:** Choose and integrate a suitable toast notification library (e.g., `react-hot-toast`, `notistack`). Create a global `ToastProvider` or context to manage toast state. Develop a utility function or hook (e.g., `useToast`) to easily trigger success, error, warning, and info toasts from any component or service. Ensure toasts are accessible (ARIA attributes), have appropriate durations, and are dismissible.\n3.  **Centralized Error Logging & Reporting:** Integrate with an error monitoring service (e.g., Sentry, Bugsnag, LogRocket) to capture and report uncaught exceptions and errors from error boundaries. Replace direct `console.error()` calls with calls to this logging service or a wrapper function that also triggers user-facing notifications where appropriate. Ensure sensitive information is not logged.\n4.  **API Error Handling Standardization:** Implement global Axios interceptors or similar mechanisms for `fetch` API calls to catch and process HTTP errors (e.g., 4xx, 5xx). Map specific HTTP status codes or backend error messages to user-friendly toast notifications. Handle common scenarios like authentication failures (401 - redirect to login), not found (404 - show specific message/page), and server errors (500 - generic error message). If using TanStack Query (from Task 13), leverage its error handling capabilities (`onError` callbacks, `useErrorBoundary`).\n5.  **Form and Input Validation Errors:** Ensure client-side validation errors are displayed inline with the input fields. For server-side validation errors, display them clearly to the user, either as a toast or as a summary at the top of the form.",
+        "testStrategy": "1.  **Unit & Component Tests:** Write tests for the `ToastProvider` and `useToast` hook to ensure correct rendering and behavior of notifications. Test custom error boundary components: verify they catch errors from children and render the fallback UI. Mock error logging to ensure it's called. Test utility functions for API error parsing and message generation.\n2.  **Integration Tests:** Simulate runtime errors within components (e.g., by throwing an error in a mocked function) and assert that the nearest error boundary catches it and displays the fallback UI. Mock API responses to return various error codes (400, 401, 403, 404, 500) and verify that the correct toast notifications appear and/or the UI reacts appropriately (e.g., redirect on 401). Verify that `console.error()` calls are replaced by calls to the centralized logging service.\n3.  **End-to-End (E2E) Tests:** Develop E2E scenarios that intentionally trigger errors in different parts of the application (e.g., submitting invalid forms, attempting unauthorized actions, simulating network failures). Assert that the user experience is graceful: correct error messages are displayed, the application doesn't crash, and fallback UIs are functional. Verify that errors are correctly reported to the integrated error monitoring service.\n4.  **Code Review & Static Analysis:** Conduct thorough code reviews to ensure `console.error()` is not used for production-critical error reporting. Utilize static analysis tools (ESLint rules) to flag direct `console.error()` usage.",
+        "status": "in-progress",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
-      "version": "1.0",
-      "created_at": "2025-08-02T15:14:40.000Z",
-      "project_name": "Expert Matching Platform",
-      "total_tasks": 10,
       "created": "2025-08-02T16:12:26.189Z",
-      "description": "Tasks for master context",
-      "updated": "2025-08-03T11:28:15.576Z"
+      "updated": "2025-08-19T06:21:54.615Z",
+      "description": "Tasks for master context"
     }
   }
 }

@@ -24,10 +24,20 @@ export default function NotificationBadge({ userId }: NotificationBadgeProps) {
     try {
       const { data, error } = await supabase.rpc('get_unread_notification_count')
       
-      if (error) throw error
-      setUnreadCount(data || 0)
-    } catch (err) {
-      console.error('Error loading unread count:', err)
+      if (error) {
+        // If the function doesn't exist, just set count to 0
+        if (error.code === '42883' || error.message?.includes('function')) {
+          console.warn('Notification count function not found, using default')
+          setUnreadCount(0)
+        } else {
+          console.error('Error loading unread count:', error.message || error)
+        }
+      } else {
+        setUnreadCount(data || 0)
+      }
+    } catch (err: any) {
+      console.error('Error loading unread count:', err?.message || err)
+      setUnreadCount(0) // Default to 0 on error
     } finally {
       setLoading(false)
     }

@@ -23,25 +23,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setRole(session?.user?.user_metadata?.role ?? null)
-    })
+    // 초기 세션 로드 + 역할은 DB 기준으로 동기화
+    const load = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session?.user) {
+          setSession(null)
+          setUser(null)
+          setRole(null)
+          setLoading(false)
+          return
+        }
+        
+        // 세션이 있으면 즉시 유저 설정 (빠른 UI 업데이트)
+        setSession(session)
+        setUser(session.user)
+        
+        // 메타데이터에서 역할 먼저 설정 (빠른 초기 로드)
+        const metaRole = session.user.user_metadata?.role
+        if (metaRole) {
+          setRole(metaRole as UserRole)
+        }
+        
+        // DB에서 역할 확인 (백그라운드에서)
+        try {
+          const { data: userRow, error: roleError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', session.user.id)
+            .single()
+          
+          if (!roleError && userRow?.role) {
+            setRole(userRow.role)
+          }
+        } catch (err) {
+          // DB 접근 실패 시 메타데이터 역할 유지
+          console.log('Role fetch from DB failed, using metadata role')
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error)
+        setError(error as Error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setRole(session?.user?.user_metadata?.role ?? null)
-    })
+    load()
 
-    setLoading(false)
+    // 인증 변경 리스너
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // 즉시 세션 업데이트
+      setSession(session ?? null)
+      setUser(session?.user ?? null)
+
+      if (session?.user) {
+        // 메타데이터에서 빠르게 역할 설정
+        const metaRole = session.user.user_metadata?.role
+        if (metaRole) {
+          setRole(metaRole as UserRole)
+        }
+        
+        // DB 확인은 비동기로
+        supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: userRow, error }) => {
+            if (!error && userRow?.role) {
+              setRole(userRow.role)
+            }
+          })
+          .catch(() => {
+            // DB 접근 실패 시 메타데이터 역할 유지
+            console.log('Role fetch from DB failed in auth state change')
+          })
+      } else {
+        setRole(null)
+      }
+      
+      // 로그인/로그아웃 이벤트에서만 로딩 상태 업데이트
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        setLoading(false)
+      }
+    })
 
     return () => subscription.unsubscribe()
   }, [])
@@ -58,6 +127,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+
+    // users 테이블 보정: 트리거 실패 등 대비
+    if (data?.user && !error) {
+      await supabase
+        .from('users')
+        .upsert({
+          id: data.user.id,
+          email: data.user.email,
+          role,
+          phone: metadata?.phone ?? null,
+        }, { onConflict: 'id' })
+    }
+
     return { data, error }
   }
 
@@ -89,6 +171,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signOut,
     resetPassword,
+  }
+
+  // Show error if there's an initialization error
+  if (error) {
+    console.error('Auth initialization error:', error)
+    // Don't block the app, just log the error and continue
+    // return (
+    //   <div style={{ padding: '20px', backgroundColor: 'red', color: 'white' }}>
+    //     <h2>Auth Error:</h2>
+    //     <pre>{error.message}</pre>
+    //   </div>
+    // )
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Service Workers</title>
+</head>
+<body>
+    <h1>Service Worker Cleanup</h1>
+    <p id="status">Checking for service workers...</p>
+    
+    <script>
+        async function unregisterAllServiceWorkers() {
+            const statusEl = document.getElementById('status');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    
+                    if (registrations.length === 0) {
+                        statusEl.textContent = 'No service workers found.';
+                        return;
+                    }
+                    
+                    statusEl.textContent = `Found ${registrations.length} service worker(s). Unregistering...`;
+                    
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('Unregistered:', registration.scope);
+                    }
+                    
+                    statusEl.textContent = 'All service workers have been unregistered. You can close this page.';
+                    
+                    // Clear caches
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(
+                            cacheNames.map(cacheName => caches.delete(cacheName))
+                        );
+                        console.log('All caches cleared');
+                    }
+                    
+                } catch (error) {
+                    statusEl.textContent = 'Error: ' + error.message;
+                    console.error('Error unregistering service workers:', error);
+                }
+            } else {
+                statusEl.textContent = 'Service workers are not supported in this browser.';
+            }
+        }
+        
+        // Run immediately
+        unregisterAllServiceWorkers();
+    </script>
+</body>
+</html>

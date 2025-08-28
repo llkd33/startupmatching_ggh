@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { db } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { CalendarIcon, CurrencyDollarIcon, LinkIcon } from '@heroicons/react/24/outline'
 
 interface ProposalFormProps {
@@ -36,17 +36,18 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         campaign_id: campaignId,
         expert_id: expertId,
         proposal_text: formData.proposal_text,
-        estimated_budget: formData.estimated_budget ? parseFloat(formData.estimated_budget) : null,
+        estimated_budget: formData.estimated_budget ? parseInt(formData.estimated_budget) : null,
         estimated_start_date: formData.estimated_start_date || null,
         estimated_end_date: formData.estimated_end_date || null,
         portfolio_links: formData.portfolio_links,
       }
 
-      const { error } = await db.proposals.submit(proposalData)
+      const { error } = await supabase
+        .from('proposals')
+        .insert(proposalData)
+
       if (error) throw error
 
-      // TODO: Create notification for organization
-      
       router.push('/dashboard/proposals')
     } catch (err: any) {
       setError(err.message || '제안서 제출 중 오류가 발생했습니다.')

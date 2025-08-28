@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SimpleProgressBar } from '@/components/ui/progress-steps'
+import { useToast } from '@/components/ui/toast-provider'
+import { HelpCircle } from 'lucide-react'
 
 const industries = [
   'IT/소프트웨어',
@@ -35,22 +38,43 @@ const employeeCounts = [
 
 export default function CompleteOrganizationProfilePage() {
   const router = useRouter()
+  const { success, error: showError } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [completedFields, setCompletedFields] = useState(0)
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     setError,
-    setValue
+    setValue,
+    watch
   } = useForm<OrganizationProfileInput>({
     resolver: zodResolver(organizationProfileSchema)
   })
 
+  const watchedFields = watch()
+
   useEffect(() => {
     checkAuthAndLoadProfile()
   }, [])
+
+  useEffect(() => {
+    // Calculate progress based on filled fields
+    const requiredFields = ['organizationName', 'representativeName', 'industry', 'employeeCount']
+    const optionalFields = ['businessNumber', 'contactPosition', 'website', 'description']
+    
+    let completed = 0
+    requiredFields.forEach(field => {
+      if (watchedFields[field as keyof OrganizationProfileInput]) completed++
+    })
+    optionalFields.forEach(field => {
+      if (watchedFields[field as keyof OrganizationProfileInput]) completed++
+    })
+    
+    setCompletedFields(completed)
+  }, [watchedFields])
 
   const checkAuthAndLoadProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -107,11 +131,14 @@ export default function CompleteOrganizationProfilePage() {
       }
 
       // 성공 시 대시보드로 이동
+      success('프로필이 성공적으로 저장되었습니다!')
       router.push('/dashboard')
     } catch (error: any) {
+      const errorMessage = error.message || '프로필 저장 중 오류가 발생했습니다'
       setError('root', {
-        message: error.message || '프로필 저장 중 오류가 발생했습니다'
+        message: errorMessage
       })
+      showError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -126,6 +153,13 @@ export default function CompleteOrganizationProfilePage() {
             <CardDescription>
               조직 정보를 입력하여 프로필을 완성해주세요. 전문가들이 귀사를 더 잘 이해할 수 있습니다.
             </CardDescription>
+            <div className="mt-4">
+              <SimpleProgressBar 
+                current={completedFields} 
+                total={8} 
+                className="mt-4"
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -137,11 +171,20 @@ export default function CompleteOrganizationProfilePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="organizationName">조직명 *</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="organizationName">조직명 *</Label>
+                    <div className="group relative">
+                      <HelpCircle className="w-4 h-4 text-gray-400" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                        정식 법인명 또는 기관명을 입력해주세요
+                      </div>
+                    </div>
+                  </div>
                   <Input
                     id="organizationName"
                     {...register('organizationName')}
                     disabled={isLoading}
+                    className="h-12"
                   />
                   {errors.organizationName && (
                     <p className="text-sm text-red-600">{errors.organizationName.message}</p>
@@ -149,12 +192,21 @@ export default function CompleteOrganizationProfilePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="businessNumber">사업자등록번호</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="businessNumber">사업자등록번호</Label>
+                    <div className="group relative">
+                      <HelpCircle className="w-4 h-4 text-gray-400" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                        10자리 사업자등록번호 (선택사항)
+                      </div>
+                    </div>
+                  </div>
                   <Input
                     id="businessNumber"
                     placeholder="123-45-67890"
                     {...register('businessNumber')}
                     disabled={isLoading}
+                    className="h-12"
                   />
                   {errors.businessNumber && (
                     <p className="text-sm text-red-600">{errors.businessNumber.message}</p>

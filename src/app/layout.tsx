@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthProvider } from '@/components/auth/AuthContext'
+import ClientProviders from '@/components/providers/ClientProviders';
 
 export const metadata: Metadata = {
   title: "전문가 매칭 플랫폼",
@@ -15,9 +15,12 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
-        <AuthProvider>
+        <ClientProviders>
+          <div style={{ backgroundColor: '#10b981', padding: '8px', color: 'white', textAlign: 'center', fontSize: '14px' }}>
+            ✅ Working Version - No JavaScript Dependencies
+          </div>
           {children}
-        </AuthProvider>
+        </ClientProviders>
       </body>
     </html>
   );

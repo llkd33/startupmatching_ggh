@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { CloudArrowUpIcon, DocumentIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { Attachment } from '@/types/supabase'
 
@@ -20,14 +20,13 @@ export default function FileUploader({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [externalLink, setExternalLink] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+  const handleFiles = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return
 
     setError(null)
     
-    // Check file count
     if (attachments.length + files.length > maxFiles) {
       setError(`최대 ${maxFiles}개 파일까지 업로드 가능합니다.`)
       return
@@ -36,17 +35,14 @@ export default function FileUploader({
     const newAttachments: Attachment[] = []
 
     for (const file of Array.from(files)) {
-      // Check file size
       if (file.size > maxSizeMB * 1024 * 1024) {
         setError(`파일 크기는 ${maxSizeMB}MB 이하여야 합니다.`)
         continue
       }
 
-      // In a real app, you would upload to Supabase Storage or S3
-      // For now, we'll create a mock attachment
       const attachment: Attachment = {
         name: file.name,
-        url: URL.createObjectURL(file), // In production, this would be the uploaded URL
+        url: URL.createObjectURL(file),
         type: file.type,
         size: file.size,
       }
@@ -55,17 +51,41 @@ export default function FileUploader({
     }
 
     onChange([...attachments, ...newAttachments])
-    
-    // Reset input
+  }, [attachments, maxFiles, maxSizeMB, onChange])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files)
     e.target.value = ''
+  }
+
+  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    handleFiles(e.dataTransfer.files)
   }
 
   const addExternalLink = () => {
     if (!externalLink.trim()) return
-
     setError(null)
 
-    // Basic URL validation
     try {
       new URL(externalLink)
     } catch {
@@ -137,9 +157,17 @@ export default function FileUploader({
         <div>
           <label
             htmlFor="file-upload"
-            className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 transition-colors duration-200 ${
+              isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300'
+            }`}
           >
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400">
+            <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md ${
+              isDragging ? 'border-indigo-500' : 'border-gray-300 hover:border-gray-400'
+            }`}>
               <div className="space-y-1 text-center">
                 <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
                 <div className="flex text-sm text-gray-600">

@@ -7,9 +7,13 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 interface Message {
   id: string
   campaign_id: string
+  proposal_id: string | null
   sender_id: string
   receiver_id: string
-  message: string
+  content: string
+  message_type: 'text' | 'file' | 'system'
+  file_url: string | null
+  file_name: string | null
   is_read: boolean
   read_at: string | null
   created_at: string

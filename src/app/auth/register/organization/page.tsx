@@ -29,7 +29,7 @@ export default function OrganizationRegisterPage() {
     setIsLoading(true)
     
     try {
-      const { error } = await auth.signUp(
+      const { data: authData, error } = await auth.signUp(
         data.email,
         data.password,
         'organization',
@@ -47,19 +47,38 @@ export default function OrganizationRegisterPage() {
           setError('email', {
             message: '이미 등록된 이메일입니다'
           })
+        } else if (error.message.includes('email') || error.message.includes('confirm')) {
+          setError('root', {
+            message: '회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요.'
+          })
+          // 이메일 확인이 필요한 경우 로그인 페이지로 이동
+          setTimeout(() => router.push('/auth/login'), 3000)
+          return
         } else {
           setError('root', {
-            message: error.message
+            message: error.message || '회원가입 중 오류가 발생했습니다'
           })
         }
         return
       }
 
-      // 회원가입 성공 - 프로필 완성 페이지로 이동
-      router.push('/profile/organization/complete')
-    } catch (error) {
+      // 회원가입 성공
+      if (authData?.user) {
+        // 세션이 있으면 바로 프로필 페이지로
+        if (authData.session) {
+          router.push('/profile/organization/complete')
+        } else {
+          // 이메일 확인이 필요한 경우
+          setError('root', {
+            message: '회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요.'
+          })
+          setTimeout(() => router.push('/auth/login'), 3000)
+        }
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error)
       setError('root', {
-        message: '회원가입 중 오류가 발생했습니다'
+        message: error?.message || '회원가입 중 오류가 발생했습니다'
       })
     } finally {
       setIsLoading(false)

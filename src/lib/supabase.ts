@@ -1,14 +1,36 @@
 import { createClient } from '@supabase/supabase-js'
 import { Database } from '@/types/supabase'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables')
+  console.log('SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing')
+  console.log('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing')
+}
+
+export const supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
+  global: {
+    headers: {
+      'x-client-info': 'startup-matching@1.0.0'
+    }
+  },
+  db: {
+    schema: 'public'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
 })
 
 // Helper functions for common operations
@@ -28,19 +50,51 @@ export const auth = {
 
     // Trigger가 작동하지 않을 경우를 대비해 직접 users 테이블에 추가
     if (data?.user && !error) {
-      const { error: insertError } = await supabase
+      // users 테이블에 레코드 생성/업데이트
+      const { error: userError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
           id: data.user.id,
           email: data.user.email,
           role: role,
           phone: metadata?.phone
-        })
-        .select()
-        .single()
+        }, { onConflict: 'id' })
       
-      if (insertError && !insertError.message.includes('duplicate')) {
-        console.error('Error creating user record:', insertError)
+      if (userError && !userError.message.includes('duplicate')) {
+        console.error('Error creating user record:', userError)
+      }
+      
+      // 프로필 테이블에도 레코드 생성
+      if (role === 'expert') {
+        const { error: profileError } = await supabase
+          .from('expert_profiles')
+          .upsert({
+            user_id: data.user.id,
+            name: metadata?.name || '',
+            email: data.user.email,
+            is_profile_complete: false
+          }, { onConflict: 'user_id' })
+        
+        if (profileError && !profileError.message.includes('duplicate')) {
+          console.error('Error creating expert profile:', profileError)
+        }
+      } else if (role === 'organization') {
+        const { error: profileError } = await supabase
+          .from('organization_profiles')
+          .upsert({
+            user_id: data.user.id,
+            name: metadata?.organizationName || '',
+            email: data.user.email,
+            organization_name: metadata?.organizationName || '',
+            business_number: metadata?.businessNumber,
+            representative_name: metadata?.representativeName || '',
+            contact_position: metadata?.contactPosition,
+            is_profile_complete: false
+          }, { onConflict: 'user_id' })
+        
+        if (profileError && !profileError.message.includes('duplicate')) {
+          console.error('Error creating organization profile:', profileError)
+        }
       }
     }
 
@@ -221,12 +275,72 @@ export const db = {
       return { data, error }
     },
 
-    async updateStatus(proposalId: string, status: string) {
+    async getByExpert(expertId: string) {
       const { data, error } = await supabase
         .from('proposals')
-        .update({ status, reviewed_at: new Date().toISOString() })
+        .select(`
+          *,
+          campaigns(
+            *,
+            organization_profiles(*)
+          )
+        `)
+        .eq('expert_id', expertId)
+        .order('submitted_at', { ascending: false })
+      
+      return { data, error }
+    },
+
+    async getByOrganization(organizationId: string) {
+      const { data, error } = await supabase
+        .from('proposals')
+        .select(`
+          *,
+          campaigns!inner(
+            *,
+            organization_profiles!inner(*)
+          ),
+          expert_profiles(
+            *,
+            users(*)
+          )
+        `)
+        .eq('campaigns.organization_id', organizationId)
+        .order('submitted_at', { ascending: false })
+      
+      return { data, error }
+    },
+
+    async updateStatus(proposalId: string, status: string, responseMessage?: string) {
+      const { data, error } = await supabase
+        .from('proposals')
+        .update({ 
+          status, 
+          response_message: responseMessage || null,
+          reviewed_at: new Date().toISOString() 
+        })
         .eq('id', proposalId)
         .select()
+        .single()
+      
+      return { data, error }
+    },
+
+    async getById(proposalId: string) {
+      const { data, error } = await supabase
+        .from('proposals')
+        .select(`
+          *,
+          campaigns(
+            *,
+            organization_profiles(*)
+          ),
+          expert_profiles(
+            *,
+            users(*)
+          )
+        `)
+        .eq('id', proposalId)
         .single()
       
       return { data, error }
@@ -235,12 +349,15 @@ export const db = {
 
   // Message operations
   messages: {
-    async send(message: any) {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(message)
-        .select()
-        .single()
+    async send(campaignId: string, proposalId: string | null, senderId: string, receiverId: string, content: string, messageType: string = 'text') {
+      const { data, error } = await supabase.rpc('send_message', {
+        p_campaign_id: campaignId,
+        p_proposal_id: proposalId,
+        p_sender_id: senderId,
+        p_receiver_id: receiverId,
+        p_content: content,
+        p_message_type: messageType
+      })
       
       return { data, error }
     },
@@ -255,6 +372,16 @@ export const db = {
         .eq('campaign_id', campaignId)
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order('created_at', { ascending: true })
+      
+      return { data, error }
+    },
+
+    async getThreads(userId: string) {
+      const { data, error } = await supabase
+        .from('message_thread_view')
+        .select('*')
+        .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
+        .order('last_message_at', { ascending: false })
       
       return { data, error }
     },

@@ -20,6 +20,10 @@ import {
   Trash2
 } from 'lucide-react'
 import Link from 'next/link'
+import { CampaignListSkeleton } from '@/components/ui/loading-states'
+import { NoCampaigns, NoSearchResults } from '@/components/ui/empty-state'
+import { ResponsiveTable } from '@/components/ui/responsive-table'
+import { handleSupabaseError } from '@/lib/error-handler'
 
 interface Campaign {
   id: string
@@ -108,7 +112,7 @@ export default function CampaignsPage() {
 
       setCampaigns(data || [])
     } catch (error) {
-      console.error('Error loading campaigns:', error)
+      handleSupabaseError(error as Error)
     } finally {
       setLoading(false)
     }
@@ -174,12 +178,20 @@ export default function CampaignsPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center min-h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4">캠페인을 불러오는 중...</p>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">
+              {userRole === 'organization' ? '내 캠페인' : '캠페인 목록'}
+            </h1>
+            <p className="text-gray-600 mt-2">
+              {userRole === 'organization' 
+                ? '생성한 캠페인을 관리하세요'
+                : '관심있는 캠페인을 찾아보세요'}
+            </p>
           </div>
         </div>
+        <CampaignListSkeleton />
       </div>
     )
   }
@@ -241,33 +253,19 @@ export default function CampaignsPage() {
       {/* Campaign List */}
       {filteredCampaigns.length === 0 ? (
         <Card>
-          <CardContent className="text-center py-12">
-            <div className="text-gray-500">
-              {campaigns.length === 0 ? (
-                <>
-                  <h3 className="text-lg font-medium mb-2">
-                    {userRole === 'organization' ? '아직 생성한 캠페인이 없습니다' : '캠페인이 없습니다'}
-                  </h3>
-                  <p className="text-sm">
-                    {userRole === 'organization' 
-                      ? '첫 번째 캠페인을 만들어보세요'
-                      : '새로운 캠페인이 곧 등록될 예정입니다'}
-                  </p>
-                  {userRole === 'organization' && (
-                    <Button asChild className="mt-4">
-                      <Link href="/dashboard/campaigns/create">
-                        캠페인 만들기
-                      </Link>
-                    </Button>
-                  )}
-                </>
+          <CardContent className="py-12">
+            {campaigns.length === 0 ? (
+              userRole === 'organization' ? (
+                <NoCampaigns onCreate={() => router.push('/dashboard/campaigns/create')} />
               ) : (
-                <>
-                  <h3 className="text-lg font-medium mb-2">검색 결과가 없습니다</h3>
-                  <p className="text-sm">다른 키워드로 검색해보세요</p>
-                </>
-              )}
-            </div>
+                <NoCampaigns onCreate={() => {}} />
+              )
+            ) : (
+              <NoSearchResults onClear={() => {
+                setSearchTerm('')
+                setStatusFilter('all')
+              }} />
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -341,11 +339,18 @@ export default function CampaignsPage() {
                   </div>
                 )}
 
-                <div className="flex justify-end">
-                  {userRole === 'expert' ? (
-                    <Button>제안서 보내기</Button>
-                  ) : (
-                    <Button variant="outline">상세보기</Button>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" asChild>
+                    <Link href={`/dashboard/campaigns/${campaign.id}`}>
+                      상세보기
+                    </Link>
+                  </Button>
+                  {userRole === 'expert' && (
+                    <Button asChild>
+                      <Link href={`/dashboard/campaigns/${campaign.id}/propose`}>
+                        제안서 보내기
+                      </Link>
+                    </Button>
                   )}
                 </div>
               </CardContent>

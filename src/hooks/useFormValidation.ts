@@ -1,13 +1,18 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 interface ValidationRule {
   required?: boolean
   minLength?: number
   maxLength?: number
   pattern?: RegExp
-  custom?: (value: any) => string | null
+  custom?: (value: any) => string | null | Promise<string | null>
+  email?: boolean
+  url?: boolean
+  phone?: boolean
+  min?: number
+  max?: number
 }
 
 interface ValidationRules {
@@ -18,15 +23,31 @@ interface ValidationErrors {
   [field: string]: string
 }
 
+interface ValidationOptions {
+  mode?: 'onChange' | 'onBlur' | 'onSubmit'
+  reValidateMode?: 'onChange' | 'onBlur'
+  debounceTime?: number
+}
+
 export function useFormValidation<T extends Record<string, any>>(
   initialValues: T,
-  rules: ValidationRules
+  rules: ValidationRules,
+  options: ValidationOptions = {}
 ) {
+  const {
+    mode = 'onChange',
+    reValidateMode = 'onChange',
+    debounceTime = 300
+  } = options
+
   const [values, setValues] = useState<T>(initialValues)
   const [errors, setErrors] = useState<ValidationErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [validating, setValidating] = useState<Record<string, boolean>>({})
+  const [isDirty, setIsDirty] = useState(false)
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({})
 
-  const validateField = useCallback((field: string, value: any): string | null => {
+  const validateField = useCallback(async (field: string, value: any): Promise<string | null> => {
     const rule = rules[field]
     if (!rule) return null
 
@@ -40,6 +61,31 @@ export function useFormValidation<T extends Record<string, any>>(
       return null
     }
 
+    // Email validation
+    if (rule.email && typeof value === 'string') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(value)) {
+        return '올바른 이메일 주소를 입력해주세요.'
+      }
+    }
+
+    // Phone validation
+    if (rule.phone && typeof value === 'string') {
+      const phoneRegex = /^01[0-9]-?[0-9]{4}-?[0-9]{4}$/
+      if (!phoneRegex.test(value)) {
+        return '올바른 전화번호 형식으로 입력해주세요.'
+      }
+    }
+
+    // URL validation
+    if (rule.url && typeof value === 'string') {
+      try {
+        new URL(value)
+      } catch {
+        return '올바른 URL을 입력해주세요.'
+      }
+    }
+
     // Min length validation
     if (rule.minLength && typeof value === 'string' && value.length < rule.minLength) {
       return `최소 ${rule.minLength}자 이상 입력해주세요.`
@@ -50,30 +96,56 @@ export function useFormValidation<T extends Record<string, any>>(
       return `최대 ${rule.maxLength}자까지 입력 가능합니다.`
     }
 
+    // Min validation for numbers
+    if (rule.min !== undefined && Number(value) < rule.min) {
+      return `${rule.min} 이상의 값을 입력해주세요.`
+    }
+
+    // Max validation for numbers
+    if (rule.max !== undefined && Number(value) > rule.max) {
+      return `${rule.max} 이하의 값을 입력해주세요.`
+    }
+
     // Pattern validation
     if (rule.pattern && typeof value === 'string' && !rule.pattern.test(value)) {
       return '올바른 형식으로 입력해주세요.'
     }
 
-    // Custom validation
+    // Custom validation (can be async)
     if (rule.custom) {
-      return rule.custom(value)
+      const result = await rule.custom(value)
+      return result
     }
 
     return null
   }, [rules])
 
-  const validateAllFields = useCallback((): boolean => {
+  // Debounced validation
+  const debouncedValidate = useCallback((field: string, value: any) => {
+    if (debounceTimers.current[field]) {
+      clearTimeout(debounceTimers.current[field])
+    }
+
+    setValidating(prev => ({ ...prev, [field]: true }))
+
+    debounceTimers.current[field] = setTimeout(async () => {
+      const error = await validateField(field, value)
+      setErrors(prev => ({ ...prev, [field]: error || '' }))
+      setValidating(prev => ({ ...prev, [field]: false }))
+    }, debounceTime)
+  }, [validateField, debounceTime])
+
+  const validateAllFields = useCallback(async (): Promise<boolean> => {
     const newErrors: ValidationErrors = {}
     let isValid = true
 
-    Object.keys(rules).forEach(field => {
-      const error = validateField(field, values[field])
+    for (const field of Object.keys(rules)) {
+      const error = await validateField(field, values[field])
       if (error) {
         newErrors[field] = error
         isValid = false
       }
-    })
+    }
 
     setErrors(newErrors)
     return isValid
@@ -81,23 +153,32 @@ export function useFormValidation<T extends Record<string, any>>(
 
   const setValue = useCallback((field: keyof T, value: any) => {
     setValues(prev => ({ ...prev, [field]: value }))
+    setIsDirty(true)
     
     // Clear error when user starts typing
     if (errors[field as string]) {
-      setErrors(prev => ({ ...prev, [field]: null }))
+      setErrors(prev => ({ ...prev, [field]: '' }))
     }
-  }, [errors])
 
-  const setValues = useCallback((newValues: Partial<T>) => {
+    // Real-time validation based on mode
+    if (mode === 'onChange' || (touched[field as string] && reValidateMode === 'onChange')) {
+      debouncedValidate(field as string, value)
+    }
+  }, [errors, mode, touched, reValidateMode, debouncedValidate])
+
+  const setMultipleValues = useCallback((newValues: Partial<T>) => {
     setValues(prev => ({ ...prev, ...newValues }))
+    setIsDirty(true)
   }, [])
 
-  const handleBlur = useCallback((field: keyof T) => {
+  const handleBlur = useCallback(async (field: keyof T) => {
     setTouched(prev => ({ ...prev, [field]: true }))
     
-    const error = validateField(field as string, values[field])
-    setErrors(prev => ({ ...prev, [field]: error }))
-  }, [values, validateField])
+    if (mode === 'onBlur' || reValidateMode === 'onBlur') {
+      const error = await validateField(field as string, values[field])
+      setErrors(prev => ({ ...prev, [field]: error || '' }))
+    }
+  }, [values, validateField, mode, reValidateMode])
 
   const handleChange = useCallback((field: keyof T, value: any) => {
     setValue(field, value)
@@ -107,6 +188,11 @@ export function useFormValidation<T extends Record<string, any>>(
     setValues(initialValues)
     setErrors({})
     setTouched({})
+    setValidating({})
+    setIsDirty(false)
+    // Clear all debounce timers
+    Object.values(debounceTimers.current).forEach(clearTimeout)
+    debounceTimers.current = {}
   }, [initialValues])
 
   const getFieldProps = useCallback((field: keyof T) => ({
@@ -116,19 +202,32 @@ export function useFormValidation<T extends Record<string, any>>(
     },
     onBlur: () => handleBlur(field),
     error: touched[field as string] ? errors[field as string] : undefined,
+    'aria-invalid': touched[field as string] && !!errors[field as string],
+    'aria-describedby': errors[field as string] ? `${field}-error` : undefined,
   }), [values, errors, touched, handleChange, handleBlur])
 
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers.current).forEach(clearTimeout)
+    }
+  }, [])
+
   const isValid = Object.keys(errors).every(key => !errors[key])
-  const hasErrors = Object.keys(errors).some(key => errors[key])
+  const hasErrors = Object.keys(errors).some(key => !!errors[key])
+  const isValidating = Object.values(validating).some(v => v)
 
   return {
     values,
     errors,
     touched,
+    validating,
     isValid,
     hasErrors,
+    isValidating,
+    isDirty,
     setValue,
-    setValues,
+    setValues: setMultipleValues,
     handleChange,
     handleBlur,
     validateAllFields,
