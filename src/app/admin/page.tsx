@@ -1,5 +1,4 @@
-import { supabase } from '@/lib/supabase'
-import { checkAdminAuth } from '@/lib/admin'
+import { checkAdminAuth, getServerSupabase } from '@/lib/admin'
 import { Users, Briefcase, FileText, TrendingUp, Shield, Activity, CheckCircle, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
@@ -10,6 +9,7 @@ export default async function AdminDashboard() {
   await checkAdminAuth()
 
   // Fetch statistics
+  const supabase = getServerSupabase()
   const [
     { count: userCount },
     { count: expertCount },
@@ -21,22 +21,22 @@ export default async function AdminDashboard() {
     { data: recentCampaigns },
     { data: recentProposals }
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'expert'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'organization'),
-    supabase.from('campaigns').select('*', { count: 'exact', head: true }),
-    supabase.from('proposals').select('*', { count: 'exact', head: true }),
-    supabase.from('campaigns').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('status', 'accepted'),
+    supabase.from('users').select('id', { count: 'exact', head: true }),
+    supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'expert'),
+    supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'organization'),
+    supabase.from('campaigns').select('id', { count: 'exact', head: true }),
+    supabase.from('proposals').select('id', { count: 'exact', head: true }),
+    supabase.from('campaigns').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('proposals').select('id', { count: 'exact', head: true }).eq('status', 'accepted'),
     supabase.from('campaigns')
-      .select('*, profiles!campaigns_organization_id_fkey(organization_name)')
+      .select('*, organization_profiles(organization_name)')
       .order('created_at', { ascending: false })
       .limit(5),
     supabase.from('proposals')
-      .select('*, campaigns(title), profiles!proposals_expert_id_fkey(name)')
+      .select('*, campaigns(title), expert_profiles(name)')
       .order('created_at', { ascending: false })
       .limit(5)
-  ]);
+  ])
 
   const stats = [
     { label: '전체 사용자', value: userCount || 0, icon: Users, color: 'bg-blue-500', href: '/admin/users' },
@@ -98,7 +98,7 @@ export default async function AdminDashboard() {
                     <div>
                       <p className="font-medium text-gray-800">{campaign.title}</p>
                       <p className="text-sm text-gray-600">
-                        by {campaign.profiles?.organization_name || 'Unknown'}
+                        by {campaign.organization_profiles?.organization_name || 'Unknown'}
                       </p>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -133,7 +133,7 @@ export default async function AdminDashboard() {
                   <div key={proposal.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-800">
-                        {proposal.profiles?.name || 'Unknown Expert'}
+                        {proposal.expert_profiles?.name || 'Unknown Expert'}
                       </p>
                       <p className="text-sm text-gray-600">
                         for {proposal.campaigns?.title}

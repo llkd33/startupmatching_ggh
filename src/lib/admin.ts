@@ -1,8 +1,14 @@
-import { supabase } from '@/lib/supabase'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+
+// Create a Supabase client bound to server-side cookies
+export function getServerSupabase() {
+  return createServerComponentClient({ cookies })
+}
 
 export async function checkAdminAuth() {
-  
+  const supabase = getServerSupabase()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
   if (authError || !user) {
@@ -11,11 +17,11 @@ export async function checkAdminAuth() {
   
   const { data: userData, error: userError } = await supabase
     .from('users')
-    .select('is_admin')
+    .select('is_admin, role')
     .eq('id', user.id)
     .single()
   
-  if (userError || !userData?.is_admin) {
+  if (userError || (!userData?.is_admin && userData?.role !== 'admin')) {
     redirect('/unauthorized')
   }
   
@@ -23,7 +29,7 @@ export async function checkAdminAuth() {
 }
 
 export async function getAdminStats() {
-  
+  const supabase = getServerSupabase()
   const { data: stats, error } = await supabase
     .from('admin_statistics')
     .select('*')
@@ -43,7 +49,7 @@ export async function logAdminAction(
   entityId?: string,
   details?: any
 ) {
-  
+  const supabase = getServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return

@@ -41,11 +41,11 @@ export async function middleware(request: NextRequest) {
     // Check if user is admin
     const { data: userData } = await supabase
       .from('users')
-      .select('role')
+      .select('role, is_admin')
       .eq('id', user.id)
       .single();
 
-    if (!userData || userData.role !== 'admin') {
+    if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
       return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
   }

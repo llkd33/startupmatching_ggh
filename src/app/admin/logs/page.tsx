@@ -1,10 +1,10 @@
-import { supabase } from '@/lib/supabase'
-import { checkAdminAuth } from '@/lib/admin'
+import { checkAdminAuth, getServerSupabase } from '@/lib/admin'
 import AdminActivityLogs from '@/components/admin/AdminActivityLogs'
 
 export default async function AdminLogsPage() {
   await checkAdminAuth()
 
+  const supabase = getServerSupabase()
   const { data } = await supabase
     .from('admin_logs')
     .select('*')
@@ -15,6 +15,7 @@ export default async function AdminLogsPage() {
     <AdminActivityLogs
       logs={data || []}
       onRefresh={async () => {
+        const supabase = getServerSupabase()
         const { data } = await supabase
           .from('admin_logs')
           .select('*')
@@ -25,4 +26,3 @@ export default async function AdminLogsPage() {
     />
   )
 }
-

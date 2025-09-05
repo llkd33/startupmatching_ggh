@@ -38,11 +38,11 @@ export async function adminAuthMiddleware(request: NextRequest) {
   // Check if user is admin
   const { data: userData, error } = await supabase
     .from('users')
-    .select('role')
+    .select('role, is_admin')
     .eq('id', user.id)
     .single();
 
-  if (error || !userData || userData.role !== 'admin') {
+  if (error || !userData || (!userData.is_admin && userData.role !== 'admin')) {
     return NextResponse.redirect(new URL('/unauthorized', request.url));
   }
 
