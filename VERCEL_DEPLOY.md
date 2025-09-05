@@ -19,12 +19,14 @@ Vercel Dashboard → Settings → Environment Variables에서 추가:
 
 ```bash
 # 필수 환경 변수
-NEXT_PUBLIC_SUPABASE_URL=https://bgnuyghvjkqgwwvghqzo.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJnbnV5Z2h2amtxZ3d3dmdocXpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxNDg5NDAsImV4cCI6MjA2OTcyNDk0MH0.hLBPh0CUK1vVyHOvw2Ns6XpoP7YIz-8pYJga0VucJjE
+NEXT_PUBLIC_SUPABASE_URL=[your-supabase-url]
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[your-supabase-anon-key]
 
 # 서버 전용 (선택사항)
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJnbnV5Z2h2amtxZ3d3dmdocXpvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDE0ODk0MCwiZXhwIjoyMDY5NzI0OTQwfQ.9-syW-5L08gswTk5gr4od8ft4BUeXrd8bo6GMpNrKbQ
+SUPABASE_SERVICE_ROLE_KEY=[your-service-role-key]
 ```
+
+⚠️ **중요**: 실제 키 값은 `.env.local` 파일에서 복사하세요
 
 ### 3단계: 배포 설정
 1. **Framework Preset**: Next.js (자동 감지)

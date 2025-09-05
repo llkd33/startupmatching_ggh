@@ -76,9 +76,12 @@ supabase/
 ### 1. 환경 변수 설정
 `.env.local` 파일 생성:
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://bgnuyghvjkqgwwvghqzo.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_URL=[your-supabase-url]
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[your-supabase-anon-key]
+SUPABASE_SERVICE_ROLE_KEY=[your-service-role-key]
 ```
+
+참고: `.env.example` 파일을 참조하세요
 
 ### 2. 의존성 설치
 ```bash
