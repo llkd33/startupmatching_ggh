@@ -1,1 +1,1 @@
-web: next start -p $PORT
+web: bun run start

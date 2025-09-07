@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Initialize Supabase client
+    const supabase = createServerSupabaseClient()
+    
     const requestId = params.id
     const url = new URL(request.url)
     const token = url.searchParams.get('token')

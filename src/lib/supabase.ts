@@ -4,13 +4,20 @@ import { Database } from '@/types/supabase'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// During build time, we need to handle missing env vars gracefully
+const isBuildTime = typeof window === 'undefined' && !supabaseUrl && !supabaseAnonKey
+
+if (!isBuildTime && (!supabaseUrl || !supabaseAnonKey)) {
   console.error('Missing Supabase environment variables')
   console.log('SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing')
   console.log('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing')
 }
 
-export const supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!, {
+// Use dummy values during build time if env vars are not available
+const buildUrl = supabaseUrl || 'https://placeholder.supabase.co'
+const buildKey = supabaseAnonKey || 'placeholder-key'
+
+export const supabase = createClient<Database>(buildUrl, buildKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
