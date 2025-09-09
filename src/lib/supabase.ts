@@ -71,14 +71,13 @@ export const auth = {
         console.error('Error creating user record:', userError)
       }
       
-      // 프로필 테이블에도 레코드 생성
+      // 프로필 테이블에도 레코드 생성 (스키마 컬럼에 맞게 최소 필드만 입력)
       if (role === 'expert') {
         const { error: profileError } = await supabase
           .from('expert_profiles')
           .upsert({
             user_id: data.user.id,
             name: metadata?.name || '',
-            email: data.user.email,
             is_profile_complete: false
           }, { onConflict: 'user_id' })
         
@@ -90,8 +89,6 @@ export const auth = {
           .from('organization_profiles')
           .upsert({
             user_id: data.user.id,
-            name: metadata?.organizationName || '',
-            email: data.user.email,
             organization_name: metadata?.organizationName || '',
             business_number: metadata?.businessNumber,
             representative_name: metadata?.representativeName || '',
