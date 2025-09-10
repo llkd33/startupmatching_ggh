@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { browserSupabase } from '@/lib/supabase-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +61,7 @@ export default function CampaignsPage() {
   }, [campaigns, searchTerm, statusFilter])
 
   const checkAuthAndLoadCampaigns = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await browserSupabase.auth.getUser()
     
     if (!user) {
       router.push('/auth/login')
@@ -71,7 +71,7 @@ export default function CampaignsPage() {
     setUserId(user.id)
 
     // Get user role
-    const { data: userData } = await supabase
+    const { data: userData } = await browserSupabase
       .from('users')
       .select('role')
       .eq('id', user.id)
@@ -87,14 +87,14 @@ export default function CampaignsPage() {
     setLoading(true)
     
     try {
-      let query = supabase
+      let query = browserSupabase
         .from('campaigns')
         .select('*')
         .order('created_at', { ascending: false })
 
       if (role === 'organization') {
         // For organizations, show their own campaigns
-        const { data: orgProfile } = await supabase
+        const { data: orgProfile } = await browserSupabase
           .from('organization_profiles')
           .select('id')
           .eq('user_id', userId)
