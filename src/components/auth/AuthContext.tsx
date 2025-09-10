@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { browserSupabase } from '@/lib/supabase-client'
 import { UserRole } from '@/types/supabase'
 
 interface AuthContextType {
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 초기 세션 로드 + 역할은 DB 기준으로 동기화
     const load = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session } } = await browserSupabase.auth.getSession()
         
         if (!session?.user) {
           setSession(null)
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // DB에서 역할 확인 (백그라운드에서)
         try {
-          const { data: userRow, error: roleError } = await supabase
+          const { data: userRow, error: roleError } = await browserSupabase
             .from('users')
             .select('role')
             .eq('id', session.user.id)
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     load()
 
     // 인증 변경 리스너
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = browserSupabase.auth.onAuthStateChange(async (event, session) => {
       // 즉시 세션 업데이트
       setSession(session ?? null)
       setUser(session?.user ?? null)
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         // DB 확인은 비동기로
-        supabase
+        browserSupabase
           .from('users')
           .select('role')
           .eq('id', session.user.id)
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signUp = async (email: string, password: string, role: UserRole, metadata?: any) => {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await browserSupabase.auth.signUp({
       email,
       password,
       options: {
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // users 테이블 보정: 트리거 실패 등 대비
     if (data?.user && !error) {
-      await supabase
+      await browserSupabase
         .from('users')
         .upsert({
           id: data.user.id,
@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await browserSupabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -152,11 +152,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await browserSupabase.auth.signOut()
   }
 
   const resetPassword = async (email: string) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { data, error } = await browserSupabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     })
     return { data, error }

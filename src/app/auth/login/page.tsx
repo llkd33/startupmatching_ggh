@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 const DevModeLogin = dynamic(() => import('./dev-mode'), { ssr: false })
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { browserSupabase } from '@/lib/supabase-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,7 +41,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await browserSupabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -49,7 +49,7 @@ export default function LoginPage() {
       if (signInError) throw signInError
 
       // 사용자 정보 가져오기 (에러 처리 포함)
-      const userResult = await supabase
+      const userResult = await browserSupabase
         .from('users')
         .select('role')
         .eq('id', data.user.id)
@@ -61,14 +61,14 @@ export default function LoginPage() {
       // 역할에 따라 프로필 확인
       let profileComplete = true
       if (role === 'expert') {
-        const { data: expertProfile } = await supabase
+        const { data: expertProfile } = await browserSupabase
           .from('expert_profiles')
           .select('is_profile_complete')
           .eq('user_id', data.user.id)
           .single()
         profileComplete = expertProfile?.is_profile_complete ?? false
       } else if (role === 'organization') {
-        const { data: orgProfile } = await supabase
+        const { data: orgProfile } = await browserSupabase
           .from('organization_profiles')
           .select('is_profile_complete')
           .eq('user_id', data.user.id)

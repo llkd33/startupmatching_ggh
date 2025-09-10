@@ -1,47 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { browserSupabase } from './supabase-client'
 import { Database } from '@/types/supabase'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-// During build time, we need to handle missing env vars gracefully
-const isBuildTime = typeof window === 'undefined' && !supabaseUrl && !supabaseAnonKey
-
-if (!isBuildTime && (!supabaseUrl || !supabaseAnonKey)) {
-  console.error('Missing Supabase environment variables')
-  console.log('SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing')
-  console.log('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing')
-}
-
-// Use dummy values during build time if env vars are not available
-const buildUrl = supabaseUrl || 'https://placeholder.supabase.co'
-const buildKey = supabaseAnonKey || 'placeholder-key'
-
-export const supabase = createClient<Database>(buildUrl, buildKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-  },
-  global: {
-    headers: {
-      'x-client-info': 'startup-matching@1.0.0',
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    }
-  },
-  db: {
-    schema: 'public'
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10
-    }
-  }
-})
+// Re-export browserSupabase as supabase for backward compatibility
+export const supabase = browserSupabase
 
 // Helper functions for common operations
 export const auth = {
