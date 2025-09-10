@@ -23,15 +23,8 @@ export function createBrowserSupabaseClient() {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Prefer': 'return=representation',
-        'x-client-info': 'startup-matching@1.0.0'
-      },
-      fetch: (url, options = {}) => {
-        const headers = {
-          ...(options.headers || {}),
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        }
-        return fetch(url, { ...options, headers })
+        'x-client-info': 'startup-matching@1.0.0',
+        'apikey': supabaseAnonKey
       }
     },
     db: {
@@ -51,4 +44,17 @@ const buildKey = supabaseAnonKey || 'placeholder-key'
 
 export const browserSupabase = typeof window !== 'undefined' 
   ? createBrowserSupabaseClient() 
-  : createClient<Database>(buildUrl, buildKey)
+  : createClient<Database>(buildUrl, buildKey, {
+    auth: {
+      persistSession: false,
+    },
+    global: {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+        'x-client-info': 'startup-matching@1.0.0',
+        'apikey': buildKey
+      }
+    }
+  })
