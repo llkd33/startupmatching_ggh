@@ -56,11 +56,20 @@ export function useAuth() {
     try {
       const { data: profile } = await db.users.getProfile(user.id)
       
-      setUser({
-        ...user,
-        role: profile?.role,
-        profile: profile?.role === 'expert' ? profile.expert_profiles : profile.organization_profiles,
-      })
+      if (profile) {
+        const userProfile = profile.role === 'expert' 
+          ? profile.expert_profiles?.[0] || profile.expert_profiles
+          : profile.organization_profiles?.[0] || profile.organization_profiles
+        
+        setUser({
+          ...user,
+          role: profile.role,
+          profile: userProfile,
+        })
+      } else {
+        // If no profile exists yet, just set the user without profile
+        setUser(user as AuthUser)
+      }
     } catch (err) {
       console.error('Error loading user profile:', err)
       setUser(user as AuthUser)

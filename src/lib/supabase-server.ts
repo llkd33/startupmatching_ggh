@@ -18,5 +18,15 @@ export function createServerSupabaseClient() {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
+    global: {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    },
+    db: {
+      schema: 'public'
+    }
   })
 }
