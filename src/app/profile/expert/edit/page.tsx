@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
 import { Plus, X, Briefcase, GraduationCap, MapPin, Hash, User, Check } from 'lucide-react'
@@ -37,6 +38,7 @@ interface ProfileData {
   portfolioUrl: string
   careerHistory: CareerItem[]
   education: EducationItem[]
+  isAvailable: boolean
 }
 
 const AVAILABLE_SKILLS = [
@@ -68,7 +70,8 @@ export default function ExpertProfileEditPage() {
     hourlyRate: null,
     portfolioUrl: '',
     careerHistory: [],
-    education: []
+    education: [],
+    isAvailable: true
   })
 
   useEffect(() => {
@@ -107,7 +110,8 @@ export default function ExpertProfileEditPage() {
         hourlyRate: profile.hourly_rate,
         portfolioUrl: profile.portfolio_url || '',
         careerHistory: profile.career_history || [],
-        education: profile.education || []
+        education: profile.education || [],
+        isAvailable: profile.is_available ?? true
       })
     }
 
@@ -260,12 +264,18 @@ export default function ExpertProfileEditPage() {
           portfolio_url: profileData.portfolioUrl,
           career_history: profileData.careerHistory,
           education: profileData.education,
+          is_available: profileData.isAvailable,
           updated_at: new Date().toISOString()
-        })
+        }, { onConflict: 'user_id' })
 
       if (error) throw error
 
       alert('프로필이 저장되었습니다!')
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error: any) {
       alert('프로필 저장 중 오류가 발생했습니다: ' + error.message)
     } finally {
@@ -413,6 +423,26 @@ export default function ExpertProfileEditPage() {
                     onChange={(e) => setProfileData(prev => ({ ...prev, portfolioUrl: e.target.value }))}
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                <div className="space-y-1">
+                  <Label htmlFor="isAvailable" className="text-base font-medium">
+                    현재 프로젝트 수행 가능
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    새 프로젝트를 받을 수 있는 상태라면 켜 주세요.
+                  </p>
+                </div>
+                <Switch
+                  id="isAvailable"
+                  checked={profileData.isAvailable}
+                  onCheckedChange={(checked) => setProfileData(prev => ({
+                    ...prev,
+                    isAvailable: checked
+                  }))}
+                  aria-label="현재 프로젝트 수행 가능 여부"
+                />
               </div>
             </TabsContent>
 
