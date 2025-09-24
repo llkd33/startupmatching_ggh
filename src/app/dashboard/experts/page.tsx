@@ -88,15 +88,23 @@ export default function ExpertSearchPage() {
     checkAuthAndLoadExperts()
   }, [])
 
+  // Debounced filter effect for better performance
   useEffect(() => {
-    filterExperts()
+    const debounceTimer = setTimeout(() => {
+      filterExperts()
+    }, 300) // Debounce filtering for better UX
+    
     // Log search after a delay to avoid too many logs
-    const timer = setTimeout(() => {
+    const logTimer = setTimeout(() => {
       if (filters.keywords || filters.location || filters.minRating > 0) {
         logSearch()
       }
-    }, 1000)
-    return () => clearTimeout(timer)
+    }, 1500)
+    
+    return () => {
+      clearTimeout(debounceTimer)
+      clearTimeout(logTimer)
+    }
   }, [experts, filters])
 
   const checkAuthAndLoadExperts = async () => {
@@ -136,12 +144,14 @@ export default function ExpertSearchPage() {
     setLoading(true)
     
     try {
-      // Use the enhanced view for better performance
+      // Use the enhanced view with pagination for better performance
       const { data, error } = await supabase
         .from('expert_search_view')
         .select('*')
-        .gte('profile_completeness', 70) // Show profiles that are at least 70% complete
+        .gte('profile_completeness', 30) // Lower threshold for more results
         .order('rating_average', { ascending: false })
+        .order('total_reviews', { ascending: false })
+        .limit(100) // Add pagination limit
 
       if (error) throw error
 
@@ -169,10 +179,41 @@ export default function ExpertSearchPage() {
     }
   }
 
-  const sortExperts = (experts: ExpertProfile[]) => {
+  const sortExpertsWithRelevance = (experts: ExpertProfile[]) => {
     const sorted = [...experts]
     
+    // Calculate relevance score for each expert based on current search
+    const calculateRelevanceScore = (expert: ExpertProfile) => {
+      let score = 0
+      
+      if (filters.keywords.trim()) {
+        const keywords = filters.keywords.toLowerCase()
+        if (expert.name.toLowerCase().includes(keywords)) score += 10
+        if (expert.title.toLowerCase().includes(keywords)) score += 8
+        if (expert.skills.some(skill => skill.toLowerCase().includes(keywords))) score += 6
+        if (expert.hashtags.some(tag => tag.toLowerCase().includes(keywords))) score += 5
+        if (expert.bio.toLowerCase().includes(keywords)) score += 3
+      }
+      
+      // Boost for high-quality profiles
+      if (expert.profile_completeness >= 90) score += 5
+      if (expert.rating_average >= 4.5) score += 3
+      if (expert.total_reviews >= 10) score += 2
+      
+      return score
+    }
+    
     sorted.sort((a, b) => {
+      // First sort by relevance if there are keywords
+      if (filters.keywords.trim()) {
+        const relevanceA = calculateRelevanceScore(a)
+        const relevanceB = calculateRelevanceScore(b)
+        if (relevanceA !== relevanceB) {
+          return relevanceB - relevanceA // Higher relevance first
+        }
+      }
+      
+      // Then by the selected sort criteria
       let compareValue = 0
       
       switch (filters.sortBy) {
@@ -205,23 +246,20 @@ export default function ExpertSearchPage() {
   const filterExperts = () => {
     let filtered = experts
 
-    // Keywords filter (search in name, bio, title, skills, hashtags)
+    // Keywords filter with fuzzy search (search in name, bio, title, skills, hashtags)
     if (filters.keywords.trim()) {
-      const keywords = filters.keywords.toLowerCase()
-      filtered = filtered.filter(expert =>
-        expert.name.toLowerCase().includes(keywords) ||
-        expert.bio.toLowerCase().includes(keywords) ||
-        expert.title.toLowerCase().includes(keywords) ||
-        expert.company.toLowerCase().includes(keywords) ||
-        expert.skills.some(skill => skill.toLowerCase().includes(keywords)) ||
-        expert.hashtags.some(tag => tag.toLowerCase().includes(keywords))
-      )
+      const keywords = filters.keywords.toLowerCase().split(' ').filter(k => k.length > 1)
+      filtered = filtered.filter(expert => {
+        const searchText = `${expert.name} ${expert.bio} ${expert.title} ${expert.company} ${expert.skills.join(' ')} ${expert.hashtags.join(' ')}`.toLowerCase()
+        return keywords.some(keyword => searchText.includes(keyword))
+      })
     }
 
-    // Location filter
+    // Location filter with partial matching
     if (filters.location.trim()) {
+      const locationKeywords = filters.location.toLowerCase().split(' ').filter(l => l.length > 0)
       filtered = filtered.filter(expert =>
-        expert.location.toLowerCase().includes(filters.location.toLowerCase())
+        locationKeywords.some(loc => expert.location.toLowerCase().includes(loc))
       )
     }
 
@@ -253,30 +291,52 @@ export default function ExpertSearchPage() {
       filtered = filtered.filter(expert => expert.experience_years >= filters.experienceYears)
     }
 
-    // Apply sorting
-    filtered = sortExperts(filtered)
+    // Apply sorting with relevance boost for keyword matches
+    filtered = sortExpertsWithRelevance(filtered)
 
     setFilteredExperts(filtered)
   }
 
   const calculateMatchScore = (expert: ExpertProfile) => {
-    // Simple matching algorithm based on profile completeness, rating, and activity
+    // Enhanced matching algorithm with relevance scoring
     let score = 0
     
-    // Profile completeness (40%)
-    score += (expert.profile_completeness / 100) * 40
+    // Profile completeness (30%)
+    score += (expert.profile_completeness / 100) * 30
     
-    // Rating (30%)
-    score += (expert.rating_average / 5) * 30
+    // Rating and reviews (25%)
+    const ratingScore = (expert.rating_average / 5) * 20
+    const reviewsBonus = Math.min(expert.total_reviews / 20, 1) * 5
+    score += ratingScore + reviewsBonus
     
     // Experience (20%)
-    score += Math.min(expert.experience_years / 10, 1) * 20
+    score += Math.min(expert.experience_years / 15, 1) * 20
     
-    // Availability (10%)
+    // Availability and response time (15%)
     if (expert.availability_status === 'available') score += 10
-    else if (expert.availability_status === 'busy') score += 5
+    else if (expert.availability_status === 'busy') score += 6
+    else score += 2
     
-    return Math.round(score)
+    if (expert.response_time_hours <= 12) score += 5
+    else if (expert.response_time_hours <= 24) score += 3
+    
+    // Keyword relevance bonus (10%)
+    if (filters.keywords.trim()) {
+      const keywords = filters.keywords.toLowerCase()
+      let relevanceBonus = 0
+      
+      if (expert.name.toLowerCase().includes(keywords)) relevanceBonus += 3
+      if (expert.title.toLowerCase().includes(keywords)) relevanceBonus += 3
+      if (expert.skills.some(skill => skill.toLowerCase().includes(keywords))) relevanceBonus += 2
+      if (expert.hashtags.some(tag => tag.toLowerCase().includes(keywords))) relevanceBonus += 2
+      
+      score += relevanceBonus
+    } else {
+      // Default bonus for active profiles without keyword search
+      score += 5
+    }
+    
+    return Math.min(Math.round(score), 100)
   }
 
   const getAvailabilityColor = (status: string) => {
@@ -593,6 +653,23 @@ export default function ExpertSearchPage() {
         </CardContent>
       </Card>
 
+      {/* Results Summary */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="text-sm text-gray-600">
+          총 <span className="font-semibold text-blue-600">{filteredExperts.length}명</span>의 전문가를 찾았습니다
+          {filters.keywords && (
+            <span className="ml-2">
+              '<span className="font-medium">{filters.keywords}</span>' 검색 결과
+            </span>
+          )}
+        </div>
+        {filteredExperts.length > 0 && (
+          <div className="text-sm text-gray-500">
+            평균 응답시간: {Math.round(filteredExperts.reduce((sum, e) => sum + e.response_time_hours, 0) / filteredExperts.length)}시간
+          </div>
+        )}
+      </div>
+
       {/* Expert List */}
       {filteredExperts.length === 0 ? (
         <div className="space-y-6">
@@ -698,9 +775,18 @@ export default function ExpertSearchPage() {
                             ₩{expert.hourly_rate.toLocaleString()}/시간
                           </div>
                         )}
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 text-xs">
+                        <Badge variant="outline" className={`text-xs ${
+                          matchScore >= 80 ? 'bg-green-50 text-green-700 border-green-200' :
+                          matchScore >= 60 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
                           매치율 {matchScore}%
                         </Badge>
+                        {expert.profile_completeness >= 90 && (
+                          <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs">
+                            ✓ 인증됨
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     

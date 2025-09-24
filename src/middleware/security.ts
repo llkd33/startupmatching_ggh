@@ -387,7 +387,7 @@ export async function withSecurity(
     }
 
     // Check authentication
-    let context: any = {};
+    const context: Record<string, any> = {};
     if (options.requireAuth) {
       const authResult = await requireAuth(request, options.requireAuth);
       if ('response' in authResult && !('user' in authResult)) {

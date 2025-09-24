@@ -26,7 +26,7 @@ export default function CareersPage() {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-100 to-emerald-100 rounded-full mb-6 border border-green-200">
             <Rocket className="w-4 h-4 text-green-600 mr-2" />
-            <span className="text-sm font-medium text-green-700">We're Hiring!</span>
+            <span className="text-sm font-medium text-green-700">We&apos;re Hiring!</span>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-black mb-6">

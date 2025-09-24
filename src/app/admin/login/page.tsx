@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -128,9 +129,9 @@ export default function AdminLogin() {
           </div>
           
           <div className="mt-4 text-center">
-            <a href="/" className="text-sm text-gray-600 hover:text-gray-800">
+            <Link href="/" className="text-sm text-gray-600 hover:text-gray-800">
               ← 메인 페이지로 돌아가기
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
