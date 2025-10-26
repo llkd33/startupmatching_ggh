@@ -107,7 +107,7 @@ export default function Home() {
           
           {/* CTA Buttons */}
           <div className={`flex flex-col sm:flex-row gap-6 justify-center mb-16 transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <Link href="/auth/register?type=organization" className="group">
+            <Link href="/auth/register/organization" className="group">
               <div className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group-hover:scale-105">
                 <div className="flex items-center justify-center text-lg font-bold">
                   <Building className="w-5 h-5 mr-2" />
@@ -116,8 +116,8 @@ export default function Home() {
                 </div>
               </div>
             </Link>
-            
-            <Link href="/auth/register?type=expert" className="group">
+
+            <Link href="/auth/register/expert" className="group">
               <div className="bg-white/90 backdrop-blur-sm border-2 border-gray-200 text-gray-700 rounded-2xl px-8 py-4 hover:bg-white hover:border-gray-300 hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <div className="flex items-center justify-center text-lg font-bold">
                   <UserCheck className="w-5 h-5 mr-2" />
@@ -398,12 +398,20 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
-              <Link href="/auth/register" className="group">
+              <Link href="/auth/register/expert" className="group">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-12 py-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 group-hover:scale-105">
                   <div className="flex items-center justify-center text-xl font-bold">
                     <Sparkles className="w-6 h-6 mr-3" />
-                    무료로 시작하기
+                    전문가로 시작하기
                     <ArrowRight className="w-6 h-6 ml-3 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </Link>
+              <Link href="/auth/register/organization" className="group">
+                <div className="bg-white/90 backdrop-blur-sm border-2 border-gray-200 text-gray-700 rounded-2xl px-12 py-6 hover:bg-white hover:border-gray-300 hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                  <div className="flex items-center justify-center text-xl font-bold">
+                    <Building className="w-6 h-6 mr-3" />
+                    기관으로 시작하기
                   </div>
                 </div>
               </Link>
