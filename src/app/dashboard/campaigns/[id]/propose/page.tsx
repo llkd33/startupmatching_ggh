@@ -1,17 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAutoSave, getDraftMetadata } from '@/hooks/useAutoSave'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { 
-  ArrowLeft, 
-  Calendar, 
-  DollarSign, 
+import {
+  ArrowLeft,
+  Calendar,
+  DollarSign,
   LinkIcon,
   Building2,
   MapPin,
@@ -21,6 +22,8 @@ import {
   X
 } from 'lucide-react'
 import Link from 'next/link'
+import { AutoSaveIndicator, DraftRestorePrompt } from '@/components/ui/auto-save-indicator'
+import { toast } from '@/components/ui/toast-custom'
 
 interface Campaign {
   id: string
@@ -43,14 +46,17 @@ interface Campaign {
   }
 }
 
-export default function ProposePage({ params }: { params: { id: string } }) {
+export default function ProposePage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [expertProfile, setExpertProfile] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false)
+  const [draftMetadata, setDraftMetadata] = useState<{ timestamp: string } | null>(null)
+
   const [formData, setFormData] = useState({
     proposal_text: '',
     estimated_budget: '',
@@ -61,11 +67,42 @@ export default function ProposePage({ params }: { params: { id: string } }) {
 
   const [newLink, setNewLink] = useState('')
 
-  useEffect(() => {
-    checkAuthAndLoadData()
-  }, [params.id])
+  // 자동 저장 설정
+  const autoSaveKey = `proposal-draft-${id}`
 
-  const checkAuthAndLoadData = async () => {
+  const { save, restore, clear, state: autoSaveState } = useAutoSave({
+    key: autoSaveKey,
+    delay: 3000, // 3초 후 자동 저장
+    enabled: !!expertProfile, // 전문가 프로필 로드 후 활성화
+    onSave: () => {
+      console.log('Proposal draft auto-saved')
+    }
+  })
+
+  // 초기 마운트 시 임시 저장 데이터 확인
+  useEffect(() => {
+    const metadata = getDraftMetadata(autoSaveKey)
+    if (metadata) {
+      setDraftMetadata(metadata)
+      setShowDraftPrompt(true)
+    }
+  }, [autoSaveKey])
+
+  // 폼 데이터 변경 시 자동 저장
+  useEffect(() => {
+    if (!expertProfile) return // 프로필 로드 전에는 저장 안 함
+    if (!formData.proposal_text) return // 빈 폼은 저장 안 함
+
+    save(formData)
+  }, [formData, save, expertProfile])
+
+  useEffect(() => {
+    if (id) {
+      checkAuthAndLoadData(id)
+    }
+  }, [id])
+
+  const checkAuthAndLoadData = async (campaignId: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -103,7 +140,7 @@ export default function ProposePage({ params }: { params: { id: string } }) {
     const { data: existingProposal } = await supabase
       .from('proposals')
       .select('id')
-      .eq('campaign_id', params.id)
+      .eq('campaign_id', campaignId)
       .eq('expert_id', expertData.id)
       .single()
 
@@ -112,10 +149,10 @@ export default function ProposePage({ params }: { params: { id: string } }) {
       return
     }
 
-    await loadCampaign()
+    await loadCampaign(campaignId)
   }
 
-  const loadCampaign = async () => {
+  const loadCampaign = async (campaignId: string) => {
     setLoading(true)
     
     try {
@@ -129,7 +166,7 @@ export default function ProposePage({ params }: { params: { id: string } }) {
             industry
           )
         `)
-        .eq('id', params.id)
+        .eq('id', campaignId)
         .eq('status', 'active')
         .single()
 
@@ -168,12 +205,33 @@ export default function ProposePage({ params }: { params: { id: string } }) {
 
       if (error) throw error
 
+      // 성공 시 임시 저장 데이터 삭제
+      clear()
+      toast.success('제안서가 제출되었습니다')
+
       router.push('/dashboard/proposals')
     } catch (err: any) {
       setError(err.message || '제안서 제출 중 오류가 발생했습니다.')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // 임시 저장 데이터 복구
+  const handleRestoreDraft = () => {
+    const restoredData = restore()
+    if (restoredData) {
+      setFormData(restoredData)
+      toast.success('임시 저장된 데이터를 불러왔습니다')
+    }
+    setShowDraftPrompt(false)
+  }
+
+  // 임시 저장 데이터 삭제하고 새로 시작
+  const handleDiscardDraft = () => {
+    clear()
+    setShowDraftPrompt(false)
+    toast.info('새로 작성합니다')
   }
 
   const addPortfolioLink = () => {
@@ -263,7 +321,24 @@ export default function ProposePage({ params }: { params: { id: string } }) {
           <h1 className="text-2xl font-bold">제안서 작성</h1>
           <p className="text-gray-600">캠페인에 대한 제안서를 작성해주세요</p>
         </div>
+
+        {/* 자동 저장 상태 표시 */}
+        {expertProfile && (
+          <AutoSaveIndicator
+            isSaving={autoSaveState.isSaving}
+            lastSaved={autoSaveState.lastSaved}
+          />
+        )}
       </div>
+
+      {/* 임시 저장 데이터 복구 프롬프트 */}
+      {showDraftPrompt && draftMetadata && (
+        <DraftRestorePrompt
+          draftTimestamp={draftMetadata.timestamp}
+          onRestore={handleRestoreDraft}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
 
       <div className="grid gap-6">
         {/* Campaign Info */}

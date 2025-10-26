@@ -7,6 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase } from '@/lib/supabase'
 import { CampaignType } from '@/types/supabase'
 import { campaignSchema, CampaignInput, CAMPAIGN_TYPES, CAMPAIGN_CATEGORIES } from '@/lib/validations/campaign'
+import { handleCampaignCreated } from '@/lib/campaign-matching'
+import { useAutoSave, getDraftMetadata } from '@/hooks/useAutoSave'
 import CampaignTypeSelector from './CampaignTypeSelector'
 import FileUploader from './FileUploader'
 import KeywordInput from './KeywordInput'
@@ -16,6 +18,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { toast } from '@/components/ui/toast-custom'
+import { AutoSaveIndicator, DraftRestorePrompt } from '@/components/ui/auto-save-indicator'
 
 interface CampaignFormProps {
   organizationId: string
@@ -27,6 +31,8 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState<any[]>(initialData?.attachments || [])
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false)
+  const [draftMetadata, setDraftMetadata] = useState<{ timestamp: string } | null>(null)
 
   const {
     register,
@@ -54,6 +60,68 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
   const watchedType = watch('type')
   const watchedKeywords = watch('keywords')
+  const watchedFormData = watch()
+
+  // 자동 저장 설정
+  const autoSaveKey = initialData?.id
+    ? `campaign-draft-${initialData.id}`
+    : `campaign-draft-new-${organizationId}`
+
+  const { save, restore, clear, state: autoSaveState } = useAutoSave<CampaignInput & { attachments: any[] }>({
+    key: autoSaveKey,
+    delay: 3000, // 3초 후 자동 저장
+    enabled: !initialData?.id, // 새 캠페인만 자동 저장 (수정 시에는 비활성화)
+    onSave: () => {
+      // 저장 시 로그 (선택사항)
+      console.log('Campaign draft auto-saved')
+    }
+  })
+
+  // 초기 마운트 시 임시 저장 데이터 확인
+  useEffect(() => {
+    if (initialData?.id) return // 수정 모드에서는 임시 저장 복구 안 함
+
+    const metadata = getDraftMetadata(autoSaveKey)
+    if (metadata) {
+      setDraftMetadata(metadata)
+      setShowDraftPrompt(true)
+    }
+  }, [autoSaveKey, initialData?.id])
+
+  // 폼 데이터 변경 시 자동 저장
+  useEffect(() => {
+    if (initialData?.id) return // 수정 모드에서는 자동 저장 안 함
+    if (!watchedFormData.title && !watchedFormData.description) return // 빈 폼은 저장 안 함
+
+    save({
+      ...watchedFormData,
+      attachments
+    })
+  }, [watchedFormData, attachments, save, initialData?.id])
+
+  // 임시 저장 데이터 복구
+  const handleRestoreDraft = () => {
+    const restoredData = restore()
+    if (restoredData) {
+      // 폼 데이터 복원
+      Object.entries(restoredData).forEach(([key, value]) => {
+        if (key === 'attachments') {
+          setAttachments(value as any[])
+        } else if (key !== 'attachments') {
+          setValue(key as keyof CampaignInput, value)
+        }
+      })
+      toast.success('임시 저장된 데이터를 불러왔습니다')
+    }
+    setShowDraftPrompt(false)
+  }
+
+  // 임시 저장 데이터 삭제하고 새로 시작
+  const handleDiscardDraft = () => {
+    clear()
+    setShowDraftPrompt(false)
+    toast.info('새로 작성합니다')
+  }
 
   const onSubmit = async (data: CampaignInput, isDraft = false) => {
     setSubmitError(null)
@@ -82,8 +150,10 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           .from('campaigns')
           .update(campaignData)
           .eq('id', initialData.id)
-        
+
         if (error) throw error
+
+        toast.success('캠페인이 수정되었습니다.')
       } else {
         // Create new campaign
         const { data: newCampaign, error } = await supabase
@@ -91,9 +161,25 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           .insert([campaignData])
           .select()
           .single()
-        
+
         if (error) throw error
+
+        // 자동 매칭 및 알림 발송 (비동기, 백그라운드)
+        if (newCampaign && !isDraft) {
+          toast.success('캠페인이 게시되었습니다. 매칭되는 전문가들에게 알림을 보내는 중입니다...')
+
+          // 백그라운드에서 매칭 처리
+          handleCampaignCreated(newCampaign.id).catch(error => {
+            console.error('Failed to process campaign matching:', error)
+            // 매칭 실패해도 캠페인은 성공적으로 생성됨
+          })
+        } else {
+          toast.success('캠페인이 임시 저장되었습니다.')
+        }
       }
+
+      // 성공 시 임시 저장 데이터 삭제
+      clear()
 
       router.push('/dashboard/campaigns')
     } catch (err: any) {
@@ -107,6 +193,25 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {/* 임시 저장 데이터 복구 프롬프트 */}
+      {showDraftPrompt && draftMetadata && (
+        <DraftRestorePrompt
+          draftTimestamp={draftMetadata.timestamp}
+          onRestore={handleRestoreDraft}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
+
+      {/* 자동 저장 상태 표시 */}
+      {!initialData?.id && (
+        <div className="flex justify-end">
+          <AutoSaveIndicator
+            isSaving={autoSaveState.isSaving}
+            lastSaved={autoSaveState.lastSaved}
+          />
+        </div>
+      )}
+
       <form onSubmit={handleSubmit((data) => onSubmit(data, false))} className="space-y-8">
         {/* Basic Information */}
         <Card>
