@@ -292,20 +292,20 @@ export default function Home() {
             {[
               {
                 step: "01",
-                title: "AI 분석",
-                description: "프로젝트 요구사항을 AI가 자동 분석하고 최적의 전문가 풀을 선별합니다",
+                title: "캠페인 등록",
+                description: "필요한 전문가의 유형, 예산, 기간 등 프로젝트 정보를 입력하여 캠페인을 생성합니다",
                 icon: Search
               },
               {
-                step: "02", 
-                title: "스마트 매칭",
-                description: "머신러닝 알고리즘이 호환성, 경험, 평점을 종합하여 최고의 매칭을 제안합니다",
-                icon: Zap
+                step: "02",
+                title: "전문가 탐색",
+                description: "등록된 전문가 프로필을 검색하고, 관심있는 전문가에게 제안서를 받습니다",
+                icon: Users
               },
               {
                 step: "03",
                 title: "프로젝트 시작",
-                description: "AI 모니터링과 실시간 피드백으로 프로젝트 성공을 지속적으로 지원합니다",
+                description: "제안서를 비교 검토한 후 적합한 전문가와 직접 소통하며 프로젝트를 진행합니다",
                 icon: Handshake
               }
             ].map((step, index) => (
@@ -345,22 +345,22 @@ export default function Home() {
             {[
               {
                 name: "김대표",
-                company: "테크 스타트업 A",
-                content: "AI 매칭으로 2시간 만에 완벽한 CTO를 찾았습니다. 덕분에 시리즈 A 투자 유치에 성공했어요!",
+                company: "테크 스타트업 대표",
+                content: "필요한 기술 멘토를 찾기 위해 여러 방법을 시도했는데, 이 플랫폼에서 적합한 전문가를 찾아 프로젝트를 성공적으로 진행했습니다.",
                 rating: 5,
                 avatar: "👨‍💼"
               },
               {
-                name: "이매니저", 
-                company: "창업지원센터 B",
-                content: "기존 방식보다 매칭 성공률이 3배 향상되었습니다. 스타트업들의 만족도가 정말 높아요.",
+                name: "이매니저",
+                company: "창업지원센터 담당자",
+                content: "입주 기업들에게 필요한 전문가를 연결해주기 편리합니다. 제안서 관리 기능이 특히 유용해요.",
                 rating: 5,
                 avatar: "👩‍💼"
               },
               {
                 name: "박전문가",
-                company: "AI 컨설턴트",
-                content: "플랫폼을 통해 정말 의미있는 프로젝트들을 만나고 있습니다. 수익도 2배 이상 증가했어요!",
+                company: "IT 컨설턴트",
+                content: "플랫폼을 통해 다양한 스타트업 프로젝트 기회를 발견하고 있습니다. 제안서 제출이 간편해서 좋습니다.",
                 rating: 5,
                 avatar: "👨‍🔬"
               }
@@ -409,13 +409,13 @@ export default function Home() {
               </span>
               <br />
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AI 매칭을 경험하세요
+                시작하세요
               </span>
             </h2>
-            
+
             <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-              수천 개의 성공 사례가 증명하는 AI 매칭 시스템을<br />
-              지금 무료로 체험해보세요
+              간편한 등록으로 전문가를 찾거나<br />
+              프로젝트 기회를 발견하세요
             </p>
             
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
@@ -471,7 +471,7 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-gray-300 leading-relaxed max-w-md">
-                AI 기반 스마트 매칭으로 창업 성공을 위한 최고의 전문가를 연결하는 혁신적인 플랫폼입니다.
+                창업지원기관과 전문가를 연결하여 성공적인 프로젝트 협업을 지원하는 플랫폼입니다.
               </p>
             </div>
             
@@ -481,7 +481,7 @@ export default function Home() {
               <ul className="space-y-3 text-gray-300">
                 <li><Link href="/experts" className="hover:text-white transition-colors">전문가 찾기</Link></li>
                 <li><Link href="/campaigns" className="hover:text-white transition-colors">프로젝트 등록</Link></li>
-                <li><Link href="/about" className="hover:text-white transition-colors">AI 매칭 시스템</Link></li>
+                <li><Link href="/about" className="hover:text-white transition-colors">플랫폼 소개</Link></li>
               </ul>
             </div>
             
