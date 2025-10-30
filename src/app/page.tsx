@@ -104,27 +104,26 @@ export default function Home() {
         <div className="max-w-7xl mx-auto text-center">
           {/* Badge */}
           <div className={`inline-flex items-center px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full mb-8 border border-blue-200/50 shadow-lg transition-all duration-1000 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <Sparkles className="w-4 h-4 text-blue-600 mr-2" />
-            <span className="text-sm font-medium text-gray-700">AI 기반 스마트 매칭 시스템</span>
-            <div className="ml-2 px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full text-xs font-bold text-white">NEW</div>
+            <Handshake className="w-4 h-4 text-blue-600 mr-2" />
+            <span className="text-sm font-medium text-gray-700">창업기관과 전문가를 연결하는 플랫폼</span>
           </div>
-          
+
           {/* Main Heading */}
           <h1 className={`text-5xl md:text-7xl font-black mb-8 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             <span className="bg-gradient-to-r from-gray-900 via-gray-700 to-gray-800 bg-clip-text text-transparent">
-              창업 성공을 위한
+              필요한 전문가를
             </span>
             <br />
             <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 bg-clip-text text-transparent">
-              AI 전문가 매칭
+              빠르게 찾아보세요
             </span>
           </h1>
-          
+
           {/* Subtitle */}
           <p className={`text-xl md:text-2xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <span className="text-blue-600 font-semibold">5,000명+</span> 검증된 전문가와 
-            <span className="text-purple-600 font-semibold"> 1,200개+</span> 창업지원기관을<br />
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-semibold">AI가 완벽하게 매칭</span>해드립니다
+            창업지원기관은 <span className="text-blue-600 font-semibold">전문가를 찾고</span>,<br />
+            전문가는 <span className="text-purple-600 font-semibold">프로젝트 기회를 발견</span>하는<br />
+            <span className="font-semibold">간편한 매칭 플랫폼</span>입니다
           </p>
           
           {/* CTA Buttons */}
@@ -152,10 +151,10 @@ export default function Home() {
           {/* Animated Stats */}
           <div className={`grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto transition-all duration-1000 delay-800 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             {[
-              { number: "5,000+", label: "검증된 전문가", icon: Users, color: "from-blue-400 to-cyan-400" },
-              { number: "1,200+", label: "파트너 기관", icon: Building, color: "from-purple-400 to-pink-400" },
-              { number: "98%", label: "매칭 성공률", icon: TrendingUp, color: "from-green-400 to-emerald-400" },
-              { number: "2시간", label: "평균 매칭 시간", icon: Zap, color: "from-yellow-400 to-orange-400" }
+              { number: "간편한", label: "등록 절차", icon: UserCheck, color: "from-blue-400 to-cyan-400" },
+              { number: "투명한", label: "프로필 시스템", icon: FileText, color: "from-purple-400 to-pink-400" },
+              { number: "직접", label: "소통 가능", icon: MessageSquare, color: "from-green-400 to-emerald-400" },
+              { number: "안전한", label: "제안서 관리", icon: Shield, color: "from-yellow-400 to-orange-400" }
             ].map((stat, index) => (
               <div key={index} className="group cursor-pointer">
                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 hover:border-gray-300 hover:bg-white hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -180,19 +179,19 @@ export default function Home() {
           <div className="text-center mb-20">
             <div className="inline-flex items-center px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full mb-6 border border-blue-200/50 shadow-lg">
               <Star className="w-4 h-4 text-blue-600 mr-2" />
-              <span className="text-sm font-medium text-gray-700">왜 StartupMatch를 선택해야 할까요?</span>
+              <span className="text-sm font-medium text-gray-700">StartupMatch의 핵심 기능</span>
             </div>
             <h2 className="text-4xl md:text-6xl font-black mb-6">
               <span className="bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                차별화된
+                필요한 기능을
               </span>
               <br />
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AI 매칭 시스템
+                간편하게 사용하세요
               </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              단순한 검색이 아닌, AI가 분석하는 완벽한 매칭으로 성공률 98%를 달성했습니다
+              캠페인 생성부터 전문가 발굴, 제안서 관리까지 한 곳에서 해결하세요
             </p>
           </div>
           
@@ -201,43 +200,43 @@ export default function Home() {
             {[
               {
                 icon: Search,
-                title: "AI 스마트 매칭",
-                description: "머신러닝 알고리즘이 프로젝트 요구사항과 전문가 역량을 분석하여 최적의 매칭을 제공합니다",
+                title: "캠페인 생성 & 관리",
+                description: "필요한 전문가 유형, 예산, 기간 등을 설정하여 캠페인을 쉽게 생성하고 관리할 수 있습니다",
                 gradient: "from-blue-500 to-cyan-500",
                 delay: "delay-100"
               },
               {
-                icon: Shield,
-                title: "블록체인 검증",
-                description: "블록체인 기술로 전문가의 학력, 경력, 프로젝트 이력을 투명하게 검증하고 관리합니다",
+                icon: Users,
+                title: "전문가 프로필 검색",
+                description: "다양한 분야의 전문가 프로필을 키워드, 지역, 전문분야로 검색하고 비교할 수 있습니다",
                 gradient: "from-purple-500 to-pink-500",
                 delay: "delay-200"
               },
               {
-                icon: Zap,
-                title: "실시간 매칭",
-                description: "AI 엔진이 24/7 실시간으로 작동하여 평균 2시간 내 최적의 전문가를 연결해드립니다",
+                icon: FileText,
+                title: "제안서 송수신",
+                description: "전문가는 관심있는 캠페인에 제안서를 제출하고, 기관은 받은 제안서를 검토할 수 있습니다",
                 gradient: "from-green-500 to-emerald-500",
                 delay: "delay-300"
               },
               {
                 icon: MessageSquare,
-                title: "스마트 커뮤니케이션",
-                description: "AI 번역과 요약 기능으로 전문가와의 소통을 더욱 효율적으로 만들어드립니다",
+                title: "직접 소통",
+                description: "메시지 기능으로 전문가와 기관이 직접 소통하며 프로젝트 세부사항을 논의할 수 있습니다",
                 gradient: "from-yellow-500 to-orange-500",
                 delay: "delay-400"
               },
               {
-                icon: TrendingUp,
-                title: "성과 예측 분석",
-                description: "과거 데이터를 기반으로 프로젝트 성공 확률과 예상 ROI를 미리 분석해드립니다",
+                icon: Shield,
+                title: "안전한 정보 관리",
+                description: "제안서, 계약서, 프로젝트 자료를 체계적으로 보관하고 필요할 때 쉽게 찾을 수 있습니다",
                 gradient: "from-indigo-500 to-purple-500",
                 delay: "delay-500"
               },
               {
-                icon: Award,
-                title: "품질 보증 시스템",
-                description: "AI 모니터링과 자동 품질 평가로 지속적인 서비스 품질 향상을 보장합니다",
+                icon: CheckCircle2,
+                title: "프로젝트 진행 현황",
+                description: "대시보드에서 진행중인 캠페인, 제안서, 매칭 현황을 한눈에 확인할 수 있습니다",
                 gradient: "from-pink-500 to-rose-500",
                 delay: "delay-600"
               }
