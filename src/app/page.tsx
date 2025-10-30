@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import Link from 'next/link'
-import { 
-  ArrowRight, 
-  CheckCircle2, 
-  Users, 
+import {
+  ArrowRight,
+  CheckCircle2,
+  Users,
   Shield,
   Clock,
   MessageSquare,
@@ -20,24 +20,39 @@ import {
   Award,
   Zap
 } from 'lucide-react'
+import { useThrottledMouseMove } from '@/hooks/useThrottledMouseMove'
+import { useIsMobile, usePrefersReducedMotion } from '@/hooks/useMediaQuery'
+
+// Lazy load non-critical sections
+const Testimonials = lazy(() => import('@/components/landing/Testimonials'))
+const Footer = lazy(() => import('@/components/landing/Footer'))
 
 export default function Home() {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [isVisible, setIsVisible] = useState(false)
+  const isMobile = useIsMobile()
+  const prefersReducedMotion = usePrefersReducedMotion()
+
+  // Disable mouse tracking on mobile and for users who prefer reduced motion
+  const mousePosition = useThrottledMouseMove({
+    throttleMs: 50,
+    enabled: !isMobile && !prefersReducedMotion
+  })
+
+  // Memoize gradient positions to prevent unnecessary recalculations
+  const gradientPositions = useMemo(() => ({
+    x: mousePosition.x * 0.02,
+    y: mousePosition.y * 0.02
+  }), [mousePosition.x, mousePosition.y])
 
   useEffect(() => {
     setIsVisible(true)
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY })
-    }
-    
+
     // Scroll animation observer
     const observerOptions = {
       threshold: 0.1,
       rootMargin: '0px 0px -50px 0px'
     }
-    
+
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -45,37 +60,44 @@ export default function Home() {
         }
       })
     }, observerOptions)
-    
+
     // Observe all fade-in elements
     const fadeElements = document.querySelectorAll('.fade-in-up')
     fadeElements.forEach((el) => observer.observe(el))
-    
-    window.addEventListener('mousemove', handleMouseMove)
-    
+
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
       observer.disconnect()
     }
   }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 overflow-hidden">
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0">
-        {/* Gradient Orbs */}
-        <div 
-          className="absolute w-96 h-96 bg-gradient-to-r from-blue-200/40 to-purple-200/40 rounded-full blur-3xl animate-pulse"
-          style={{
-            left: mousePosition.x * 0.02 + 'px',
-            top: mousePosition.y * 0.02 + 'px',
-          }}
-        />
-        <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-purple-200/30 to-pink-200/30 rounded-full blur-3xl animate-bounce" />
-        <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-gradient-to-r from-cyan-200/30 to-blue-200/30 rounded-full blur-3xl animate-pulse" />
-        
-        {/* Subtle Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
-      </div>
+      {/* Animated Background - Only on desktop without reduced motion */}
+      {!isMobile && !prefersReducedMotion && (
+        <div className="fixed inset-0 z-0">
+          {/* Gradient Orbs */}
+          <div
+            className="absolute w-96 h-96 bg-gradient-to-r from-blue-200/40 to-purple-200/40 rounded-full blur-3xl animate-pulse will-change-transform"
+            style={{
+              left: `${gradientPositions.x}px`,
+              top: `${gradientPositions.y}px`,
+              transform: 'translate3d(0,0,0)' // Force GPU acceleration
+            }}
+          />
+          <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-purple-200/30 to-pink-200/30 rounded-full blur-3xl animate-bounce will-change-transform" />
+          <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-gradient-to-r from-cyan-200/30 to-blue-200/30 rounded-full blur-3xl animate-pulse will-change-transform" />
+
+          {/* Subtle Grid Pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        </div>
+      )}
+
+      {/* Static background for mobile */}
+      {isMobile && (
+        <div className="fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-purple-50" />
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="relative z-10 pt-32 pb-20 px-4">
