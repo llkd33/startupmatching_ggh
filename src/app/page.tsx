@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -22,10 +22,6 @@ import {
 } from 'lucide-react'
 import { useThrottledMouseMove } from '@/hooks/useThrottledMouseMove'
 import { useIsMobile, usePrefersReducedMotion } from '@/hooks/useMediaQuery'
-
-// Lazy load non-critical sections
-const Testimonials = lazy(() => import('@/components/landing/Testimonials'))
-const Footer = lazy(() => import('@/components/landing/Footer'))
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false)
