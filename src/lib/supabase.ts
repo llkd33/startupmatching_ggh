@@ -1,5 +1,6 @@
 import { browserSupabase } from './supabase-client'
 import { Database } from '@/types/supabase'
+import { handleSupabaseError } from './error-handler'
 
 // Re-export browserSupabase as supabase for backward compatibility
 export const supabase = browserSupabase
@@ -21,48 +22,56 @@ export const auth = {
 
     // Trigger가 작동하지 않을 경우를 대비해 직접 users 테이블에 추가
     if (data?.user && !error) {
-      // users 테이블에 레코드 생성/업데이트
-      const { error: userError } = await supabase
-        .from('users')
-        .upsert({
-          id: data.user.id,
-          email: data.user.email,
-          role: role,
-          phone: metadata?.phone
-        })
-      
-      if (userError && !userError.message.includes('duplicate')) {
-        console.error('Error creating user record:', userError)
+      try {
+        // users 테이블에 레코드 생성/업데이트
+        const { error: userError } = await supabase
+          .from('users')
+          .upsert({
+            id: data.user.id,
+            email: data.user.email,
+            role: role,
+            phone: metadata?.phone
+          }, { onConflict: 'id' })
+        
+        if (userError && !userError.message.includes('duplicate')) {
+          handleSupabaseError(userError, false, { context: 'create_user_record' })
+        }
+      } catch (userErr) {
+        handleSupabaseError(userErr as Error, false, { context: 'create_user_record_catch' })
       }
       
       // 프로필 테이블에도 레코드 생성 (스키마 컬럼에 맞게 최소 필드만 입력)
-      if (role === 'expert') {
-        const { error: profileError } = await supabase
-          .from('expert_profiles')
-          .upsert({
-            user_id: data.user.id,
-            name: metadata?.name || '',
-            is_profile_complete: false
-          })
-        
-        if (profileError && !profileError.message.includes('duplicate')) {
-          console.error('Error creating expert profile:', profileError)
+      try {
+        if (role === 'expert') {
+          const { error: profileError } = await supabase
+            .from('expert_profiles')
+            .upsert({
+              user_id: data.user.id,
+              name: metadata?.name || '',
+              is_profile_complete: false
+            }, { onConflict: 'user_id' })
+          
+          if (profileError && !profileError.message.includes('duplicate')) {
+            handleSupabaseError(profileError, false, { context: 'create_expert_profile' })
+          }
+        } else if (role === 'organization') {
+          const { error: profileError } = await supabase
+            .from('organization_profiles')
+            .upsert({
+              user_id: data.user.id,
+              organization_name: metadata?.organizationName || '',
+              business_number: metadata?.businessNumber,
+              representative_name: metadata?.representativeName || '',
+              contact_position: metadata?.contactPosition,
+              is_profile_complete: false
+            }, { onConflict: 'user_id' })
+
+          if (profileError && !profileError.message.includes('duplicate')) {
+            handleSupabaseError(profileError, false, { context: 'create_organization_profile' })
+          }
         }
-      } else if (role === 'organization') {
-        const { error: profileError } = await supabase
-          .from('organization_profiles')
-          .upsert({
-            user_id: data.user.id,
-            organization_name: metadata?.organizationName || '',
-            business_number: metadata?.businessNumber,
-            representative_name: metadata?.representativeName || '',
-            contact_position: metadata?.contactPosition,
-            is_profile_complete: false
-          })
-        
-        if (profileError && !profileError.message.includes('duplicate')) {
-          console.error('Error creating organization profile:', profileError)
-        }
+      } catch (profileErr) {
+        handleSupabaseError(profileErr as Error, false, { context: 'create_profile_catch' })
       }
     }
 
@@ -105,7 +114,26 @@ export const db = {
         .select('*, expert_profiles(*), organization_profiles(*)')
         .eq('id', userId)
         .single()
-      
+
+      if (error) {
+        // PGRST116 means no rows found - this is expected for new users
+        if (error.code === 'PGRST116') {
+          return { data: null, error: null }
+        }
+
+        // RLS policy errors should fail, not fallback
+        // This prevents unauthorized access by enforcing database security policies
+        if (error.message?.includes('policy') || error.message?.includes('permission')) {
+          return {
+            data: null,
+            error: new Error('Insufficient permissions to access user profile')
+          }
+        }
+
+        // Other errors should be returned as-is
+        return { data: null, error }
+      }
+
       return { data, error }
     },
   },

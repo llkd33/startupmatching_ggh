@@ -1,9 +1,10 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { browserSupabase } from '@/lib/supabase-client'
 import { UserRole } from '@/types/supabase'
+import { handleSupabaseError } from '@/lib/error-handler'
 
 interface AuthContextType {
   user: User | null
@@ -23,14 +24,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+
+  // Prevent race conditions with ref to track in-flight requests
+  const roleUpdateInProgress = useRef(false)
+  const mountedRef = useRef(true)
+
+  const ensureUserRecord = async (supabaseUser: User): Promise<UserRole> => {
+    const metadataRole = supabaseUser.user_metadata?.role as UserRole | undefined
+    const fallbackRole: UserRole = metadataRole ?? 'organization'
+
+    try {
+      const { error: upsertError } = await browserSupabase
+        .from('users')
+        .upsert(
+          {
+            id: supabaseUser.id,
+            email: supabaseUser.email ?? '',
+            role: fallbackRole,
+            phone: supabaseUser.user_metadata?.phone ?? null,
+          },
+          { onConflict: 'id' }
+        )
+
+      if (upsertError) {
+        handleSupabaseError(upsertError, false, { context: 'ensure_user_record' })
+      }
+
+      return fallbackRole
+    } catch (error) {
+      handleSupabaseError(error as Error, false, { context: 'ensure_user_record_catch' })
+      return fallbackRole
+    }
+  }
+
+  const fetchAndSetRole = async (userId: string, metaRole?: UserRole) => {
+    // Prevent concurrent role updates
+    if (roleUpdateInProgress.current) {
+      return
+    }
+
+    roleUpdateInProgress.current = true
+
+    try {
+      // Set metadata role immediately for fast UI updates
+      if (metaRole && mountedRef.current) {
+        setRole(metaRole)
+      }
+
+      // Fetch role from database
+      const { data: userRow, error: roleError } = await browserSupabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (!mountedRef.current) return
+
+      if (roleError) {
+        // Only log errors that aren't "no rows found"
+        if (roleError.code !== 'PGRST116' && !roleError.message?.includes('406')) {
+          handleSupabaseError(roleError, false, { context: 'fetch_role' })
+        }
+
+        // Ensure user record exists
+        const user = await browserSupabase.auth.getUser()
+        if (user.data.user) {
+          const ensuredRole = await ensureUserRecord(user.data.user)
+          setRole(ensuredRole)
+        }
+      } else if (userRow?.role) {
+        // Update with database role if different from metadata
+        setRole(userRow.role)
+      }
+    } catch (error) {
+      if (mountedRef.current) {
+        handleSupabaseError(error as Error, false, { context: 'fetch_and_set_role' })
+        // Keep metadata role as fallback
+        if (metaRole) {
+          setRole(metaRole)
+        }
+      }
+    } finally {
+      roleUpdateInProgress.current = false
+    }
+  }
 
   useEffect(() => {
-    // 초기 세션 로드 + 역할은 DB 기준으로 동기화
-    const load = async () => {
+    mountedRef.current = true
+
+    // Initial session load
+    const initializeAuth = async () => {
       try {
         const { data: { session } } = await browserSupabase.auth.getSession()
-        
+
+        if (!mountedRef.current) return
+
         if (!session?.user) {
           setSession(null)
           setUser(null)
@@ -38,128 +126,132 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false)
           return
         }
-        
-        // 세션이 있으면 즉시 유저 설정 (빠른 UI 업데이트)
+
+        // Set session and user immediately
         setSession(session)
         setUser(session.user)
-        
-        // 메타데이터에서 역할 먼저 설정 (빠른 초기 로드)
-        const metaRole = session.user.user_metadata?.role
-        if (metaRole) {
-          setRole(metaRole as UserRole)
-        }
-        
-        // DB에서 역할 확인 (백그라운드에서)
-        try {
-          const { data: userRow, error: roleError } = await browserSupabase
-            .from('users')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-          
-          if (!roleError && userRow?.role) {
-            setRole(userRow.role)
-          }
-        } catch (err) {
-          // DB 접근 실패 시 메타데이터 역할 유지
-          console.log('Role fetch from DB failed, using metadata role')
-        }
+
+        // Fetch and set role
+        const metaRole = session.user.user_metadata?.role as UserRole | undefined
+        await fetchAndSetRole(session.user.id, metaRole)
       } catch (error) {
-        console.error('Auth initialization error:', error)
-        setError(error as Error)
+        if (mountedRef.current) {
+          handleSupabaseError(error as Error, true, { context: 'auth_initialization' })
+        }
       } finally {
-        setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+        }
       }
     }
 
-    load()
+    initializeAuth()
 
-    // 인증 변경 리스너
+    // Auth state change listener
     const { data: { subscription } } = browserSupabase.auth.onAuthStateChange(async (event, session) => {
-      // 즉시 세션 업데이트
+      if (!mountedRef.current) return
+
       setSession(session ?? null)
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        // 메타데이터에서 빠르게 역할 설정
-        const metaRole = session.user.user_metadata?.role
-        if (metaRole) {
-          setRole(metaRole as UserRole)
-        }
-        
-        // DB 확인은 비동기로
-        browserSupabase
-          .from('users')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: userRow, error }) => {
-            if (!error && userRow?.role) {
-              setRole(userRow.role)
-            }
-          })
-          .catch(() => {
-            // DB 접근 실패 시 메타데이터 역할 유지
-            console.log('Role fetch from DB failed in auth state change')
-          })
+        const metaRole = session.user.user_metadata?.role as UserRole | undefined
+        await fetchAndSetRole(session.user.id, metaRole)
       } else {
         setRole(null)
       }
-      
-      // 로그인/로그아웃 이벤트에서만 로딩 상태 업데이트
+
+      // Update loading state for sign in/out events
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         setLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mountedRef.current = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async (email: string, password: string, role: UserRole, metadata?: any) => {
-    const { data, error } = await browserSupabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role,
-          ...metadata,
+    try {
+      const { data, error } = await browserSupabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            role,
+            ...metadata,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
+      })
 
-    // users 테이블 보정: 트리거 실패 등 대비
-    if (data?.user && !error) {
-      await browserSupabase
-        .from('users')
-        .upsert({
-          id: data.user.id,
-          email: data.user.email,
-          role,
-          phone: metadata?.phone ?? null,
-        }, { onConflict: 'id' })
+      if (error) {
+        handleSupabaseError(error, true, { context: 'sign_up' })
+        return { data, error }
+      }
+
+      // Ensure users table record exists
+      if (data?.user) {
+        await browserSupabase
+          .from('users')
+          .upsert({
+            id: data.user.id,
+            email: data.user.email,
+            role,
+            phone: metadata?.phone ?? null,
+          }, { onConflict: 'id' })
+      }
+
+      return { data, error }
+    } catch (error) {
+      handleSupabaseError(error as Error, true, { context: 'sign_up_catch' })
+      return { data: null, error: error as Error }
     }
-
-    return { data, error }
   }
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await browserSupabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { data, error }
+    try {
+      const { data, error } = await browserSupabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        handleSupabaseError(error, true, { context: 'sign_in' })
+      }
+
+      return { data, error }
+    } catch (error) {
+      handleSupabaseError(error as Error, true, { context: 'sign_in_catch' })
+      return { data: null, error: error as Error }
+    }
   }
 
   const signOut = async () => {
-    await browserSupabase.auth.signOut()
+    try {
+      await browserSupabase.auth.signOut()
+    } catch (error) {
+      handleSupabaseError(error as Error, true, { context: 'sign_out' })
+    }
   }
 
   const resetPassword = async (email: string) => {
-    const { data, error } = await browserSupabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    })
-    return { data, error }
+    try {
+      const { data, error } = await browserSupabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      })
+
+      if (error) {
+        handleSupabaseError(error, true, { context: 'reset_password' })
+      }
+
+      return { data, error }
+    } catch (error) {
+      handleSupabaseError(error as Error, true, { context: 'reset_password_catch' })
+      return { data: null, error: error as Error }
+    }
   }
 
   const value = {
@@ -171,18 +263,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signOut,
     resetPassword,
-  }
-
-  // Show error if there's an initialization error
-  if (error) {
-    console.error('Auth initialization error:', error)
-    // Don't block the app, just log the error and continue
-    // return (
-    //   <div style={{ padding: '20px', backgroundColor: 'red', color: 'white' }}>
-    //     <h2>Auth Error:</h2>
-    //     <pre>{error.message}</pre>
-    //   </div>
-    // )
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
