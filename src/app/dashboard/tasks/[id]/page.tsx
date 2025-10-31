@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 export default async function TaskDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const supabase = createServerSupabaseClient()
   
   // Check authentication
@@ -42,7 +43,7 @@ export default async function TaskDetailPage({
       ),
       attachments:task_attachments(*)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (taskError || !task) {

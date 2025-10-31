@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '@/types/supabase'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -42,9 +43,22 @@ export function createBrowserSupabaseClient() {
 const buildUrl = supabaseUrl || 'https://placeholder.supabase.co'
 const buildKey = supabaseAnonKey || 'placeholder-key'
 
-export const browserSupabase = typeof window !== 'undefined' 
-  ? createBrowserSupabaseClient() 
-  : createClient<Database>(buildUrl, buildKey, {
+type SupabaseBrowserClient = SupabaseClient<Database>
+
+const globalForSupabase = globalThis as typeof globalThis & {
+  __browserSupabase?: SupabaseBrowserClient
+}
+
+let client: SupabaseBrowserClient
+
+if (typeof window !== 'undefined') {
+  if (!globalForSupabase.__browserSupabase) {
+    globalForSupabase.__browserSupabase = createBrowserSupabaseClient()
+  }
+  client = globalForSupabase.__browserSupabase
+  ;(window as any).browserSupabase = client
+} else {
+  client = createClient<Database>(buildUrl, buildKey, {
     auth: {
       persistSession: false,
     },
@@ -58,3 +72,6 @@ export const browserSupabase = typeof window !== 'undefined'
       }
     }
   })
+}
+
+export const browserSupabase = client

@@ -10,7 +10,7 @@ test.describe('Main Page Health Check', () => {
       }
     });
 
-    await page.goto('http://localhost:3003');
+    await page.goto('http://localhost:3004');
 
     // Wait for the page to load completely
     await page.waitForLoadState('networkidle');

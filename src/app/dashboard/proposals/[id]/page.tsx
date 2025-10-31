@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -73,7 +73,8 @@ interface ProposalDetail {
   }
 }
 
-export default function ProposalDetailPage({ params }: { params: { id: string } }) {
+export default function ProposalDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
@@ -85,10 +86,12 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
   const [actionType, setActionType] = useState<'accept' | 'reject' | null>(null)
 
   useEffect(() => {
-    checkAuthAndLoadProposal()
-  }, [params.id])
+    if (id) {
+      checkAuthAndLoadProposal(id)
+    }
+  }, [id])
 
-  const checkAuthAndLoadProposal = async () => {
+  const checkAuthAndLoadProposal = async (proposalId: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -99,21 +102,26 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
     setUserId(user.id)
 
     // Get user role
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
+
+    if (userError) {
+      console.error('Failed to load user role:', userError)
+      return
+    }
 
     if (userData) {
       setUserRole(userData.role)
-      await loadProposal()
+      await loadProposal(proposalId)
     }
   }
 
-  const loadProposal = async () => {
+  const loadProposal = async (proposalId: string) => {
     setLoading(true)
-    
+
     try {
       const { data, error } = await supabase
         .from('proposals')
@@ -138,8 +146,8 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
             users(email)
           )
         `)
-        .eq('id', params.id)
-        .single()
+        .eq('id', proposalId)
+        .maybeSingle()
 
       if (error) throw error
 
@@ -168,7 +176,9 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
       if (error) throw error
 
       // Reload proposal
-      await loadProposal()
+      if (id) {
+        await loadProposal(id)
+      }
       setShowResponseForm(false)
       setResponseMessage('')
       setActionType(null)
@@ -197,7 +207,9 @@ export default function ProposalDetailPage({ params }: { params: { id: string } 
 
       if (error) throw error
 
-      await loadProposal()
+      if (id) {
+        await loadProposal(id)
+      }
     } catch (error) {
       console.error('Error withdrawing proposal:', error)
     } finally {

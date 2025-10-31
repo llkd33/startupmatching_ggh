@@ -30,6 +30,7 @@ import { FormSkeleton } from '@/components/ui/loading-states'
 import { NoProposals, NoSearchResults } from '@/components/ui/empty-state'
 import { ResponsiveTable } from '@/components/ui/responsive-table'
 import { handleSupabaseError } from '@/lib/error-handler'
+import { ProposalActions } from '@/components/proposal/ProposalActions'
 
 interface Proposal {
   id: string
@@ -274,25 +275,10 @@ export default function ProposalsPage() {
     }
   }
 
-  const handleProposalAction = async (proposalId: string, action: 'accept' | 'reject', message?: string) => {
-    try {
-      const { error } = await supabase
-        .from('proposals')
-        .update({
-          status: action === 'accept' ? 'accepted' : 'rejected',
-          response_message: message || null,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', proposalId)
-
-      if (error) throw error
-
-      // Reload proposals
-      if (userId && userRole) {
-        await loadProposals(userId, userRole)
-      }
-    } catch (error) {
-      handleSupabaseError(error as Error)
+  const handleActionComplete = async () => {
+    // Reload proposals after accept/reject action
+    if (userId && userRole) {
+      await loadProposals(userId, userRole)
     }
   }
 
@@ -551,21 +537,13 @@ export default function ProposalsPage() {
                     )}
 
                     {userRole === 'organization' && proposal.status === 'pending' && (
-                      <div className="flex gap-2 pt-4 border-t">
-                        <Button
-                          size="sm"
-                          onClick={() => handleProposalAction(proposal.id, 'accept')}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          승인
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleProposalAction(proposal.id, 'reject')}
-                        >
-                          거절
-                        </Button>
+                      <div className="pt-4 border-t">
+                        <ProposalActions
+                          proposalId={proposal.id}
+                          campaignId={proposal.campaign_id}
+                          expertName={proposal.expert_profiles?.name || '전문가'}
+                          onActionComplete={handleActionComplete}
+                        />
                       </div>
                     )}
 

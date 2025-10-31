@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -69,7 +69,8 @@ interface Proposal {
   }
 }
 
-export default function CampaignDetailPage({ params }: { params: { id: string } }) {
+export default function CampaignDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -80,10 +81,12 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [existingProposal, setExistingProposal] = useState<any>(null)
 
   useEffect(() => {
-    checkAuthAndLoadData()
-  }, [params.id])
+    if (id) {
+      checkAuthAndLoadData(id)
+    }
+  }, [id])
 
-  const checkAuthAndLoadData = async () => {
+  const checkAuthAndLoadData = async (campaignId: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -94,46 +97,59 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     setUserId(user.id)
 
     // Get user role
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
+
+    if (userError) {
+      console.error('Failed to load user role:', userError)
+      return
+    }
 
     if (userData) {
       setUserRole(userData.role)
-      
+
       if (userData.role === 'expert') {
         // Get expert profile
-        const { data: expertData } = await supabase
+        const { data: expertData, error: expertError } = await supabase
           .from('expert_profiles')
           .select('*')
           .eq('user_id', user.id)
-          .single()
-        
-        setExpertProfile(expertData)
-        
+          .maybeSingle()
+
+        if (expertError) {
+          console.error('Failed to load expert profile:', expertError)
+        } else {
+          setExpertProfile(expertData)
+        }
+
         // Check if already submitted proposal
         if (expertData) {
-          const { data: proposalData } = await supabase
+          const { data: proposalData, error: proposalError } = await supabase
             .from('proposals')
             .select('*')
-            .eq('campaign_id', params.id)
+            .eq('campaign_id', campaignId)
             .eq('expert_id', expertData.id)
-            .single()
-          
-          setExistingProposal(proposalData)
+            .maybeSingle()
+
+          if (proposalError) {
+            console.error('Failed to check existing proposal:', proposalError)
+          } else {
+            setExistingProposal(proposalData)
+          }
         }
       }
       
       await Promise.all([
-        loadCampaign(),
-        loadProposals()
+        loadCampaign(campaignId),
+        loadProposals(campaignId)
       ])
     }
   }
 
-  const loadCampaign = async () => {
+  const loadCampaign = async (campaignId: string) => {
     try {
       const { data, error } = await supabase
         .from('campaigns')
@@ -146,8 +162,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             user_id
           )
         `)
-        .eq('id', params.id)
-        .single()
+        .eq('id', campaignId)
+        .maybeSingle()
 
       if (error) throw error
       setCampaign(data)
@@ -156,7 +172,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     }
   }
 
-  const loadProposals = async () => {
+  const loadProposals = async (campaignId: string) => {
     try {
       const { data, error } = await supabase
         .from('proposals')
@@ -169,7 +185,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             users(email)
           )
         `)
-        .eq('campaign_id', params.id)
+        .eq('campaign_id', campaignId)
         .order('submitted_at', { ascending: false })
 
       if (error) throw error
@@ -194,7 +210,9 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
       if (error) throw error
 
       // Reload proposals
-      await loadProposals()
+      if (campaign) {
+        await loadProposals(campaign.id)
+      }
     } catch (error) {
       console.error('Error updating proposal:', error)
     }

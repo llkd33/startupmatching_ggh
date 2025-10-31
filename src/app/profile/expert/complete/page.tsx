@@ -82,8 +82,9 @@ export default function EnhancedExpertProfilePage() {
   }, [])
 
   const checkAuthAndLoadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+
     if (!user) {
       router.push('/auth/login')
       return
@@ -161,7 +162,8 @@ export default function EnhancedExpertProfilePage() {
     if (!expertId) return
     
     // Save current step to localStorage
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     if (user) {
       localStorage.setItem(`expert-profile-step-${user.id}`, currentStep.toString())
     }
@@ -226,7 +228,8 @@ export default function EnhancedExpertProfilePage() {
       }
 
       // Clear saved step
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (user) {
         localStorage.removeItem(`expert-profile-step-${user.id}`)
       }

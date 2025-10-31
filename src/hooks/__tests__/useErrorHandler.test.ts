@@ -7,6 +7,13 @@ jest.mock('@/components/ui/toast-custom', () => ({
   toast: {
     error: jest.fn(),
     success: jest.fn(),
+    warning: jest.fn(),
+    info: jest.fn(),
+    loading: jest.fn(() => 'toast-id'),
+    dismiss: jest.fn(),
+  },
+  ERROR_MESSAGES: {
+    UNAUTHORIZED: '로그인이 필요합니다.',
   },
 }))
 
@@ -72,16 +79,18 @@ describe('useErrorHandler Hook', () => {
       new Promise(resolve => setTimeout(() => resolve('done'), 100))
     )
     
-    const promise = act(async () => {
-      return result.current.handleAsync(mockAsyncFn)
+    let pending: Promise<unknown> = Promise.resolve()
+
+    await act(async () => {
+      pending = result.current.handleAsync(mockAsyncFn) || Promise.resolve()
     })
-    
-    // Should be loading immediately after calling
+
     expect(result.current.loading).toBe(true)
-    
-    await promise
-    
-    // Should not be loading after completion
+
+    await act(async () => {
+      await pending
+    })
+
     expect(result.current.loading).toBe(false)
   })
 

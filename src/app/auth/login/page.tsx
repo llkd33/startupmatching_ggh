@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Loader2, Building, UserCheck } from 'lucide-react'
 import { toast } from '@/components/ui/toast-custom'
+import { UserRole } from '@/types/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -48,16 +49,114 @@ export default function LoginPage() {
 
       if (signInError) throw signInError
 
+      const metadataRole = data.user.user_metadata?.role as UserRole | undefined
+
       // 사용자 정보 가져오기 (에러 처리 포함)
       const userResult = await browserSupabase
         .from('users')
         .select('role')
         .eq('id', data.user.id)
-        .single()
-      
-      // 역할 확인
-      const role = userResult.data?.role || data.user.user_metadata?.role
-      
+        .maybeSingle()
+
+      if (userResult.error && !(userResult.error.code === 'PGRST116' || userResult.error.message?.includes('406'))) {
+        throw userResult.error
+      }
+
+      let resolvedRole = (userResult.data?.role as UserRole | undefined) ?? metadataRole
+
+      if (!userResult.data?.role) {
+        const fallbackRole: UserRole = resolvedRole ?? 'organization'
+        
+        // Ensure we have valid data before upserting
+        const userEmail = data.user.email
+        if (!userEmail || userEmail.trim() === '') {
+          throw new Error('이메일 정보가 없습니다. 다시 로그인해주세요.')
+        }
+
+        // Validate role
+        const validRoles: UserRole[] = ['expert', 'organization', 'admin']
+        if (!validRoles.includes(fallbackRole)) {
+          throw new Error('유효하지 않은 사용자 역할입니다.')
+        }
+
+        const session = data.session ?? (await browserSupabase.auth.getSession()).data.session
+        const accessToken = session?.access_token
+
+        if (!accessToken) {
+          throw new Error('세션 정보를 확인할 수 없습니다. 다시 로그인해주세요.')
+        }
+
+        let backfillResponse: Response
+        try {
+          backfillResponse = await fetch('/api/auth/backfill-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              role: fallbackRole,
+              phone: data.user.user_metadata?.phone ?? null,
+            }),
+          })
+        } catch (networkError) {
+          console.error('Failed to backfill user record (network error):', networkError)
+          throw new Error('사용자 정보를 동기화하지 못했습니다. 네트워크 상태를 확인 후 다시 시도해주세요.')
+        }
+
+        if (!backfillResponse.ok) {
+          let errorPayload: unknown = null
+          try {
+            errorPayload = await backfillResponse.json()
+          } catch (parseError) {
+            console.error('Failed to parse backfill error response:', parseError)
+          }
+
+          console.error('Failed to backfill user record:', errorPayload || backfillResponse.statusText)
+          console.error('Attempted data:', {
+            id: data.user.id,
+            email: userEmail,
+            role: fallbackRole,
+            phone: data.user.user_metadata?.phone ?? null,
+          })
+
+          const payloadObject =
+            typeof errorPayload === 'object' && errorPayload !== null
+              ? (errorPayload as Record<string, unknown>)
+              : null
+          const serverMessage =
+            payloadObject && typeof payloadObject.error === 'string'
+              ? payloadObject.error
+              : null
+          throw new Error(serverMessage || '사용자 정보를 동기화하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+        }
+
+        try {
+          const result: unknown = await backfillResponse.json()
+          if (typeof result === 'object' && result !== null) {
+            const payloadUser = (result as Record<string, unknown>).user
+            if (typeof payloadUser === 'object' && payloadUser !== null) {
+              const maybeRole = (payloadUser as Record<string, unknown>).role
+              const syncedRole = typeof maybeRole === 'string' ? (maybeRole as UserRole) : undefined
+              resolvedRole = syncedRole ?? fallbackRole
+            } else {
+              resolvedRole = fallbackRole
+            }
+          } else {
+            resolvedRole = fallbackRole
+          }
+        } catch (parseError) {
+          console.error('Failed to parse backfill response:', parseError)
+          resolvedRole = fallbackRole
+        }
+      }
+
+      if (!resolvedRole) {
+        throw new Error('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
+      }
+
+      const role = resolvedRole
+
       // 역할에 따라 프로필 확인
       let profileComplete = true
       if (role === 'expert') {
@@ -65,14 +164,14 @@ export default function LoginPage() {
           .from('expert_profiles')
           .select('is_profile_complete')
           .eq('user_id', data.user.id)
-          .single()
+          .maybeSingle()
         profileComplete = expertProfile?.is_profile_complete ?? false
       } else if (role === 'organization') {
         const { data: orgProfile } = await browserSupabase
           .from('organization_profiles')
           .select('is_profile_complete')
           .eq('user_id', data.user.id)
-          .single()
+          .maybeSingle()
         profileComplete = orgProfile?.is_profile_complete ?? false
       }
 
@@ -90,24 +189,28 @@ export default function LoginPage() {
       // prefetch로 페이지 미리 로드
       router.prefetch(redirectPath)
       router.push(redirectPath)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err)
-      
+
       let errorMessage = '로그인 중 오류가 발생했습니다.'
-      
+
+      const errorObject = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null
+      const message = typeof errorObject?.message === 'string' ? errorObject.message : null
+      const status = typeof errorObject?.status === 'number' ? errorObject.status : null
+
       // Supabase 에러 메시지를 더 친근하게 변환
-      if (err.message?.includes('Invalid login credentials')) {
+      if (message?.includes('Invalid login credentials')) {
         errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
-      } else if (err.message?.includes('Email not confirmed')) {
+      } else if (message?.includes('Email not confirmed')) {
         errorMessage = '이메일 인증이 필요합니다. 이메일을 확인해주세요.'
-      } else if (err.message?.includes('User not found')) {
+      } else if (message?.includes('User not found')) {
         errorMessage = '등록되지 않은 사용자입니다.'
-      } else if (err.status === 401) {
+      } else if (status === 401) {
         errorMessage = '인증에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
-      } else if (err.message) {
-        errorMessage = err.message
+      } else if (message) {
+        errorMessage = message
       }
-      
+
       setError(errorMessage)
       toast.error(errorMessage)
       setIsRedirecting(false)

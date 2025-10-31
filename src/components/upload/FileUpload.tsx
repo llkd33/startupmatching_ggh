@@ -267,23 +267,39 @@ export function FileUpload({
     return allowedTypes.map(type => typeMap[type] || type).join(', ')
   }, [allowedTypes])
 
+  const dropzoneClasses = cn(
+    "relative border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+    dragActive
+      ? "border-blue-500 bg-blue-50"
+      : "border-gray-300 hover:border-gray-400",
+    disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+  )
+
+  const dropzoneContentClasses = cn(
+    "flex flex-col items-center gap-3",
+    disabled && "opacity-50 cursor-not-allowed"
+  )
+
   return (
     <div className={cn("w-full", className)}>
       {/* 드롭존 */}
       <div
-        className={cn(
-          "relative border-2 border-dashed rounded-lg p-6 text-center transition-colors",
-          dragActive 
-            ? "border-blue-500 bg-blue-50" 
-            : "border-gray-300 hover:border-gray-400",
-          disabled && "opacity-50 cursor-not-allowed",
-          !disabled && "cursor-pointer"
-        )}
+        className={dropzoneClasses}
+        aria-disabled={disabled || undefined}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
         onClick={() => !disabled && inputRef.current?.click()}
+        onKeyDown={(event) => {
+          if (disabled) return
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
       >
         <input
           ref={inputRef}
@@ -295,7 +311,7 @@ export function FileUpload({
           className="hidden"
         />
         
-        <div className="flex flex-col items-center gap-3">
+        <div className={dropzoneContentClasses}>
           <Upload className={cn(
             "h-10 w-10",
             dragActive ? "text-blue-500" : "text-gray-400"

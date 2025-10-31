@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -62,7 +62,8 @@ interface Participant {
   email: string
 }
 
-export default function ChatPage({ params }: { params: { campaignId: string } }) {
+export default function ChatPage() {
+  const { campaignId } = useParams<{ campaignId: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
   const threadId = searchParams.get('thread')
@@ -80,13 +81,13 @@ export default function ChatPage({ params }: { params: { campaignId: string } })
 
   // Use real-time messages hook
   const { messages: realtimeMessages, loading: messagesLoading } = useRealtimeMessages(
-    params.campaignId, 
+    campaignId || '', 
     currentUser?.id || ''
   )
 
   useEffect(() => {
     checkAuthAndLoadData()
-  }, [params.campaignId])
+  }, [campaignId])
 
   useEffect(() => {
     if (realtimeMessages) {
@@ -101,6 +102,8 @@ export default function ChatPage({ params }: { params: { campaignId: string } })
   }, [messages])
 
   const checkAuthAndLoadData = async () => {
+    if (!campaignId) return
+
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -124,7 +127,7 @@ export default function ChatPage({ params }: { params: { campaignId: string } })
           *,
           organization_profiles(organization_name, user_id)
         `)
-        .eq('id', params.campaignId)
+        .eq('id', campaignId)
         .single()
 
       if (error) throw error
@@ -140,7 +143,7 @@ export default function ChatPage({ params }: { params: { campaignId: string } })
       const { data: threadData, error: threadError } = await supabase
         .from('message_threads')
         .select('participant_1, participant_2')
-        .eq('campaign_id', params.campaignId)
+        .eq('campaign_id', campaignId)
         .or(`participant_1.eq.${currentUserId},participant_2.eq.${currentUserId}`)
         .single()
 
@@ -188,7 +191,7 @@ export default function ChatPage({ params }: { params: { campaignId: string } })
     setSending(true)
     try {
       const { error } = await supabase.rpc('send_message', {
-        p_campaign_id: params.campaignId,
+        p_campaign_id: campaignId,
         p_proposal_id: null,
         p_sender_id: currentUser.id,
         p_receiver_id: otherParticipant.id,

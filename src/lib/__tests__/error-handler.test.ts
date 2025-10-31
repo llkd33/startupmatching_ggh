@@ -42,7 +42,7 @@ describe('Error Handler', () => {
       expect(result.message).toBe('Test error')
       expect(result.code).toBe('TEST_ERROR')
       expect(result.status).toBe(400)
-      expect(toast.error).toHaveBeenCalledWith('Test error', undefined)
+      expect(toast.error).toHaveBeenCalledWith('Test error')
     })
 
     it('handles ValidationError correctly', () => {

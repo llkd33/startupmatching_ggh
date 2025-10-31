@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,11 +61,18 @@ export default function OrganizationProfilePage() {
       }
 
       // Check user role
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('role, email, phone')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
+
+      if (userError) {
+        console.error('Failed to load user data:', userError)
+        setError('사용자 정보를 불러올 수 없습니다.')
+        setLoading(false)
+        return
+      }
 
       if (userData?.role !== 'organization') {
         router.push('/dashboard')
@@ -78,7 +84,7 @@ export default function OrganizationProfilePage() {
         .from('organization_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError)
@@ -146,19 +152,80 @@ export default function OrganizationProfilePage() {
         return
       }
 
+      const trimOrNull = (value: string) => {
+        const trimmed = value.trim()
+        return trimmed === '' ? null : trimmed
+      }
+
+      const normalizeWebsite = (value: string) => {
+        if (!value) return null
+        let normalized = value.trim()
+        if (normalized === '') return null
+        if (!/^https?:\/\//i.test(normalized)) {
+          normalized = `https://${normalized}`
+        }
+
+        const urlPattern = /^https?:\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(\/.*)?$/i
+        return urlPattern.test(normalized) ? normalized : null
+      }
+
+      const normalizePhone = (value: string) => {
+        if (!value) return null
+        const digits = value.replace(/\D/g, '')
+        if (digits.length === 10) {
+          return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+        }
+        if (digits.length === 11) {
+          return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+        }
+        return null
+      }
+
+      const requiredFields = {
+        organization_name: formData.organization_name.trim(),
+        representative_name: formData.representative_name.trim(),
+      }
+
+      const fail = (message: string) => {
+        setError(message)
+        setSaving(false)
+      }
+
+      if (!requiredFields.organization_name) {
+        fail('기관명을 입력해주세요.')
+        return
+      }
+
+      if (!requiredFields.representative_name) {
+        fail('대표자명을 입력해주세요.')
+        return
+      }
+
+      const normalizedWebsite = normalizeWebsite(formData.website)
+      if (formData.website && !normalizedWebsite) {
+        fail('유효한 웹사이트 주소를 입력해주세요. 예: https://example.com')
+        return
+      }
+
+      const normalizedPhone = normalizePhone(formData.phone)
+      if (formData.phone && !normalizedPhone) {
+        fail('전화번호는 010-1234-5678 형식으로 입력해주세요.')
+        return
+      }
+
       // Update organization profile
       const { error: updateError } = await supabase
         .from('organization_profiles')
         .update({
-          organization_name: formData.organization_name,
-          business_number: formData.business_number,
-          representative_name: formData.representative_name,
-          contact_position: formData.contact_position,
-          industry: formData.industry,
-          employee_count: formData.employee_count,
-          website: formData.website,
-          description: formData.description,
-          address: formData.address,
+          organization_name: requiredFields.organization_name,
+          business_number: trimOrNull(formData.business_number),
+          representative_name: requiredFields.representative_name,
+          contact_position: trimOrNull(formData.contact_position),
+          industry: trimOrNull(formData.industry),
+          employee_count: trimOrNull(formData.employee_count),
+          website: normalizedWebsite,
+          description: trimOrNull(formData.description),
+          address: trimOrNull(formData.address),
           updated_at: new Date().toISOString()
         })
         .eq('id', organizationData.id)
@@ -166,15 +233,29 @@ export default function OrganizationProfilePage() {
       if (updateError) throw updateError
 
       // Update phone in users table if changed
-      if (formData.phone) {
+      const shouldUpdatePhone = normalizedPhone || formData.phone.trim() === ''
+      if (shouldUpdatePhone) {
         await supabase
           .from('users')
-          .update({ phone: formData.phone })
+          .update({ phone: normalizedPhone })
           .eq('id', user.id)
       }
 
       setSuccess('프로필이 성공적으로 업데이트되었습니다.')
       setEditing(false)
+      setFormData((prev) => ({
+        ...prev,
+        organization_name: requiredFields.organization_name,
+        representative_name: requiredFields.representative_name,
+        business_number: trimOrNull(formData.business_number) ?? '',
+        contact_position: trimOrNull(formData.contact_position) ?? '',
+        industry: trimOrNull(formData.industry) ?? '',
+        employee_count: trimOrNull(formData.employee_count) ?? '',
+        website: normalizedWebsite ?? '',
+        description: trimOrNull(formData.description) ?? '',
+        address: trimOrNull(formData.address) ?? '',
+        phone: normalizedPhone ?? '',
+      }))
       await loadOrganizationProfile()
     } catch (err: any) {
       console.error('Error saving profile:', err)
@@ -186,17 +267,14 @@ export default function OrganizationProfilePage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
     )
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -479,7 +557,6 @@ export default function OrganizationProfilePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </DashboardLayout>
+    </div>
   )
 }

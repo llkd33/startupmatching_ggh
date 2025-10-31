@@ -84,7 +84,7 @@ GRANT EXECUTE ON FUNCTION get_unread_message_count TO authenticated;
 
 ## After Fixing
 1. Restart your development server: `npm run dev`
-2. Visit http://localhost:3003
+2. Visit http://localhost:3004
 3. The page should now load properly with your beautiful UI
 
 ## If Still Having Issues

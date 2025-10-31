@@ -77,7 +77,9 @@ export default function CompleteOrganizationProfilePage() {
   }, [watchedFields])
 
   const checkAuthAndLoadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+
     if (!user) {
       router.push('/auth/login')
       return
@@ -91,6 +93,11 @@ export default function CompleteOrganizationProfilePage() {
       .select('*')
       .eq('user_id', user.id)
       .single()
+
+    if (profile?.is_profile_complete) {
+      router.push('/dashboard')
+      return
+    }
 
     if (profile) {
       setValue('organizationName', profile.organization_name || '')
@@ -123,8 +130,9 @@ export default function CompleteOrganizationProfilePage() {
           employee_count: data.employeeCount,
           website: data.website || null,
           description: data.description || null,
+          is_profile_complete: true,
           updated_at: new Date().toISOString()
-        })
+        }, { onConflict: 'user_id' })
 
       if (profileError) {
         throw profileError
@@ -132,7 +140,11 @@ export default function CompleteOrganizationProfilePage() {
 
       // 성공 시 대시보드로 이동
       success('프로필이 성공적으로 저장되었습니다!')
-      router.push('/dashboard')
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error: any) {
       const errorMessage = error.message || '프로필 저장 중 오류가 발생했습니다'
       setError('root', {

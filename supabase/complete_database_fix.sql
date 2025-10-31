@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.campaigns (
     location TEXT,
     required_experts INTEGER DEFAULT 1,
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'in_progress', 'completed', 'cancelled')),
+    attachments JSONB DEFAULT '[]'::jsonb,
     requirements JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

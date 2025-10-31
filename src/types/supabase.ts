@@ -52,6 +52,7 @@ export interface Database {
           total_projects: number
           created_at: string
           updated_at: string
+          is_profile_complete: boolean
         }
         Insert: {
           id?: string
@@ -69,6 +70,7 @@ export interface Database {
           total_projects?: number
           created_at?: string
           updated_at?: string
+          is_profile_complete?: boolean
         }
         Update: {
           id?: string
@@ -86,6 +88,7 @@ export interface Database {
           total_projects?: number
           created_at?: string
           updated_at?: string
+          is_profile_complete?: boolean
         }
       }
       organization_profiles: {
@@ -103,6 +106,7 @@ export interface Database {
           is_verified: boolean
           created_at: string
           updated_at: string
+          is_profile_complete: boolean
         }
         Insert: {
           id?: string
@@ -118,6 +122,7 @@ export interface Database {
           is_verified?: boolean
           created_at?: string
           updated_at?: string
+          is_profile_complete?: boolean
         }
         Update: {
           id?: string
@@ -133,6 +138,7 @@ export interface Database {
           is_verified?: boolean
           created_at?: string
           updated_at?: string
+          is_profile_complete?: boolean
         }
       }
       campaigns: {
@@ -151,6 +157,7 @@ export interface Database {
           location: string | null
           required_experts: number
           status: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled'
+          attachments: Json | null
           created_at: string
           updated_at: string
         }
@@ -169,6 +176,7 @@ export interface Database {
           location?: string | null
           required_experts?: number
           status?: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled'
+          attachments?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -187,6 +195,7 @@ export interface Database {
           location?: string | null
           required_experts?: number
           status?: 'draft' | 'active' | 'in_progress' | 'completed' | 'cancelled'
+          attachments?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -196,11 +205,15 @@ export interface Database {
           id: string
           campaign_id: string
           expert_id: string
-          cover_letter: string
-          proposed_budget: number | null
-          proposed_timeline: string | null
-          attachments: Json | null
+          proposal_text: string
+          estimated_budget: number | null
+          estimated_start_date: string | null
+          estimated_end_date: string | null
+          portfolio_links: string[] | null
           status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+          response_message: string | null
+          submitted_at: string
+          reviewed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -208,11 +221,15 @@ export interface Database {
           id?: string
           campaign_id: string
           expert_id: string
-          cover_letter: string
-          proposed_budget?: number | null
-          proposed_timeline?: string | null
-          attachments?: Json | null
+          proposal_text: string
+          estimated_budget?: number | null
+          estimated_start_date?: string | null
+          estimated_end_date?: string | null
+          portfolio_links?: string[] | null
           status?: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+          response_message?: string | null
+          submitted_at?: string
+          reviewed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -220,11 +237,15 @@ export interface Database {
           id?: string
           campaign_id?: string
           expert_id?: string
-          cover_letter?: string
-          proposed_budget?: number | null
-          proposed_timeline?: string | null
-          attachments?: Json | null
+          proposal_text?: string
+          estimated_budget?: number | null
+          estimated_start_date?: string | null
+          estimated_end_date?: string | null
+          portfolio_links?: string[] | null
           status?: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+          response_message?: string | null
+          submitted_at?: string
+          reviewed_at?: string | null
           created_at?: string
           updated_at?: string
         }
