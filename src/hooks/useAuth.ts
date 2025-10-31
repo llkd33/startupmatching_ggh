@@ -40,14 +40,28 @@ export function useAuth() {
   const loadUser = async () => {
     try {
       setLoading(true)
+
+      // First check if we have a session
+      const session = await auth.getSession()
+      if (!session) {
+        console.log('No session found')
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
       const currentUser = await auth.getUser()
-      
+
       if (currentUser) {
         await loadUserProfile(currentUser)
+      } else {
+        console.log('No user found despite having session')
+        setUser(null)
       }
     } catch (err) {
       console.error('Error loading user:', err)
       setError('Failed to load user')
+      setUser(null)
     } finally {
       setLoading(false)
     }

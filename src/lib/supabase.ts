@@ -93,14 +93,32 @@ export const auth = {
 
   // Get current user
   async getUser() {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error) {
+        console.error('Error getting user:', error)
+        return null
+      }
+      return user
+    } catch (err) {
+      console.error('Exception getting user:', err)
+      return null
+    }
   },
 
   // Get current session
   async getSession() {
-    const { data: { session } } = await supabase.auth.getSession()
-    return session
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error('Error getting session:', error)
+        return null
+      }
+      return session
+    } catch (err) {
+      console.error('Exception getting session:', err)
+      return null
+    }
   },
 }
 
