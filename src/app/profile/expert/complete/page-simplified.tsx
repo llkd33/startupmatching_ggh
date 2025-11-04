@@ -154,20 +154,15 @@ export default function SimplifiedExpertProfilePage() {
     }
     
     try {
-      const { error: updateError } = await supabase
-        .from('expert_profiles')
-        .update({
-          name: quickProfileData.name,
-          phone: quickProfileData.phone,
-          introduction: quickProfileData.bio,
-          hashtags: quickProfileData.skills,
-          career_history: detailedProfileData.career,
-          education: detailedProfileData.education,
-          portfolio: detailedProfileData.portfolio
-        })
-        .eq('id', expertId)
-
-      if (updateError) throw updateError
+      await db.experts.updateProfile(expertId, {
+        name: quickProfileData.name,
+        phone: quickProfileData.phone,
+        introduction: quickProfileData.bio,
+        hashtags: quickProfileData.skills,
+        career_history: detailedProfileData.career,
+        education: detailedProfileData.education,
+        portfolio: detailedProfileData.portfolio
+      })
       success('진행상황이 저장되었습니다.')
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -204,17 +199,21 @@ export default function SimplifiedExpertProfilePage() {
         updateData.is_profile_complete = true
       }
 
-      const { error: updateError } = await supabase
-        .from('expert_profiles')
-        .update(updateData)
-        .eq('id', expertId)
+      const { error: updateError } = await db.experts.updateProfile(expertId, updateData)
 
       if (updateError) {
         throw updateError
       }
 
-      // Generate auto hashtags (optional - can be done later)
-      // 해시태그는 자동 생성되거나 수동으로 추가 가능
+      // Generate auto hashtags
+      try {
+        await db.experts.updateHashtags(expertId)
+      } catch (hashtagError) {
+        // 개발 모드에서만 로그
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to generate hashtags:', hashtagError)
+        }
+      }
 
       // Clear saved step
       const { data: { session } } = await supabase.auth.getSession()

@@ -3,65 +3,105 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, db } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { MultiStepWizard } from '@/components/ui/multi-step-wizard'
+import { useToast } from '@/components/ui/toast-provider'
+import {
+  BasicInfoStep,
+  WorkExperienceStep,
+  EducationStep,
+  SkillsStep,
+  AvailabilityStep
+} from '@/components/expert/profile-wizard-steps'
 
-interface CareerItem {
-  company: string
-  position: string
-  start_date: string
-  end_date: string
-  description: string
+interface ProfileData {
+  // Basic Info
+  name: string
+  title: string
+  location: string
+  phone: string
+  email: string
+  
+  // Work Experience
+  career: Array<{
+    company: string
+    position: string
+    start_date: string
+    end_date: string
+    description: string
+  }>
+  
+  // Education
+  education: Array<{
+    school: string
+    major: string
+    degree: string
+    status: '졸업' | '졸업예정' | '재학' | '휴학' | '중퇴'
+    graduation_year: string
+  }>
+  
+  // Skills
+  hashtags: string[]
+  newHashtag: string
+  
+  // Availability
+  hourlyRate: string
+  availability: string
+  preferredWorkType: string
+  portfolio: string
+  introduction: string
 }
 
-interface EducationItem {
-  school: string
-  major: string
-  degree: string
-  status: '졸업' | '졸업예정' | '재학' | '휴학' | '중퇴'
-  graduation_year: string
-}
-
-export default function CompleteExpertProfilePage() {
+export default function EnhancedExpertProfilePage() {
   const router = useRouter()
+  const { success, error: showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [expertId, setExpertId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
-    career: [] as CareerItem[],
-    education: [] as EducationItem[],
-    hashtags: [] as string[],
+  const [savedStep, setSavedStep] = useState(0)
+  
+  const [profileData, setProfileData] = useState<ProfileData>({
+    name: '',
+    title: '',
+    location: '',
+    phone: '',
+    email: '',
+    career: [],
+    education: [],
+    hashtags: [],
     newHashtag: '',
+    hourlyRate: '',
+    availability: '',
+    preferredWorkType: '',
+    portfolio: '',
+    introduction: ''
   })
 
   useEffect(() => {
-    checkAuth()
+    checkAuthAndLoadProfile()
   }, [])
 
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    console.log('User:', user)
-    
+  const checkAuthAndLoadProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+
     if (!user) {
       router.push('/auth/login')
       return
     }
 
-    // Get expert profile
+    // Set email from auth user
+    setProfileData(prev => ({ ...prev, email: user.email || '' }))
+
+    // Get or create expert profile
     const { data: profile, error } = await supabase
       .from('expert_profiles')
-      .select('id, is_profile_complete')
+      .select('*')
       .eq('user_id', user.id)
       .single()
     
-    console.log('Expert profile:', profile)
-    console.log('Profile error:', error)
-
     if (error && error.code === 'PGRST116') {
       // No profile found - create one
-      console.log('Creating new expert profile for user:', user.id)
       const { data: newProfile, error: createError } = await supabase
         .from('expert_profiles')
         .insert({
@@ -73,8 +113,7 @@ export default function CompleteExpertProfilePage() {
         .single()
       
       if (createError) {
-        console.error('Failed to create profile:', createError)
-        alert('프로필 생성 중 오류가 발생했습니다. 다시 시도해주세요.')
+        showError('프로필 생성 중 오류가 발생했습니다.')
         return
       }
       
@@ -88,345 +127,280 @@ export default function CompleteExpertProfilePage() {
     }
 
     setExpertId(profile?.id || null)
-  }
-
-  const addCareerItem = () => {
-    setFormData({
-      ...formData,
-      career: [...formData.career, {
-        company: '',
-        position: '',
-        start_date: '',
-        end_date: '',
-        description: ''
-      }]
-    })
-  }
-
-  const removeCareerItem = (index: number) => {
-    setFormData({
-      ...formData,
-      career: formData.career.filter((_, i) => i !== index)
-    })
-  }
-
-  const updateCareerItem = (index: number, field: keyof CareerItem, value: string) => {
-    const updatedCareer = [...formData.career]
-    updatedCareer[index] = { ...updatedCareer[index], [field]: value }
-    setFormData({ ...formData, career: updatedCareer })
-  }
-
-  const addEducationItem = () => {
-    setFormData({
-      ...formData,
-      education: [...formData.education, {
-        school: '',
-        major: '',
-        degree: '',
-        status: '졸업',
-        graduation_year: ''
-      }]
-    })
-  }
-
-  const removeEducationItem = (index: number) => {
-    setFormData({
-      ...formData,
-      education: formData.education.filter((_, i) => i !== index)
-    })
-  }
-
-  const updateEducationItem = (index: number, field: keyof EducationItem, value: string) => {
-    const updatedEducation = [...formData.education]
-    updatedEducation[index] = { ...updatedEducation[index], [field]: value }
-    setFormData({ ...formData, education: updatedEducation })
-  }
-
-  const addHashtag = () => {
-    if (formData.newHashtag && !formData.hashtags.includes(formData.newHashtag)) {
-      setFormData({
-        ...formData,
-        hashtags: [...formData.hashtags, formData.newHashtag],
-        newHashtag: ''
-      })
+    
+    // Load existing profile data if available
+    if (profile) {
+      setProfileData(prev => ({
+        ...prev,
+        name: profile.name || '',
+        title: profile.title || '',
+        location: profile.location || '',
+        phone: profile.phone || '',
+        career: profile.career_history || [],
+        education: profile.education || [],
+        hashtags: profile.hashtags || [],
+        hourlyRate: profile.hourly_rate || '',
+        availability: profile.availability || '',
+        preferredWorkType: profile.preferred_work_type || '',
+        portfolio: profile.portfolio || '',
+        introduction: profile.introduction || ''
+      }))
+      
+      // Load saved step from localStorage
+      const saved = localStorage.getItem(`expert-profile-step-${user.id}`)
+      if (saved) {
+        setSavedStep(parseInt(saved))
+      }
     }
   }
 
-  const removeHashtag = (tag: string) => {
-    setFormData({
-      ...formData,
-      hashtags: formData.hashtags.filter(t => t !== tag)
-    })
+  const updateProfileData = (field: string, value: any) => {
+    setProfileData(prev => ({ ...prev, [field]: value }))
   }
 
+  const saveProgress = async (currentStep: number) => {
+    if (!expertId) return
+    
+    // Save current step to localStorage
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
+    if (user) {
+      localStorage.setItem(`expert-profile-step-${user.id}`, currentStep.toString())
+    }
+    
+    // Save partial profile data
+    try {
+      await db.experts.updateProfile(expertId, {
+        name: profileData.name,
+        title: profileData.title,
+        location: profileData.location,
+        phone: profileData.phone,
+        career_history: profileData.career,
+        education: profileData.education,
+        hashtags: profileData.hashtags,
+        hourly_rate: profileData.hourlyRate,
+        availability: profileData.availability,
+        preferred_work_type: profileData.preferredWorkType,
+        portfolio: profileData.portfolio,
+        introduction: profileData.introduction
+      })
+      success('진행상황이 저장되었습니다.')
+    } catch (error) {
+      console.error('Failed to save progress:', error)
+    }
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    console.log('Submit clicked - expertId:', expertId)
-    console.log('Form data:', formData)
-    
+  const completeProfile = async () => {
     if (!expertId) {
-      console.error('No expert ID found')
-      alert('전문가 프로필을 찾을 수 없습니다. 다시 로그인해주세요.')
+      showError('전문가 프로필을 찾을 수 없습니다.')
       return
     }
 
     setLoading(true)
 
     try {
-      // Update expert profile
+      // Update expert profile with complete flag
       const { error: updateError } = await db.experts.updateProfile(expertId, {
-        career_history: formData.career,
-        education: formData.education,
-        hashtags: formData.hashtags,
+        name: profileData.name,
+        title: profileData.title,
+        location: profileData.location,
+        phone: profileData.phone,
+        career_history: profileData.career,
+        education: profileData.education,
+        hashtags: profileData.hashtags,
+        hourly_rate: profileData.hourlyRate,
+        availability: profileData.availability,
+        preferred_work_type: profileData.preferredWorkType,
+        portfolio: profileData.portfolio,
+        introduction: profileData.introduction,
         is_profile_complete: true,
       })
 
       if (updateError) {
-        console.error('Update error:', updateError)
         throw updateError
       }
 
-      // Generate auto hashtags - optional, don't fail if this doesn't work
+      // Generate auto hashtags
       try {
         await db.experts.updateHashtags(expertId)
       } catch (hashtagError) {
         console.warn('Failed to generate hashtags:', hashtagError)
       }
 
+      // Clear saved step
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
+      if (user) {
+        localStorage.removeItem(`expert-profile-step-${user.id}`)
+      }
+
+      success('프로필이 성공적으로 완성되었습니다!')
       router.push('/dashboard')
     } catch (error: any) {
-      console.error('Error updating profile:', error)
-      alert(`프로필 업데이트 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
+      showError(`프로필 업데이트 중 오류가 발생했습니다: ${error.message}`)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCompleteLater = async () => {
-    // Simply redirect to dashboard without marking profile as complete
-    router.push('/dashboard')
+  const validateBasicInfo = () => {
+    // 간소화된 검증: 이름, 전화번호, 자기소개, 스킬만 필수
+    const errors: Record<string, string> = {}
+    
+    if (!quickProfileData.name || quickProfileData.name.length < 2) {
+      errors.name = '이름을 입력해주세요 (최소 2자)'
+    }
+    
+    if (!quickProfileData.phone || !/^01[0-9]-?[0-9]{4}-?[0-9]{4}$/.test(quickProfileData.phone)) {
+      errors.phone = '올바른 전화번호를 입력해주세요'
+    }
+    
+    if (!quickProfileData.bio || quickProfileData.bio.length < 10) {
+      errors.bio = '간단한 자기소개를 입력해주세요 (최소 10자)'
+    }
+    
+    if (quickProfileData.skills.length === 0) {
+      errors.skills = '최소 1개의 스킬을 선택해주세요'
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
   }
+
+  const validateWorkExperience = () => {
+    // Optional step - always valid but check if added items are complete
+    return profileData.career.every(item => item.company && item.position && item.start_date)
+  }
+
+  const validateEducation = () => {
+    // Optional step - always valid but check if added items are complete
+    return profileData.education.every(item => item.school && item.major && item.degree && item.graduation_year)
+  }
+
+  const validateSkills = () => {
+    // At least one skill tag is recommended but not required
+    return true
+  }
+
+  const validateAvailability = () => {
+    // Optional fields - always valid
+    return true
+  }
+
+  const wizardSteps = [
+    {
+      id: 'basic-info',
+      title: '기본 정보',
+      description: '이름, 직책, 연락처 등 기본 정보를 입력해주세요',
+      component: (
+        <BasicInfoStep
+          data={{
+            name: profileData.name,
+            title: profileData.title,
+            location: profileData.location,
+            phone: profileData.phone,
+            email: profileData.email
+          }}
+          onChange={updateProfileData}
+        />
+      ),
+      validation: validateBasicInfo
+    },
+    {
+      id: 'work-experience',
+      title: '경력 사항',
+      description: '경력 사항을 추가해주세요 (선택사항)',
+      component: (
+        <WorkExperienceStep
+          data={profileData.career}
+          onChange={(careers) => updateProfileData('career', careers)}
+        />
+      ),
+      validation: validateWorkExperience
+    },
+    {
+      id: 'education',
+      title: '학력 사항',
+      description: '학력 정보를 추가해주세요 (선택사항)',
+      component: (
+        <EducationStep
+          data={profileData.education}
+          onChange={(education) => updateProfileData('education', education)}
+        />
+      ),
+      validation: validateEducation
+    },
+    {
+      id: 'skills',
+      title: '전문 분야',
+      description: '전문 분야와 기술 스택을 태그로 추가해주세요',
+      component: (
+        <SkillsStep
+          data={{
+            hashtags: profileData.hashtags,
+            newHashtag: profileData.newHashtag
+          }}
+          onChange={updateProfileData}
+        />
+      ),
+      validation: validateSkills
+    },
+    {
+      id: 'availability',
+      title: '참여 조건',
+      description: '프로젝트 참여 조건과 자기소개를 입력해주세요',
+      component: (
+        <AvailabilityStep
+          data={{
+            hourlyRate: profileData.hourlyRate,
+            availability: profileData.availability,
+            preferredWorkType: profileData.preferredWorkType,
+            portfolio: profileData.portfolio,
+            introduction: profileData.introduction
+          }}
+          onChange={updateProfileData}
+        />
+      ),
+      validation: validateAvailability
+    }
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>전문가 프로필 완성하기</CardTitle>
+            <CardTitle className="text-2xl font-bold">전문가 프로필 완성하기</CardTitle>
             <CardDescription>
-              프로필을 완성하면 캠페인 매칭을 시작할 수 있습니다.
+              단계별로 프로필을 완성해주세요. 언제든지 저장하고 나중에 이어서 작성할 수 있습니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Career History */}
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <Label className="text-lg">경력사항</Label>
-                  <Button type="button" onClick={addCareerItem} size="sm">
-                    <Plus className="w-4 h-4 mr-1" /> 경력 추가
-                  </Button>
-                </div>
-                
-                {formData.career.map((item, index) => (
-                  <Card key={index} className="mb-4">
-                    <CardContent className="pt-4">
-                      <div className="flex justify-end mb-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeCareerItem(index)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>회사명</Label>
-                          <Input
-                            value={item.company}
-                            onChange={(e) => updateCareerItem(index, 'company', e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>직책</Label>
-                          <Input
-                            value={item.position}
-                            onChange={(e) => updateCareerItem(index, 'position', e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>시작일</Label>
-                          <Input
-                            type="month"
-                            value={item.start_date}
-                            onChange={(e) => updateCareerItem(index, 'start_date', e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>종료일</Label>
-                          <Input
-                            type="month"
-                            value={item.end_date}
-                            onChange={(e) => updateCareerItem(index, 'end_date', e.target.value)}
-                            placeholder="재직 중인 경우 비워두세요"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Label>주요 업무</Label>
-                          <Input
-                            value={item.description}
-                            onChange={(e) => updateCareerItem(index, 'description', e.target.value)}
-                            placeholder="주요 업무를 간단히 설명해주세요"
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Education */}
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <Label className="text-lg">학력사항</Label>
-                  <Button type="button" onClick={addEducationItem} size="sm">
-                    <Plus className="w-4 h-4 mr-1" /> 학력 추가
-                  </Button>
-                </div>
-                
-                {formData.education.map((item, index) => (
-                  <Card key={index} className="mb-4">
-                    <CardContent className="pt-4">
-                      <div className="flex justify-end mb-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeEducationItem(index)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                          <Label>학교명</Label>
-                          <Input
-                            value={item.school}
-                            onChange={(e) => updateEducationItem(index, 'school', e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>전공</Label>
-                          <Input
-                            value={item.major}
-                            onChange={(e) => updateEducationItem(index, 'major', e.target.value)}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>학위</Label>
-                          <Input
-                            value={item.degree}
-                            onChange={(e) => updateEducationItem(index, 'degree', e.target.value)}
-                            placeholder="학사, 석사, 박사 등"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>졸업상태</Label>
-                          <select
-                            value={item.status || '졸업'}
-                            onChange={(e) => updateEducationItem(index, 'status', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          >
-                            <option value="졸업">졸업</option>
-                            <option value="졸업예정">졸업예정</option>
-                            <option value="재학">재학</option>
-                            <option value="휴학">휴학</option>
-                            <option value="중퇴">중퇴</option>
-                          </select>
-                        </div>
-                        <div>
-                          <Label>졸업년도</Label>
-                          <Input
-                            type="number"
-                            value={item.graduation_year}
-                            onChange={(e) => updateEducationItem(index, 'graduation_year', e.target.value)}
-                            placeholder="2020"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Hashtags */}
-              <div>
-                <Label className="text-lg">전문 분야 태그</Label>
-                <p className="text-sm text-gray-600 mb-2">
-                  전문 분야 태그를 추가해주세요.
-                </p>
-                <div className="flex gap-2 mb-2">
-                  <Input
-                    value={formData.newHashtag}
-                    onChange={(e) => setFormData({ ...formData, newHashtag: e.target.value })}
-                    placeholder="태그 추가"
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addHashtag())}
-                  />
-                  <Button type="button" onClick={addHashtag}>추가</Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {formData.hashtags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeHashtag(tag)}
-                        className="ml-2"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-
-              <div className="flex gap-3">
-                <Button 
-                  type="submit" 
-                  className="flex-1" 
-                  disabled={loading}
-                  onClick={() => console.log('Button clicked!')}
-                >
-                  {loading ? '저장 중...' : '프로필 완성하기'}
-                </Button>
-                <Button 
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={handleCompleteLater}
-                  disabled={loading}
-                >
-                  나중에 완성하기
-                </Button>
-              </div>
-            </form>
+            <MultiStepWizard
+              steps={wizardSteps}
+              onComplete={completeProfile}
+              onSaveProgress={saveProgress}
+              onSkip={(step) => {
+                // 선택 항목은 건너뛰기 가능
+                if (step > 0) {
+                  // 선택 항목 단계 건너뛰기
+                }
+              }}
+              initialStep={savedStep}
+              showProgressBar={true}
+              allowNavigation={true}
+              allowSkip={true}
+            />
+            
+            <div className="mt-6 pt-6 border-t flex justify-center">
+              <Button 
+                variant="ghost"
+                onClick={() => router.push('/dashboard')}
+                isLoading={loading}
+              >
+                나중에 완성하기
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

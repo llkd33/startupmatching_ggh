@@ -9,14 +9,12 @@ import { CampaignType } from '@/types/supabase'
 import { campaignSchema, CampaignInput, CAMPAIGN_TYPES, CAMPAIGN_CATEGORIES } from '@/lib/validations/campaign'
 import { handleCampaignCreated } from '@/lib/campaign-matching'
 import { useAutoSave, getDraftMetadata } from '@/hooks/useAutoSave'
-import CampaignTypeSelector from './CampaignTypeSelector'
+import { MultiStepWizard } from '@/components/ui/multi-step-wizard'
+import CampaignTemplateSelector, { CampaignTemplate } from './CampaignTemplateSelector'
+import { CampaignBasicStep, CampaignDetailsStep, CampaignAdditionalStep } from './CampaignFormSteps'
 import FileUploader from './FileUploader'
-import KeywordInput from './KeywordInput'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from '@/components/ui/toast-custom'
 import { AutoSaveIndicator, DraftRestorePrompt } from '@/components/ui/auto-save-indicator'
@@ -33,6 +31,9 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showDraftPrompt, setShowDraftPrompt] = useState(false)
   const [draftMetadata, setDraftMetadata] = useState<{ timestamp: string } | null>(null)
+  const [showTemplateSelector, setShowTemplateSelector] = useState(!initialData?.id && !initialData?.title) // 새 캠페인만 템플릿 선택
+  const [selectedTemplate, setSelectedTemplate] = useState<CampaignTemplate | null>(null)
+  const [savedStep, setSavedStep] = useState(0)
 
   const {
     register,
@@ -40,7 +41,8 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     formState: { errors, isSubmitting },
     setValue,
     watch,
-    reset
+    reset,
+    trigger
   } = useForm<CampaignInput>({
     resolver: zodResolver(campaignSchema),
     defaultValues: {
@@ -70,11 +72,11 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
   const { save, restore, clear, state: autoSaveState } = useAutoSave<CampaignInput & { attachments: any[] }>({
     key: autoSaveKey,
     delay: 3000, // 3초 후 자동 저장
-    enabled: !initialData?.id, // 새 캠페인만 자동 저장 (수정 시에는 비활성화)
+    enabled: !initialData?.id && !showTemplateSelector, // 템플릿 선택 후에만 자동 저장
     onSave: () => {
       // 개발 모드에서만 로그 출력
       if (process.env.NODE_ENV === 'development') {
-        console.log('Campaign draft auto-saved')
+      console.log('Campaign draft auto-saved')
       }
     }
   })
@@ -88,18 +90,39 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
       setDraftMetadata(metadata)
       setShowDraftPrompt(true)
     }
-  }, [autoSaveKey, initialData?.id])
+
+    // 저장된 단계 복구
+    const saved = localStorage.getItem(`campaign-step-${organizationId}`)
+    if (saved) {
+      setSavedStep(parseInt(saved))
+      setShowTemplateSelector(false) // 저장된 단계가 있으면 템플릿 선택 건너뛰기
+    }
+  }, [autoSaveKey, initialData?.id, organizationId])
 
   // 폼 데이터 변경 시 자동 저장
   useEffect(() => {
     if (initialData?.id) return // 수정 모드에서는 자동 저장 안 함
+    if (showTemplateSelector) return // 템플릿 선택 중에는 저장 안 함
     if (!watchedFormData.title && !watchedFormData.description) return // 빈 폼은 저장 안 함
 
     save({
       ...watchedFormData,
       attachments
     })
-  }, [watchedFormData, attachments, save, initialData?.id])
+  }, [watchedFormData, attachments, save, initialData?.id, showTemplateSelector])
+
+  // 템플릿 선택 시 폼 데이터 채우기
+  const handleTemplateSelect = (template: CampaignTemplate | null) => {
+    if (template && template.id) {
+      setValue('title', template.title)
+      setValue('description', template.description)
+      setValue('type', template.type)
+      setValue('category', template.category)
+      setValue('keywords', template.keywords)
+      setSelectedTemplate(template)
+    }
+    setShowTemplateSelector(false)
+  }
 
   // 임시 저장 데이터 복구
   const handleRestoreDraft = () => {
@@ -114,6 +137,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
         }
       })
       toast.success('임시 저장된 데이터를 불러왔습니다')
+      setShowTemplateSelector(false)
     }
     setShowDraftPrompt(false)
   }
@@ -172,7 +196,9 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
           // 백그라운드에서 매칭 처리
           handleCampaignCreated(newCampaign.id).catch(error => {
+            if (process.env.NODE_ENV === 'development') {
             console.error('Failed to process campaign matching:', error)
+            }
             // 매칭 실패해도 캠페인은 성공적으로 생성됨
           })
         } else {
@@ -182,6 +208,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
       // 성공 시 임시 저장 데이터 삭제
       clear()
+      localStorage.removeItem(`campaign-step-${organizationId}`)
 
       router.push('/dashboard/campaigns')
     } catch (err: any) {
@@ -189,10 +216,117 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     }
   }
 
-  const handleKeywordChange = (keywords: string[]) => {
-    setValue('keywords', keywords)
+  // Step 1 검증: 기본 정보
+  const validateStep1 = async () => {
+    const isValid = await trigger(['title', 'description', 'type'])
+    return isValid
   }
 
+  // Step 2 검증: 상세 정보 (선택사항이므로 항상 통과)
+  const validateStep2 = async () => {
+    return true
+  }
+
+  // Step 3 검증: 추가 정보 (선택사항이므로 항상 통과)
+  const validateStep3 = async () => {
+    return true
+  }
+
+  const saveProgress = async (currentStep: number) => {
+    localStorage.setItem(`campaign-step-${organizationId}`, currentStep.toString())
+    
+    // 폼 데이터 저장
+    if (!initialData?.id) {
+      save({
+        ...watchedFormData,
+        attachments
+      })
+    }
+  }
+
+  const wizardSteps = [
+    {
+      id: 'basic',
+      title: '기본 정보',
+      description: '필수 정보만 입력하면 바로 시작할 수 있습니다 (약 2분)',
+      component: (
+        <CampaignBasicStep
+          formData={watchedFormData}
+          setFormData={(data) => {
+            Object.entries(data).forEach(([key, value]) => {
+              setValue(key as keyof CampaignInput, value)
+            })
+          }}
+          errors={errors}
+          register={register}
+          setValue={setValue}
+          watch={watch}
+        />
+      ),
+      validation: validateStep1
+    },
+    {
+      id: 'details',
+      title: '상세 정보',
+      description: '더 자세한 정보를 입력하면 더 정확한 매칭이 가능합니다',
+      component: (
+        <CampaignDetailsStep
+          formData={watchedFormData}
+          setFormData={(data) => {
+            Object.entries(data).forEach(([key, value]) => {
+              setValue(key as keyof CampaignInput, value)
+            })
+          }}
+          errors={errors}
+          register={register}
+          setValue={setValue}
+          watch={watch}
+        />
+      ),
+      validation: validateStep2
+    },
+    {
+      id: 'additional',
+      title: '추가 정보',
+      description: '키워드와 위치 정보를 추가하면 더 정확한 매칭이 가능합니다 (선택사항)',
+      component: (
+        <div className="space-y-6">
+          <CampaignAdditionalStep
+            formData={watchedFormData}
+            setFormData={(data) => {
+              Object.entries(data).forEach(([key, value]) => {
+                setValue(key as keyof CampaignInput, value)
+              })
+            }}
+            errors={errors}
+            register={register}
+            setValue={setValue}
+            watch={watch}
+          />
+          
+          {/* 첨부 파일 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>첨부 파일</CardTitle>
+              <CardDescription>
+                관련 문서나 참고 자료를 업로드해주세요. (선택사항)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FileUploader
+                attachments={attachments}
+                onChange={setAttachments}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      ),
+      validation: validateStep3
+    }
+  ]
+
+  // 템플릿 선택 화면
+  if (showTemplateSelector) {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* 임시 저장 데이터 복구 프롬프트 */}
@@ -204,6 +338,23 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
         />
       )}
 
+        <Card>
+          <CardHeader>
+            <CardTitle>캠페인 생성</CardTitle>
+            <CardDescription>
+              템플릿을 선택하거나 직접 작성할 수 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CampaignTemplateSelector onSelect={handleTemplateSelect} />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
       {/* 자동 저장 상태 표시 */}
       {!initialData?.id && (
         <div className="flex justify-end">
@@ -214,238 +365,45 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
         </div>
       )}
 
-      <form onSubmit={handleSubmit((data) => onSubmit(data, false))} className="space-y-8">
-        {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>기본 정보</CardTitle>
-            <CardDescription>
-              캠페인의 기본 정보를 입력해주세요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="title">캠페인 제목 *</Label>
-                <span className="text-xs text-gray-500" title="명확하고 구체적인 제목이 더 많은 전문가의 관심을 끕니다">
-                  💡 예: "React 전문가 멘토링 요청" 또는 "마케팅 전략 컨설팅"
-                </span>
-              </div>
-              <Input
-                id="title"
-                {...register('title')}
-                placeholder="예: React 전문가 멘토링 요청"
-                className={errors.title ? 'border-red-500' : ''}
-                aria-describedby="title-help"
-              />
-              <p id="title-help" className="text-xs text-gray-500 mt-1">
-                프로젝트의 핵심을 한 줄로 표현해주세요 (최소 5자)
-              </p>
-              {errors.title && (
-                <p className="text-sm text-red-600 mt-1" role="alert">{errors.title.message}</p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="description">상세 설명 *</Label>
-                <span className="text-xs text-gray-500">
-                  💡 구체적일수록 좋은 전문가와 매칭됩니다
-                </span>
-              </div>
-              <Textarea
-                id="description"
-                {...register('description')}
-                rows={6}
-                placeholder="예시:&#10;&#10;프로젝트 목적:&#10;- React 기반 웹 애플리케이션 개발 멘토링&#10;- 코드 리뷰 및 베스트 프랙티스 공유&#10;&#10;요구사항:&#10;- 5년 이상 React 개발 경력&#10;- 주 1회 2시간 멘토링&#10;&#10;예상 기간: 3개월"
-                className={errors.description ? 'border-red-500' : ''}
-                aria-describedby="description-help"
-              />
-              <p id="description-help" className="text-xs text-gray-500 mt-1">
-                목적, 요구사항, 예상 기간 등을 포함해주세요 (최소 20자)
-              </p>
-              {errors.description && (
-                <p className="text-sm text-red-600 mt-1" role="alert">{errors.description.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="type">캠페인 유형 *</Label>
-              <select
-                id="type"
-                {...register('type')}
-                className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${
-                  errors.type ? 'border-red-500' : ''
-                }`}
-              >
-                {CAMPAIGN_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-              {errors.type && (
-                <p className="text-sm text-red-600 mt-1">{errors.type.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="category">카테고리 *</Label>
-              <select
-                id="category"
-                {...register('category')}
-                className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm ${
-                  errors.category ? 'border-red-500' : ''
-                }`}
-              >
-                <option value="">카테고리 선택</option>
-                {CAMPAIGN_CATEGORIES[watchedType]?.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              {errors.category && (
-                <p className="text-sm text-red-600 mt-1">{errors.category.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label>키워드 *</Label>
-              <KeywordInput
-                keywords={watchedKeywords}
-                onChange={handleKeywordChange}
-              />
-              {errors.keywords && (
-                <p className="text-sm text-red-600 mt-1">{errors.keywords.message}</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Budget and Schedule */}
-        <Card>
-          <CardHeader>
-            <CardTitle>예산 및 일정</CardTitle>
-            <CardDescription>
-              예산 범위와 프로젝트 일정을 설정해주세요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="budgetMin">최소 예산 (원)</Label>
-                <Input
-                  id="budgetMin"
-                  type="number"
-                  {...register('budgetMin', { valueAsNumber: true })}
-                  placeholder="1000000"
-                  className={errors.budgetMin ? 'border-red-500' : ''}
-                />
-                {errors.budgetMin && (
-                  <p className="text-sm text-red-600 mt-1">{errors.budgetMin.message}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="budgetMax">최대 예산 (원)</Label>
-                <Input
-                  id="budgetMax"
-                  type="number"
-                  {...register('budgetMax', { valueAsNumber: true })}
-                  placeholder="5000000"
-                  className={errors.budgetMax ? 'border-red-500' : ''}
-                />
-                {errors.budgetMax && (
-                  <p className="text-sm text-red-600 mt-1">{errors.budgetMax.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startDate">시작일</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  {...register('startDate')}
-                  className={errors.startDate ? 'border-red-500' : ''}
-                />
-                {errors.startDate && (
-                  <p className="text-sm text-red-600 mt-1">{errors.startDate.message}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="endDate">종료일</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  {...register('endDate')}
-                  className={errors.endDate ? 'border-red-500' : ''}
-                />
-                {errors.endDate && (
-                  <p className="text-sm text-red-600 mt-1">{errors.endDate.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="location">지역</Label>
-                <Input
-                  id="location"
-                  {...register('location')}
-                  placeholder="예: 서울"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="requiredExperts">필요 전문가 수 *</Label>
-                <Input
-                  id="requiredExperts"
-                  type="number"
-                  min="1"
-                  {...register('requiredExperts', { valueAsNumber: true })}
-                  className={errors.requiredExperts ? 'border-red-500' : ''}
-                />
-                {errors.requiredExperts && (
-                  <p className="text-sm text-red-600 mt-1">{errors.requiredExperts.message}</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* File Attachments */}
-        <Card>
-          <CardHeader>
-            <CardTitle>첨부 파일</CardTitle>
-            <CardDescription>
-              관련 문서나 참고 자료를 업로드해주세요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FileUploader
-              attachments={attachments}
-              onChange={setAttachments}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Error Display */}
+      {/* 에러 표시 */}
         {submitError && (
           <Alert variant="destructive">
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         )}
 
-        {/* Form Actions */}
-        <div className="flex justify-end space-x-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>캠페인 생성</CardTitle>
+          <CardDescription>
+            {initialData?.id ? '캠페인을 수정합니다.' : '단계별로 캠페인 정보를 입력해주세요.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit((data) => onSubmit(data, false))}>
+            <MultiStepWizard
+              steps={wizardSteps}
+              onComplete={async () => {
+                const isValid = await trigger()
+                if (isValid) {
+                  const formData = watch()
+                  await onSubmit(formData, false)
+                }
+              }}
+              onSaveProgress={saveProgress}
+              initialStep={savedStep}
+              showProgressBar={true}
+              allowNavigation={true}
+              allowSkip={false}
+            />
+
+            {/* 폼 액션 버튼 (마지막 단계에서만 표시) */}
+            <div className="mt-8 pt-6 border-t flex justify-end space-x-3">
           <Button
             type="button"
             variant="outline"
             onClick={() => router.push('/dashboard/campaigns')}
+                className="min-h-[44px]"
           >
             취소
           </Button>
@@ -454,17 +412,22 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
             variant="secondary"
             onClick={handleSubmit((data) => onSubmit(data, true))}
             disabled={isSubmitting}
+                className="min-h-[44px]"
           >
             임시 저장
           </Button>
           <Button
             type="submit"
             disabled={isSubmitting}
+                isLoading={isSubmitting}
+                className="min-h-[44px]"
           >
             {isSubmitting ? '저장 중...' : '캠페인 게시'}
           </Button>
         </div>
       </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

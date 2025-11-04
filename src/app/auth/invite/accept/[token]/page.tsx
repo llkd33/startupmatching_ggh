@@ -185,30 +185,36 @@ export default function AcceptInvitePage() {
         }
       }
 
-      // 3. 프로필 정보 업데이트
+      // 3. 프로필 정보 업데이트 (어드민이 입력한 정보 사용)
       if (userRole === 'organization') {
         const { error: orgError } = await supabase
           .from('organization_profiles')
           .update({
-            organization_name: formData.organization_name || invitation.organization_name || formData.name,
-            representative_name: formData.name,
-            contact_position: formData.position || null
+            organization_name: invitation.organization_name || invitation.name,
+            representative_name: invitation.name,
+            contact_position: invitation.position || null
           })
           .eq('user_id', signInData.user.id)
 
         if (orgError) {
-          console.error('Error updating organization profile:', orgError)
+          // 개발 모드에서만 로그
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error updating organization profile:', orgError)
+          }
         }
       } else {
         const { error: expertError } = await supabase
           .from('expert_profiles')
           .update({
-            name: formData.name
+            name: invitation.name
           })
           .eq('user_id', signInData.user.id)
 
         if (expertError) {
-          console.error('Error updating expert profile:', expertError)
+          // 개발 모드에서만 로그
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error updating expert profile:', expertError)
+          }
         }
       }
 
@@ -216,7 +222,7 @@ export default function AcceptInvitePage() {
       await supabase
         .from('users')
         .update({
-          phone: formData.phone
+          phone: invitation.phone
         })
         .eq('id', signInData.user.id)
 
@@ -333,98 +339,97 @@ export default function AcceptInvitePage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                이름 <span className="text-red-600">*</span>
-              </Label>
-              <Input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="min-h-[44px]"
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">
-                전화번호 <span className="text-red-600">*</span>
-              </Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="010-1234-5678"
-                required
-                className="min-h-[44px]"
-                disabled={submitting}
-              />
-            </div>
-
-            {userRole === 'organization' && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="organization_name">
-                    조직명 <span className="text-red-600">*</span>
-                  </Label>
-                  <Input
-                    id="organization_name"
-                    type="text"
-                    value={formData.organization_name}
-                    onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
-                    required
-                    className="min-h-[44px]"
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="position">직책</Label>
-                  <Input
-                    id="position"
-                    type="text"
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    className="min-h-[44px]"
-                    disabled={submitting}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                비밀번호 변경 (선택) <span className="text-gray-500 text-xs">기본 비밀번호는 전화번호입니다</span>
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="변경하지 않으려면 그대로 두세요"
-                className="min-h-[44px]"
-                disabled={submitting}
-              />
-            </div>
-
-            {formData.password && formData.password !== invitation?.phone.replace(/-/g, '') && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">
-                  비밀번호 확인 <span className="text-red-600">*</span>
-                </Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="min-h-[44px]"
-                  disabled={submitting}
-                />
+            {/* 읽기 전용 정보 표시 (어드민이 입력한 정보) */}
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-3">
+              <div>
+                <Label className="text-xs text-gray-500">이름</Label>
+                <p className="text-sm font-medium mt-1">{invitation?.name || formData.name}</p>
               </div>
-            )}
+              <div>
+                <Label className="text-xs text-gray-500">전화번호</Label>
+                <p className="text-sm font-medium mt-1">{invitation?.phone || formData.phone}</p>
+              </div>
+              {userRole === 'organization' && (
+                <>
+                  <div>
+                    <Label className="text-xs text-gray-500">조직명</Label>
+                    <p className="text-sm font-medium mt-1">{invitation?.organization_name || formData.organization_name}</p>
+                  </div>
+                  {invitation?.position && (
+                    <div>
+                      <Label className="text-xs text-gray-500">직책</Label>
+                      <p className="text-sm font-medium mt-1">{invitation.position}</p>
+                    </div>
+                  )}
+                </>
+              )}
+              <div>
+                <Label className="text-xs text-gray-500">이메일</Label>
+                <p className="text-sm font-medium mt-1">{invitation?.email}</p>
+              </div>
+            </div>
+
+            <div className="text-sm text-gray-600 text-center">
+              💡 위 정보가 정확한지 확인해주세요. 수정이 필요하면 관리자에게 문의해주세요.
+            </div>
+
+            {/* 비밀번호 변경 옵션 */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="changePassword"
+                  checked={formData.password !== invitation?.phone.replace(/-/g, '')}
+                  onChange={(e) => {
+                    if (!e.target.checked) {
+                      setFormData({
+                        ...formData,
+                        password: invitation?.phone.replace(/-/g, '') || '',
+                        confirmPassword: invitation?.phone.replace(/-/g, '') || ''
+                      })
+                    }
+                  }}
+                  className="w-4 h-4 min-w-[44px] min-h-[44px]"
+                />
+                <Label htmlFor="changePassword" className="text-sm font-normal cursor-pointer">
+                  비밀번호 변경하기
+                </Label>
+              </div>
+
+              {formData.password !== invitation?.phone.replace(/-/g, '') && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">
+                      새 비밀번호 <span className="text-red-600">*</span>
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="최소 6자 이상"
+                      className="min-h-[44px]"
+                      disabled={submitting}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">
+                      비밀번호 확인 <span className="text-red-600">*</span>
+                    </Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      className="min-h-[44px]"
+                      disabled={submitting}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+            </div>
 
             <Button
               type="submit"
