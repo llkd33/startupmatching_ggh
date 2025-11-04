@@ -75,7 +75,10 @@ export default function ProposePage() {
     delay: 3000, // 3초 후 자동 저장
     enabled: !!expertProfile, // 전문가 프로필 로드 후 활성화
     onSave: () => {
-      console.log('Proposal draft auto-saved')
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Proposal draft auto-saved')
+      }
     }
   })
 
@@ -174,7 +177,10 @@ export default function ProposePage() {
 
       setCampaign(data)
     } catch (error) {
-      console.error('Error loading campaign:', error)
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading campaign:', error)
+      }
       setError('캠페인을 불러올 수 없습니다.')
     } finally {
       setLoading(false)

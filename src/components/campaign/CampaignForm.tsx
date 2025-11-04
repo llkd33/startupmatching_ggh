@@ -72,8 +72,10 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     delay: 3000, // 3초 후 자동 저장
     enabled: !initialData?.id, // 새 캠페인만 자동 저장 (수정 시에는 비활성화)
     onSave: () => {
-      // 저장 시 로그 (선택사항)
-      console.log('Campaign draft auto-saved')
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Campaign draft auto-saved')
+      }
     }
   })
 
@@ -223,29 +225,47 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <Label htmlFor="title">캠페인 제목 *</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="title">캠페인 제목 *</Label>
+                <span className="text-xs text-gray-500" title="명확하고 구체적인 제목이 더 많은 전문가의 관심을 끕니다">
+                  💡 예: "React 전문가 멘토링 요청" 또는 "마케팅 전략 컨설팅"
+                </span>
+              </div>
               <Input
                 id="title"
                 {...register('title')}
                 placeholder="예: React 전문가 멘토링 요청"
                 className={errors.title ? 'border-red-500' : ''}
+                aria-describedby="title-help"
               />
+              <p id="title-help" className="text-xs text-gray-500 mt-1">
+                프로젝트의 핵심을 한 줄로 표현해주세요 (최소 5자)
+              </p>
               {errors.title && (
-                <p className="text-sm text-red-600 mt-1">{errors.title.message}</p>
+                <p className="text-sm text-red-600 mt-1" role="alert">{errors.title.message}</p>
               )}
             </div>
 
             <div>
-              <Label htmlFor="description">상세 설명 *</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="description">상세 설명 *</Label>
+                <span className="text-xs text-gray-500">
+                  💡 구체적일수록 좋은 전문가와 매칭됩니다
+                </span>
+              </div>
               <Textarea
                 id="description"
                 {...register('description')}
-                rows={4}
-                placeholder="캠페인의 목적, 요구사항 등을 자세히 설명해주세요."
+                rows={6}
+                placeholder="예시:&#10;&#10;프로젝트 목적:&#10;- React 기반 웹 애플리케이션 개발 멘토링&#10;- 코드 리뷰 및 베스트 프랙티스 공유&#10;&#10;요구사항:&#10;- 5년 이상 React 개발 경력&#10;- 주 1회 2시간 멘토링&#10;&#10;예상 기간: 3개월"
                 className={errors.description ? 'border-red-500' : ''}
+                aria-describedby="description-help"
               />
+              <p id="description-help" className="text-xs text-gray-500 mt-1">
+                목적, 요구사항, 예상 기간 등을 포함해주세요 (최소 20자)
+              </p>
               {errors.description && (
-                <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
+                <p className="text-sm text-red-600 mt-1" role="alert">{errors.description.message}</p>
               )}
             </div>
 

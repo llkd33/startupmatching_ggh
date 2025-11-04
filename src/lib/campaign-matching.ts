@@ -36,7 +36,10 @@ const sendEmail = async (emailData: {
       
       // If email is skipped (not configured), just log and continue
       if (response.status === 503 && errorData.skipped) {
-        console.warn('Email sending skipped:', errorData.error)
+        // 개발 모드에서만 로그 출력
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Email sending skipped:', errorData.error)
+        }
         return { success: false, skipped: true }
       }
       
@@ -44,16 +47,19 @@ const sendEmail = async (emailData: {
     }
 
     return await response.json()
-  } catch (error: any) {
-    console.error('Error sending email:', error)
-    
-    // Don't throw if it's just a configuration issue
-    if (error.message?.includes('not configured')) {
-      return { success: false, skipped: true }
+    } catch (error: any) {
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error sending email:', error)
+      }
+      
+      // Don't throw if it's just a configuration issue
+      if (error.message?.includes('not configured')) {
+        return { success: false, skipped: true }
+      }
+      
+      throw error
     }
-    
-    throw error
-  }
 }
 
 export interface MatchedExpert {
@@ -125,7 +131,10 @@ export async function findMatchingExperts(
 
     return scoredExperts
   } catch (error) {
-    console.error('Error finding matching experts:', error)
+    // 개발 모드에서만 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error finding matching experts:', error)
+    }
     throw error
   }
 }
@@ -254,19 +263,28 @@ export async function notifyMatchedExperts(
 
       if (!response.ok) {
         const error = await response.json()
-        console.error('Error creating notifications:', error)
+        // 개발 모드에서만 로그 출력
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error creating notifications:', error)
+        }
       }
     } catch (error) {
-      console.error('Error creating notifications:', error)
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error creating notifications:', error)
+      }
     }
 
     // 2. 이메일 발송 (비동기, 실패해도 진행)
     await sendMatchNotificationEmails(matchedExperts, campaignData, campaignId)
 
-  } catch (error) {
-    console.error('Error notifying matched experts:', error)
-    // 알림 실패해도 캠페인 생성은 성공
-  }
+    } catch (error) {
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error notifying matched experts:', error)
+      }
+      // 알림 실패해도 캠페인 생성은 성공
+    }
 }
 
 /**
@@ -290,7 +308,10 @@ async function sendMatchNotificationEmails(
         html: generateMatchEmailHTML(expert, campaignData, campaignId),
       })
     } catch (error) {
-      console.error(`Failed to send email to ${expert.email}:`, error)
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`Failed to send email to ${expert.email}:`, error)
+      }
       // 개별 이메일 실패는 로그만 기록
     }
   })
@@ -486,7 +507,10 @@ export async function sendSelectionResultEmails(
       }
     }
   } catch (error) {
-    console.error('Error sending selection result emails:', error)
+    // 개발 모드에서만 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error sending selection result emails:', error)
+    }
   }
 }
 
@@ -663,7 +687,10 @@ export async function handleCampaignCreated(campaignId: string): Promise<void> {
     const matchedExperts = await findMatchingExperts(campaignId, criteria, 50)
 
     if (matchedExperts.length === 0) {
-      console.log('No matching experts found for campaign:', campaignId)
+      // 개발 모드에서만 로그 출력
+      if (process.env.NODE_ENV === 'development') {
+        console.log('No matching experts found for campaign:', campaignId)
+      }
       return
     }
 
@@ -677,9 +704,15 @@ export async function handleCampaignCreated(campaignId: string): Promise<void> {
         : undefined,
     })
 
-    console.log(`Notified ${matchedExperts.length} experts for campaign:`, campaignId)
+    // 개발 모드에서만 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Notified ${matchedExperts.length} experts for campaign:`, campaignId)
+    }
   } catch (error) {
-    console.error('Error handling campaign created:', error)
+    // 개발 모드에서만 로그 출력
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error handling campaign created:', error)
+    }
     // 에러 발생해도 캠페인 생성은 성공한 상태
   }
 }

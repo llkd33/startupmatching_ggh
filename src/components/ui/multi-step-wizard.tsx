@@ -19,9 +19,11 @@ interface MultiStepWizardProps {
   steps: WizardStep[]
   onComplete: () => void | Promise<void>
   onSaveProgress?: (currentStep: number, data?: any) => void | Promise<void>
+  onSkip?: (step: number) => void
   initialStep?: number
   showProgressBar?: boolean
   allowNavigation?: boolean
+  allowSkip?: boolean // 건너뛰기 허용 여부
   className?: string
 }
 
@@ -29,9 +31,11 @@ export function MultiStepWizard({
   steps,
   onComplete,
   onSaveProgress,
+  onSkip,
   initialStep = 0,
   showProgressBar = true,
   allowNavigation = true,
+  allowSkip = false,
   className
 }: MultiStepWizardProps) {
   const [currentStep, setCurrentStep] = useState(initialStep)
@@ -176,6 +180,20 @@ export function MultiStepWizard({
             >
               <Save className="w-4 h-4 mr-2" />
               진행상황 저장
+            </Button>
+          )}
+
+          {allowSkip && !isLastStep && onSkip && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                onSkip(currentStep)
+                handleNext()
+              }}
+              disabled={isLoading}
+            >
+              건너뛰기
             </Button>
           )}
 

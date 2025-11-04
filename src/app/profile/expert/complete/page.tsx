@@ -360,9 +360,16 @@ export default function EnhancedExpertProfilePage() {
               steps={wizardSteps}
               onComplete={completeProfile}
               onSaveProgress={saveProgress}
+              onSkip={(step) => {
+                // 선택 항목은 건너뛰기 가능
+                if (step > 0) {
+                  // 선택 항목 단계 건너뛰기
+                }
+              }}
               initialStep={savedStep}
               showProgressBar={true}
               allowNavigation={true}
+              allowSkip={true}
             />
             
             <div className="mt-6 pt-6 border-t flex justify-center">

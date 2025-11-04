@@ -11,8 +11,10 @@ import {
   UserX, 
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  UserPlus
 } from 'lucide-react'
+import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SkeletonTable } from '@/components/ui/skeleton'
@@ -157,9 +159,12 @@ export default function AdminUsersClient({
   
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">사용자 관리</h1>
-        <p className="text-gray-600">전체 사용자를 관리하고 권한을 설정합니다</p>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">사용자 관리</h1>
+          <p className="text-gray-600">전체 사용자를 관리하고 권한을 설정합니다</p>
+        </div>
+        <InviteUserDialog onSuccess={fetchUsers} />
       </div>
       
       {/* Filters */}
