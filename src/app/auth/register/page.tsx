@@ -21,10 +21,9 @@ export default function RegisterPage() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Expert Registration Card */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" 
-                onClick={() => router.push('/auth/register/expert')}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4" aria-hidden="true">
                 <UserIcon className="h-8 w-8 text-blue-600" />
               </div>
               <CardTitle className="text-xl">전문가로 가입</CardTitle>
@@ -33,35 +32,38 @@ export default function RegisterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+              <ul className="space-y-2 text-sm text-gray-600" role="list">
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   경력 및 포트폴리오 등록
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   프로젝트 제안서 제출
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   멘토링 및 컨설팅 제공
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   전문 분야 해시태그 자동 생성
                 </li>
               </ul>
-              <Button className="w-full mt-6">
+              <Button 
+                className="w-full mt-6 min-h-[44px]"
+                onClick={() => router.push('/auth/register/expert')}
+                aria-label="전문가 회원가입 페이지로 이동"
+              >
                 전문가로 시작하기
               </Button>
             </CardContent>
           </Card>
 
           {/* Organization Registration Card */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => router.push('/auth/register/organization')}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4" aria-hidden="true">
                 <BuildingIcon className="h-8 w-8 text-green-600" />
               </div>
               <CardTitle className="text-xl">조직으로 가입</CardTitle>
@@ -70,25 +72,30 @@ export default function RegisterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+              <ul className="space-y-2 text-sm text-gray-600" role="list">
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   캠페인 생성 및 관리
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   전문가 검색 및 매칭
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   제안서 검토 및 선택
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-500 mr-2">✓</span>
+                <li className="flex items-start" role="listitem">
+                  <span className="text-green-500 mr-2" aria-hidden="true">✓</span>
                   프로젝트 진행 관리
                 </li>
               </ul>
-              <Button className="w-full mt-6" variant="secondary">
+              <Button 
+                className="w-full mt-6 min-h-[44px]"
+                variant="secondary"
+                onClick={() => router.push('/auth/register/organization')}
+                aria-label="조직 회원가입 페이지로 이동"
+              >
                 조직으로 시작하기
               </Button>
             </CardContent>

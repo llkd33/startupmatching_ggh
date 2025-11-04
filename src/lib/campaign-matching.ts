@@ -32,13 +32,26 @@ const sendEmail = async (emailData: {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to send email')
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      
+      // If email is skipped (not configured), just log and continue
+      if (response.status === 503 && errorData.skipped) {
+        console.warn('Email sending skipped:', errorData.error)
+        return { success: false, skipped: true }
+      }
+      
+      throw new Error(errorData.error || `HTTP ${response.status}: Failed to send email`)
     }
 
     return await response.json()
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending email:', error)
+    
+    // Don't throw if it's just a configuration issue
+    if (error.message?.includes('not configured')) {
+      return { success: false, skipped: true }
+    }
+    
     throw error
   }
 }
@@ -229,12 +242,22 @@ export async function notifyMatchedExperts(
       is_read: false,
     }))
 
-    const { error: notificationError } = await supabase
-      .from('notifications')
-      .insert(notifications)
+    // Insert notifications via API to avoid RLS issues
+    try {
+      const response = await fetch('/api/notifications/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ notifications }),
+      })
 
-    if (notificationError) {
-      console.error('Error creating notifications:', notificationError)
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Error creating notifications:', error)
+      }
+    } catch (error) {
+      console.error('Error creating notifications:', error)
     }
 
     // 2. 이메일 발송 (비동기, 실패해도 진행)

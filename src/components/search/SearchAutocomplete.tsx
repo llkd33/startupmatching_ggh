@@ -210,21 +210,26 @@ export function SearchAutocomplete({
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="pl-10 pr-10 h-12 text-base"
+          className="pl-10 pr-10 h-12 text-base min-h-[44px]"
           autoComplete="off"
-          aria-label="Search"
+          aria-label="검색어 입력"
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls="search-suggestions"
           role="combobox"
+          aria-describedby="search-description"
         />
+        <span id="search-description" className="sr-only">
+          검색어를 입력하면 관련 제안이 표시됩니다
+        </span>
         {value && (
           <button
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            aria-label="Clear search"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="검색어 지우기"
+            type="button"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         )}
       </div>

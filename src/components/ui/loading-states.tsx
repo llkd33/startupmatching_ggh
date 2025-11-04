@@ -145,9 +145,14 @@ export function FormSkeleton() {
 // Loading overlay for async operations
 export function LoadingOverlay({ message = "처리 중..." }: { message?: string }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="status"
+      aria-live="polite"
+      aria-label={message}
+    >
       <div className="bg-white rounded-lg p-6 shadow-xl">
-        <LoadingSpinner className="h-8 w-8 mx-auto mb-3" />
+        <LoadingSpinner className="h-8 w-8 mx-auto mb-3" aria-hidden="true" />
         <p className="text-sm text-gray-600">{message}</p>
       </div>
     </div>
@@ -166,8 +171,15 @@ export function ButtonLoading({ text = "처리 중..." }: { text?: string }) {
 
 // Page loading with proper layout
 export function PageLoading({ title }: { title?: string }) {
+  const loadingMessage = title || "페이지를 로딩 중..."
+  
   return (
-    <div className="min-h-screen flex flex-col">
+    <div 
+      className="min-h-screen flex flex-col"
+      role="status"
+      aria-live="polite"
+      aria-label={loadingMessage}
+    >
       {/* Header skeleton */}
       <div className="border-b bg-white">
         <div className="container mx-auto px-4 py-4">
@@ -178,8 +190,8 @@ export function PageLoading({ title }: { title?: string }) {
       {/* Content */}
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <LoadingSpinner className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-gray-600">{title || "페이지를 로딩 중..."}</p>
+          <LoadingSpinner className="h-12 w-12 mx-auto mb-4" aria-hidden="true" />
+          <p className="text-gray-600">{loadingMessage}</p>
         </div>
       </div>
     </div>

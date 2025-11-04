@@ -60,6 +60,48 @@ body {
   border-color: hsl(var(--border));
 }
 
+/* Touch-friendly minimum sizes */
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  /* Ensure minimum 44x44px for touch targets */
+  .min-touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Safe area for mobile bottom navigation */
+  .shadow-lg-safe-bottom {
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  
+  /* Screen reader only - for accessibility */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+  
+  /* Keyboard focus styles */
+  .focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+  
+  /* Smooth transitions for better UX */
+  .transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
 /* Modern Animations */
 @keyframes blob {
   0% {

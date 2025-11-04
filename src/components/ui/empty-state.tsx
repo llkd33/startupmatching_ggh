@@ -84,7 +84,9 @@ export function EmptyState({
             <Button
               onClick={action.onClick}
               variant={action.variant || 'default'}
-              size="sm"
+              size="default"
+              className="min-h-[44px] min-w-[120px]"
+              aria-label={action.label}
             >
               {action.label}
             </Button>
@@ -94,7 +96,9 @@ export function EmptyState({
             <Button
               onClick={secondaryAction.onClick}
               variant="ghost"
-              size="sm"
+              size="default"
+              className="min-h-[44px] min-w-[120px]"
+              aria-label={secondaryAction.label}
             >
               {secondaryAction.label}
             </Button>

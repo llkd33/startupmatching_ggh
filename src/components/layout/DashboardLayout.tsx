@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import NotificationBadge from '@/components/notifications/NotificationBadge'
+import { MobileBottomNav } from './MobileBottomNav'
 import { 
   LayoutDashboard, 
   Search, 
@@ -308,10 +309,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 pb-16 md:pb-0">
           {children}
         </main>
       </div>
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav role={role || 'expert'} />
     </div>
   )
 }

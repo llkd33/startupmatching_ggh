@@ -2,10 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
 // Initialize Resend with API key
-const resend = new Resend(process.env.RESEND_API_KEY)
+const getResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('RESEND_API_KEY is not set. Email sending will be disabled.')
+    return null
+  }
+  return new Resend(apiKey)
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if Resend is configured
+    const resend = getResendClient()
+    if (!resend) {
+      console.warn('Email sending skipped: RESEND_API_KEY not configured')
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Email service is not configured. Please set RESEND_API_KEY environment variable.',
+          skipped: true,
+        },
+        { status: 503 }
+      )
+    }
+
     // Verify the request is authorized (optional but recommended)
     const authHeader = request.headers.get('authorization')
     const internalSecret = process.env.INTERNAL_API_SECRET
@@ -15,7 +36,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { to, subject, html, from } = await request.json()
+    const body = await request.json()
+    const { to, subject, html, from } = body
 
     // Validate required fields
     if (!to || !subject || !html) {
@@ -40,12 +62,26 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error sending email:', error)
 
+    // More specific error messages
+    let errorMessage = 'Failed to send email'
+    let statusCode = 500
+
+    if (error.message?.includes('API key')) {
+      errorMessage = 'Invalid email service API key'
+      statusCode = 401
+    } else if (error.message?.includes('rate limit')) {
+      errorMessage = 'Email rate limit exceeded'
+      statusCode = 429
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to send email',
+        error: errorMessage,
       },
-      { status: 500 }
+      { status: statusCode }
     )
   }
 }

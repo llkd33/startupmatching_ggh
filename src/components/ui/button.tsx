@@ -52,11 +52,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={disabled || isLoading}
+        aria-disabled={disabled || isLoading}
         {...props}
       >
         {isLoading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            <span className="sr-only">{loadingText || "로딩 중"}</span>
             {loadingText || children}
           </>
         ) : (

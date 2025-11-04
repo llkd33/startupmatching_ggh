@@ -24,6 +24,7 @@ import { NoCampaigns, NoSearchResults } from '@/components/ui/empty-state'
 import { handleSupabaseError } from '@/lib/error-handler'
 import { useCampaigns, type UserRole } from '@/hooks/useCampaigns'
 import { useCampaignFilters } from '@/hooks/useCampaignFilters'
+import { SelectRoot as Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   getStatusColor,
   getStatusText,
@@ -31,19 +32,25 @@ import {
   formatBudget,
   formatDate
 } from '@/lib/campaign-helpers'
+import { toast } from '@/components/ui/toast-custom'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export default function CampaignsPage() {
   const router = useRouter()
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Fetch campaigns with pagination
   const {
     campaigns,
     loading: campaignsLoading,
     hasMore,
-    loadMore
+    loadMore,
+    refresh: refreshCampaigns
   } = useCampaigns({
     userId: userId || '',
     role: userRole || 'expert',
@@ -95,6 +102,72 @@ export default function CampaignsPage() {
       handleSupabaseError(error as Error, true, { context: 'auth_check' })
     } finally {
       setAuthLoading(false)
+    }
+  }
+
+  const handleDeleteClick = (campaignId: string, campaignTitle: string) => {
+    setCampaignToDelete(campaignId)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!campaignToDelete || !userId) return
+
+    setIsDeleting(true)
+    try {
+      // organization_profile의 id 조회
+      const { data: orgProfile, error: orgError } = await browserSupabase
+        .from('organization_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (orgError) throw orgError
+      if (!orgProfile) {
+        toast.error('조직 프로필을 찾을 수 없습니다.')
+        setDeleteDialogOpen(false)
+        setCampaignToDelete(null)
+        return
+      }
+
+      // 관련 제안서 확인
+      const { data: proposals } = await browserSupabase
+        .from('proposals')
+        .select('id')
+        .eq('campaign_id', campaignToDelete)
+        .limit(1)
+
+      if (proposals && proposals.length > 0) {
+        toast.error('제안서가 있는 캠페인은 삭제할 수 없습니다.')
+        setDeleteDialogOpen(false)
+        setCampaignToDelete(null)
+        return
+      }
+
+      // 캠페인 삭제 (soft delete)
+      const { error } = await browserSupabase
+        .from('campaigns')
+        .update({
+          status: 'cancelled',
+          deleted_at: new Date().toISOString()
+        })
+        .eq('id', campaignToDelete)
+        .eq('organization_id', orgProfile.id)
+
+      if (error) throw error
+
+      toast.success('캠페인이 삭제되었습니다.')
+      setDeleteDialogOpen(false)
+      setCampaignToDelete(null)
+      
+      // 캠페인 목록 새로고침
+      await refreshCampaigns()
+    } catch (error) {
+      console.error('Delete campaign error:', error)
+      handleSupabaseError(error as Error, true, { context: 'delete_campaign' })
+      toast.error('캠페인 삭제에 실패했습니다.')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -160,18 +233,21 @@ export default function CampaignsPage() {
                 />
               </div>
             </div>
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="px-3 py-2 rounded-md border border-input"
-              aria-label="상태 필터"
+              onValueChange={(value) => setStatusFilter(value as any)}
             >
-              <option value="all">모든 상태</option>
-              <option value="active">진행중</option>
-              <option value="draft">임시저장</option>
-              <option value="completed">완료</option>
-              <option value="cancelled">취소됨</option>
-            </select>
+              <SelectTrigger className="min-h-[44px] md:min-h-0" aria-label="상태 필터">
+                <SelectValue placeholder="상태 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">모든 상태</SelectItem>
+                <SelectItem value="active">진행중</SelectItem>
+                <SelectItem value="draft">임시저장</SelectItem>
+                <SelectItem value="completed">완료</SelectItem>
+                <SelectItem value="cancelled">취소됨</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -218,31 +294,35 @@ export default function CampaignsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="md:h-9 h-11 min-h-[44px] md:min-h-0"
                           aria-label={`${campaign.title} 상세보기`}
                           asChild
                         >
                           <Link href={`/dashboard/campaigns/${campaign.id}`}>
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4" aria-hidden="true" />
                             <span className="sr-only">상세보기</span>
                           </Link>
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="md:h-9 h-11 min-h-[44px] md:min-h-0"
                           aria-label={`${campaign.title} 수정`}
                           asChild
                         >
                           <Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-4 w-4" aria-hidden="true" />
                             <span className="sr-only">수정</span>
                           </Link>
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="md:h-9 h-11 min-h-[44px] md:min-h-0"
                           aria-label={`${campaign.title} 삭제`}
+                          onClick={() => handleDeleteClick(campaign.id, campaign.title)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
                           <span className="sr-only">삭제</span>
                         </Button>
                       </div>
@@ -318,6 +398,22 @@ export default function CampaignsPage() {
           )}
         </>
       )}
+
+      {/* 삭제 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false)
+          setCampaignToDelete(null)
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="캠페인 삭제"
+        message="정말 이 캠페인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+        type="danger"
+        confirmText="삭제"
+        cancelText="취소"
+        loading={isDeleting}
+      />
     </div>
   )
 }
