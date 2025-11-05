@@ -64,10 +64,10 @@ export function QuickProfileStep({ data, onChange, errors = {} }: QuickProfileSt
             onChange={(e) => onChange('name', e.target.value)}
             placeholder="홍길동"
             className={cn(
-              errors.name && "border-red-500 focus:ring-red-500"
+              errors.name && "border-red-500 focus:ring-red-500",
+              "min-h-[44px]"
             )}
             required
-            min-h-[44px]
           />
           {errors.name && (
             <p className="text-sm text-red-600">{errors.name}</p>
