@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 
@@ -18,7 +18,7 @@ import { Mail, Lock, LogIn, ArrowLeft, Eye, EyeOff, Loader2, Building, UserCheck
 import { toast } from '@/components/ui/toast-custom'
 import { UserRole } from '@/types/supabase'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
@@ -35,16 +35,6 @@ export default function LoginPage() {
       setEmail(decodeURIComponent(emailParam))
     }
   }, [searchParams])
-  
-  // 개발 모드 체크 (환경 변수 또는 쿼리 파라미터)
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const showDevMode = typeof window !== 'undefined' && 
-    (new URLSearchParams(window.location.search).get('dev') === 'true' || 
-     localStorage.getItem('enable_dev_mode') === 'true')
-  
-  if (isDevelopment && showDevMode) {
-    return <DevModeLogin />
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -363,5 +353,27 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  // 개발 모드 체크 (환경 변수 또는 쿼리 파라미터)
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  const showDevMode = typeof window !== 'undefined' && 
+    (new URLSearchParams(window.location.search).get('dev') === 'true' || 
+     localStorage.getItem('enable_dev_mode') === 'true')
+  
+  if (isDevelopment && showDevMode) {
+    return <DevModeLogin />
+  }
+
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

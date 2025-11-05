@@ -1,6 +1,8 @@
 import { checkAdminAuth, getServerSupabase } from '@/lib/admin'
 import AdminUsersClient from './client'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminUsersPage() {
   await checkAdminAuth()
   

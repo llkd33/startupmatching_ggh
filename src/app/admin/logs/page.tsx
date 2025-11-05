@@ -1,6 +1,8 @@
 import { checkAdminAuth, getServerSupabase } from '@/lib/admin'
 import AdminActivityLogs from '@/components/admin/AdminActivityLogs'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminLogsPage() {
   await checkAdminAuth()
 

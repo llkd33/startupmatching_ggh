@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { campaignStatusLabel, proposalStatusLabel } from '@/lib/i18n/status'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminDashboard() {
   await checkAdminAuth()
 
