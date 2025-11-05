@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 
 // 개발 모드 컴포넌트 동적 임포트
 const DevModeLogin = dynamic(() => import('./dev-mode'), { ssr: false })
@@ -19,12 +20,21 @@ import { UserRole } from '@/types/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+
+  // URL 쿼리 파라미터에서 이메일 가져오기
+  useEffect(() => {
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setEmail(decodeURIComponent(emailParam))
+    }
+  }, [searchParams])
   
   // 개발 모드 체크 (환경 변수 또는 쿼리 파라미터)
   const isDevelopment = process.env.NODE_ENV === 'development'

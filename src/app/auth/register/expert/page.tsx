@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,25 +10,116 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+
+type EmailCheckResult = {
+  exists: boolean
+  role?: string | null
+} | null
 
 export default function ExpertRegisterPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [emailCheckResult, setEmailCheckResult] = useState<EmailCheckResult>(null)
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
   
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
-    setError
+    setError,
+    clearErrors
   } = useForm<ExpertRegistrationInput>({
     resolver: zodResolver(expertRegistrationSchema)
   })
 
+  const email = watch('email')
+
+  // 이메일 체크 함수 (debounce 적용)
+  const checkEmail = useCallback(async (emailValue: string) => {
+    if (!emailValue || emailValue.length < 5) {
+      setEmailCheckResult(null)
+      return
+    }
+
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(emailValue)) {
+      setEmailCheckResult(null)
+      return
+    }
+
+    setIsCheckingEmail(true)
+    try {
+      const response = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: emailValue }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setEmailCheckResult(data)
+        
+        if (data.exists) {
+          // 다른 역할로 가입하려는 경우
+          if (data.role && data.role !== 'expert') {
+            setError('email', {
+              message: `이 이메일은 이미 ${data.role === 'organization' ? '기관' : '관리자'} 계정으로 등록되어 있습니다.`,
+              type: 'manual'
+            })
+          } else {
+            // 이미 전문가 계정이 있는 경우
+            setError('email', {
+              message: '이미 등록된 이메일입니다',
+              type: 'manual'
+            })
+          }
+        } else {
+          clearErrors('email')
+        }
+      } else {
+        setEmailCheckResult(null)
+      }
+    } catch (error) {
+      // 네트워크 오류 등은 무시 (이미 다른 에러 메시지가 표시될 수 있음)
+      setEmailCheckResult(null)
+    } finally {
+      setIsCheckingEmail(false)
+    }
+  }, [setError, clearErrors])
+
+  // 이메일 입력 시 debounce 적용하여 체크
+  useEffect(() => {
+    if (!email) {
+      setEmailCheckResult(null)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      checkEmail(email)
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(timer)
+  }, [email, checkEmail])
+
   const onSubmit = async (data: ExpertRegistrationInput) => {
+    // 이미 계정이 있는 경우 제출 방지
+    if (emailCheckResult?.exists) {
+      setError('email', {
+        message: '이미 등록된 이메일입니다. 로그인 페이지로 이동해주세요.',
+        type: 'manual'
+      })
+      return
+    }
+
     setIsLoading(true)
     
     try {
@@ -108,18 +199,48 @@ export default function ExpertRegisterPage() {
               <Label htmlFor="email">
                 이메일 <span className="text-red-600" aria-label="필수 항목">*</span>
               </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="example@email.com"
-                {...register('email')}
-                disabled={isLoading}
-                className="min-h-[44px]"
-                aria-required="true"
-                aria-invalid={errors.email ? "true" : "false"}
-                aria-describedby={errors.email ? "email-error" : undefined}
-                autoComplete="email"
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="example@email.com"
+                  {...register('email')}
+                  disabled={isLoading}
+                  className={`min-h-[44px] pr-10 ${
+                    emailCheckResult?.exists ? 'border-red-500' : 
+                    emailCheckResult?.exists === false ? 'border-green-500' : ''
+                  }`}
+                  aria-required="true"
+                  aria-invalid={errors.email ? "true" : "false"}
+                  aria-describedby={errors.email ? "email-error" : undefined}
+                  autoComplete="email"
+                />
+                {isCheckingEmail && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                  </div>
+                )}
+                {!isCheckingEmail && emailCheckResult?.exists === false && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-500" />
+                )}
+                {!isCheckingEmail && emailCheckResult?.exists === true && (
+                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-red-500" />
+                )}
+              </div>
+              {emailCheckResult?.exists && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-sm text-blue-800">
+                    이 이메일로 이미 계정이 등록되어 있습니다.{' '}
+                    <Link 
+                      href={`/auth/login?email=${encodeURIComponent(email || '')}`}
+                      className="font-semibold underline hover:text-blue-900"
+                    >
+                      로그인하러 가기
+                    </Link>
+                  </AlertDescription>
+                </Alert>
+              )}
               {errors.email && (
                 <p id="email-error" className="text-sm text-red-600" role="alert">
                   {errors.email.message}

@@ -27,6 +27,10 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // Refresh session for all routes to ensure cookies are up to date
+  // This is important for server components to read the session correctly
+  await supabase.auth.getUser();
+
   // Check if the route is an admin route
   if (request.nextUrl.pathname.startsWith('/admin')) {
     const {
@@ -54,5 +58,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };
