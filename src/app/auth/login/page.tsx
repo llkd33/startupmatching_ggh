@@ -27,6 +27,14 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [showRoleSelection, setShowRoleSelection] = useState(false)
+  const [availableRoles, setAvailableRoles] = useState<Array<{
+    role: 'expert' | 'organization'
+    name: string
+    hasProfile: boolean
+    isProfileComplete: boolean
+  }>>([])
+  const [selectedRole, setSelectedRole] = useState<'expert' | 'organization' | null>(null)
 
   // URL 쿼리 파라미터에서 이메일 가져오기
   useEffect(() => {
@@ -151,44 +159,36 @@ function LoginForm() {
         }
       }
 
-      if (!resolvedRole) {
-        throw new Error('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
+      // 사용자가 가진 프로필 확인
+      const profilesResponse = await fetch('/api/auth/check-profiles')
+      if (!profilesResponse.ok) {
+        throw new Error('프로필을 확인하는 중 오류가 발생했습니다.')
       }
 
-      const role = resolvedRole
+      const profilesData = await profilesResponse.json()
+      const roles = profilesData.availableRoles || []
 
-      // 역할에 따라 프로필 확인
-      let profileComplete = true
-      if (role === 'expert') {
-        const { data: expertProfile } = await browserSupabase
-          .from('expert_profiles')
-          .select('is_profile_complete')
-          .eq('user_id', data.user.id)
-          .maybeSingle()
-        profileComplete = expertProfile?.is_profile_complete ?? false
-      } else if (role === 'organization') {
-        const { data: orgProfile } = await browserSupabase
-          .from('organization_profiles')
-          .select('is_profile_complete')
-          .eq('user_id', data.user.id)
-          .maybeSingle()
-        profileComplete = orgProfile?.is_profile_complete ?? false
+      // 프로필이 없으면 기본 역할 사용
+      if (roles.length === 0) {
+        if (!resolvedRole) {
+          throw new Error('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
+        }
+        const role = resolvedRole as 'expert' | 'organization'
+        await handleRoleLogin(role, data.user.id)
+        return
       }
 
-      toast.success('로그인되었습니다!')
-      setIsRedirecting(true)
-      
-      // 리다이렉트 경로 결정
-      let redirectPath = '/dashboard'
-      if (role === 'expert' && !profileComplete) {
-        redirectPath = '/profile/expert/complete'
-      } else if (role === 'organization' && !profileComplete) {
-        redirectPath = '/profile/organization/complete'
+      // 프로필이 하나면 바로 로그인
+      if (roles.length === 1) {
+        await handleRoleLogin(roles[0].role, data.user.id)
+        return
       }
-      
-      // prefetch로 페이지 미리 로드
-      router.prefetch(redirectPath)
-      router.push(redirectPath)
+
+      // 프로필이 여러 개면 역할 선택 UI 표시
+      setAvailableRoles(roles)
+      setShowRoleSelection(true)
+      setLoading(false)
+      toast.success('로그인되었습니다! 어떤 역할로 접속하시겠어요?')
     } catch (err: unknown) {
       console.error('Login error:', err)
 
@@ -217,6 +217,163 @@ function LoginForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleRoleLogin = async (role: 'expert' | 'organization', userId: string) => {
+    setIsRedirecting(true)
+    setLoading(true)
+
+    try {
+      // 선택한 역할을 세션 스토리지에 저장 (다른 탭과 공유되지 않음)
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('current_role', role)
+      }
+
+      // 역할에 따라 프로필 확인
+      let profileComplete = true
+      if (role === 'expert') {
+        const { data: expertProfile } = await browserSupabase
+          .from('expert_profiles')
+          .select('is_profile_complete')
+          .eq('user_id', userId)
+          .maybeSingle()
+        profileComplete = expertProfile?.is_profile_complete ?? false
+      } else if (role === 'organization') {
+        const { data: orgProfile } = await browserSupabase
+          .from('organization_profiles')
+          .select('is_profile_complete')
+          .eq('user_id', userId)
+          .maybeSingle()
+        profileComplete = orgProfile?.is_profile_complete ?? false
+      }
+
+      // 리다이렉트 경로 결정
+      let redirectPath = '/dashboard'
+      if (role === 'expert' && !profileComplete) {
+        redirectPath = '/profile/expert/complete'
+      } else if (role === 'organization' && !profileComplete) {
+        redirectPath = '/profile/organization/complete'
+      }
+      
+      // prefetch로 페이지 미리 로드
+      router.prefetch(redirectPath)
+      router.push(redirectPath)
+    } catch (err) {
+      console.error('Role login error:', err)
+      toast.error('로그인 처리 중 오류가 발생했습니다.')
+      setIsRedirecting(false)
+      setLoading(false)
+    }
+  }
+
+  const handleRoleSelect = async (role: 'expert' | 'organization') => {
+    setSelectedRole(role)
+    const { data: { user } } = await browserSupabase.auth.getUser()
+    if (user) {
+      await handleRoleLogin(role, user.id)
+    }
+  }
+
+  // 역할 선택 UI가 표시되면 폼 대신 역할 선택 화면 표시
+  if (showRoleSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
+
+        <div className="relative w-full max-w-md">
+          <Card className="shadow-2xl border-0">
+            <CardHeader className="space-y-1 pb-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+                  <UserCheck className="w-8 h-8 text-white" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center">역할을 선택해주세요</CardTitle>
+              <CardDescription className="text-center">
+                어떤 역할로 접속하시겠어요?
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                {availableRoles.map((roleInfo) => (
+                  <button
+                    key={roleInfo.role}
+                    onClick={() => handleRoleSelect(roleInfo.role)}
+                    disabled={isRedirecting || loading}
+                    className={`
+                      p-6 rounded-lg border-2 transition-all
+                      ${selectedRole === roleInfo.role 
+                        ? 'border-blue-600 bg-blue-50' 
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }
+                      ${isRedirecting || loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                  >
+                    <div className="flex items-start space-x-4">
+                      <div className={`
+                        p-3 rounded-lg
+                        ${roleInfo.role === 'expert' 
+                          ? 'bg-green-100 text-green-600' 
+                          : 'bg-purple-100 text-purple-600'
+                        }
+                      `}>
+                        {roleInfo.role === 'expert' ? (
+                          <UserCheck className="w-6 h-6" />
+                        ) : (
+                          <Building className="w-6 h-6" />
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <h3 className="font-semibold text-lg mb-1">
+                          {roleInfo.role === 'expert' ? '전문가' : '기관'}
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {roleInfo.name}
+                        </p>
+                        <div className="flex items-center space-x-2 text-xs">
+                          {roleInfo.hasProfile ? (
+                            <>
+                              {roleInfo.isProfileComplete ? (
+                                <span className="text-green-600">✓ 프로필 완료</span>
+                              ) : (
+                                <span className="text-orange-600">⚠ 프로필 미완료</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-500">프로필 없음</span>
+                          )}
+                        </div>
+                      </div>
+                      {isRedirecting && selectedRole === roleInfo.role && (
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRoleSelection(false)
+                  setEmail('')
+                  setPassword('')
+                }}
+                className="w-full"
+                disabled={isRedirecting || loading}
+              >
+                다른 계정으로 로그인
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
