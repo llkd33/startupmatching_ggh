@@ -159,17 +159,69 @@ function LoginForm() {
         }
       }
 
-      // 사용자가 가진 프로필 확인
-      const profilesResponse = await fetch('/api/auth/check-profiles')
-      if (!profilesResponse.ok) {
-        throw new Error('프로필을 확인하는 중 오류가 발생했습니다.')
+      // 사용자가 가진 프로필 확인 (클라이언트에서 직접 확인)
+      const [expertProfileResult, orgProfileResult] = await Promise.all([
+        browserSupabase
+          .from('expert_profiles')
+          .select('id, name, is_profile_complete')
+          .eq('user_id', data.user.id)
+          .maybeSingle(),
+        browserSupabase
+          .from('organization_profiles')
+          .select('id, organization_name, is_profile_complete')
+          .eq('user_id', data.user.id)
+          .maybeSingle(),
+      ])
+
+      const availableRoles: Array<{
+        role: 'expert' | 'organization'
+        name: string
+        hasProfile: boolean
+        isProfileComplete: boolean
+      }> = []
+
+      if (expertProfileResult.data) {
+        availableRoles.push({
+          role: 'expert',
+          name: expertProfileResult.data.name || '전문가',
+          hasProfile: true,
+          isProfileComplete: expertProfileResult.data.is_profile_complete ?? false,
+        })
       }
 
-      const profilesData = await profilesResponse.json()
-      const roles = profilesData.availableRoles || []
+      if (orgProfileResult.data) {
+        availableRoles.push({
+          role: 'organization',
+          name: orgProfileResult.data.organization_name || '기관',
+          hasProfile: true,
+          isProfileComplete: orgProfileResult.data.is_profile_complete ?? false,
+        })
+      }
+
+      // users 테이블의 역할도 확인 (프로필이 없을 경우 fallback)
+      if (userResult.data?.role) {
+        const roleExists = availableRoles.some((r) => r.role === userResult.data.role)
+        if (!roleExists) {
+          if (userResult.data.role === 'expert') {
+            availableRoles.push({
+              role: 'expert',
+              name: '전문가',
+              hasProfile: false,
+              isProfileComplete: false,
+            })
+          } else if (userResult.data.role === 'organization') {
+            availableRoles.push({
+              role: 'organization',
+              name: '기관',
+              hasProfile: false,
+              isProfileComplete: false,
+            })
+          }
+        }
+      }
 
       // 프로필이 없으면 기본 역할 사용
-      if (roles.length === 0) {
+      if (availableRoles.length === 0) {
         if (!resolvedRole) {
           throw new Error('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
         }
@@ -179,13 +231,13 @@ function LoginForm() {
       }
 
       // 프로필이 하나면 바로 로그인
-      if (roles.length === 1) {
-        await handleRoleLogin(roles[0].role, data.user.id)
+      if (availableRoles.length === 1) {
+        await handleRoleLogin(availableRoles[0].role, data.user.id)
         return
       }
 
       // 프로필이 여러 개면 역할 선택 UI 표시
-      setAvailableRoles(roles)
+      setAvailableRoles(availableRoles)
       setShowRoleSelection(true)
       setLoading(false)
       toast.success('로그인되었습니다! 어떤 역할로 접속하시겠어요?')
