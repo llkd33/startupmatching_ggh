@@ -35,12 +35,17 @@ function LoginForm() {
     isProfileComplete: boolean
   }>>([])
   const [selectedRole, setSelectedRole] = useState<'expert' | 'organization' | null>(null)
+  const [registerType, setRegisterType] = useState<'expert' | 'organization' | null>(null)
 
-  // URL 쿼리 파라미터에서 이메일 가져오기
+  // URL 쿼리 파라미터에서 이메일과 타입 가져오기
   useEffect(() => {
     const emailParam = searchParams.get('email')
+    const typeParam = searchParams.get('type') as 'expert' | 'organization' | null
     if (emailParam) {
       setEmail(decodeURIComponent(emailParam))
+    }
+    if (typeParam === 'expert' || typeParam === 'organization') {
+      setRegisterType(typeParam)
     }
   }, [searchParams])
 
@@ -535,23 +540,56 @@ function LoginForm() {
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <div className="text-sm text-center text-gray-600">
-              아직 계정이 없으신가요?
-            </div>
-            <div className="grid grid-cols-2 gap-3 w-full">
-              <Link href="/auth/register?type=expert" className="w-full">
-                <Button variant="outline" className="w-full">
-                  <UserCheck className="w-4 h-4 mr-2" />
-                  전문가 가입
-                </Button>
-              </Link>
-              <Link href="/auth/register?type=organization" className="w-full">
-                <Button variant="outline" className="w-full">
-                  <Building className="w-4 h-4 mr-2" />
-                  기관 가입
-                </Button>
-              </Link>
-            </div>
+            {registerType ? (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                  <div className="text-sm font-semibold text-blue-900 mb-2 text-center">
+                    {registerType === 'expert' ? '👤 전문가로 시작하기' : '🏢 기관으로 시작하기'}
+                  </div>
+                  <div className="text-xs text-blue-700 text-center mb-4">
+                    계정이 없으시다면 아래 버튼을 눌러 가입해주세요
+                  </div>
+                  <Link href={`/auth/register/${registerType}`} className="w-full block">
+                    <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+                      {registerType === 'expert' ? (
+                        <>
+                          <UserCheck className="w-4 h-4 mr-2" />
+                          전문가로 가입하기
+                        </>
+                      ) : (
+                        <>
+                          <Building className="w-4 h-4 mr-2" />
+                          기관으로 가입하기
+                        </>
+                      )}
+                    </Button>
+                  </Link>
+                </div>
+                <div className="text-xs text-center text-gray-500">
+                  이미 계정이 있으신가요? 위에서 로그인해주세요
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm text-center text-gray-600">
+                  아직 계정이 없으신가요?
+                </div>
+                <div className="grid grid-cols-2 gap-3 w-full">
+                  <Link href="/auth/register?type=expert" className="w-full">
+                    <Button variant="outline" className="w-full">
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      전문가 가입
+                    </Button>
+                  </Link>
+                  <Link href="/auth/register?type=organization" className="w-full">
+                    <Button variant="outline" className="w-full">
+                      <Building className="w-4 h-4 mr-2" />
+                      기관 가입
+                    </Button>
+                  </Link>
+                </div>
+              </>
+            )}
           </CardFooter>
         </Card>
 
