@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
 import { 
   Briefcase, 
   Users, 
   FileText, 
-  TrendingUp, 
   PlusCircle,
   Activity,
   MessageSquare,
   Clock
 } from 'lucide-react'
+import { EnhancedStatCard } from '@/components/dashboard/EnhancedStatCard'
+import { NextStepWidget, getNextStepForUser } from '@/components/dashboard/NextStepWidget'
+import { ErrorAlert } from '@/components/ui/error-alert'
 
 // 개발 모드 체크
 function isDevMode() {
@@ -24,29 +25,11 @@ function isDevMode() {
   return localStorage.getItem('dev_mode') === 'true'
 }
 
-// 가벼운 스탯 카드
-function StatCard({ title, value, icon: Icon, loading = false }: any) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-16" />
-        ) : (
-          <div className="text-2xl font-bold">{value || 0}</div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
 export default function FastDashboardPage() {
   const router = useRouter()
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('')
+  const [userId, setUserId] = useState<string | null>(null)
   const [stats, setStats] = useState({
     campaigns: 0,
     proposals: 0,
@@ -55,6 +38,8 @@ export default function FastDashboardPage() {
   })
   const [statsLoading, setStatsLoading] = useState(true)
   const [pageReady, setPageReady] = useState(false)
+  const [profileComplete, setProfileComplete] = useState<boolean | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     initializeDashboard()
@@ -66,6 +51,7 @@ export default function FastDashboardPage() {
       const mockUser = JSON.parse(localStorage.getItem('dev_user') || '{}')
       setUserRole(mockUser.role || 'expert')
       setUserName(mockUser.name || '개발자')
+      setUserId('dev-user-id')
       setPageReady(true)
       
       // 가짜 데이터 지연 로드
@@ -76,6 +62,7 @@ export default function FastDashboardPage() {
           messages: 3,
           connections: 24
         })
+        setProfileComplete(false) // 개발 모드에서는 미완성으로 표시
         setStatsLoading(false)
       }, 300)
       return
@@ -83,7 +70,9 @@ export default function FastDashboardPage() {
 
     // 실제 인증 - 최소한의 체크
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) throw sessionError
       
       if (!session) {
         router.push('/auth/login')
@@ -96,13 +85,43 @@ export default function FastDashboardPage() {
       
       setUserRole(role)
       setUserName(name)
+      setUserId(session.user.id)
       setPageReady(true)
       
-      // 통계는 백그라운드에서 로드
+      // 통계와 프로필 정보는 백그라운드에서 로드
       loadStatsInBackground(session.user.id, role)
-    } catch (error) {
+      loadProfileStatus(session.user.id, role)
+    } catch (error: any) {
       console.error('Init error:', error)
-      router.push('/auth/login')
+      setError('대시보드를 불러오는 중 오류가 발생했습니다.')
+      // 에러가 있어도 기본 UI는 표시
+      setPageReady(true)
+    }
+  }
+
+  const loadProfileStatus = async (userId: string, role: string) => {
+    try {
+      if (role === 'expert') {
+        const { data: profile } = await supabase
+          .from('expert_profiles')
+          .select('is_profile_complete')
+          .eq('user_id', userId)
+          .maybeSingle()
+        
+        setProfileComplete(profile?.is_profile_complete ?? false)
+      } else if (role === 'organization') {
+        const { data: profile } = await supabase
+          .from('organization_profiles')
+          .select('is_profile_complete')
+          .eq('user_id', userId)
+          .maybeSingle()
+        
+        setProfileComplete(profile?.is_profile_complete ?? false)
+      }
+    } catch (error) {
+      console.log('Profile status loading skipped:', error)
+      // 프로필 상태 로딩 실패는 치명적이지 않음
+      setProfileComplete(undefined)
     }
   }
 
@@ -112,24 +131,60 @@ export default function FastDashboardPage() {
     
     try {
       if (role === 'expert') {
-        // 전문가: 간단한 카운트만
-        const { count: proposalCount } = await supabase
-          .from('proposals')
-          .select('*', { count: 'exact', head: true })
-          .eq('expert_id', userId)
+        // 전문가: 제안서, 메시지 카운트
+        const [proposalsResult, messagesResult] = await Promise.all([
+          supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .eq('expert_id', userId),
+          supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        ])
         
-        setStats(prev => ({ ...prev, proposals: proposalCount || 0 }))
+        setStats(prev => ({
+          ...prev,
+          proposals: proposalsResult.count || 0,
+          messages: messagesResult.count || 0
+        }))
       } else {
-        // 기관: 간단한 카운트만
-        const { count: campaignCount } = await supabase
+        // 기관: 캠페인, 제안서, 메시지 카운트
+        // 먼저 캠페인 ID 목록 가져오기
+        const { data: campaigns } = await supabase
           .from('campaigns')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('organization_id', userId)
         
-        setStats(prev => ({ ...prev, campaigns: campaignCount || 0 }))
+        const campaignIds = campaigns?.map(c => c.id) || []
+        
+        const [campaignsResult, proposalsResult, messagesResult] = await Promise.all([
+          supabase
+            .from('campaigns')
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', userId),
+          campaignIds.length > 0
+            ? supabase
+                .from('proposals')
+                .select('*', { count: 'exact', head: true })
+                .in('campaign_id', campaignIds)
+            : Promise.resolve({ count: 0, error: null }),
+          supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        ])
+        
+        setStats(prev => ({
+          ...prev,
+          campaigns: campaignsResult.count || 0,
+          proposals: proposalsResult.count || 0,
+          messages: messagesResult.count || 0
+        }))
       }
     } catch (error) {
       console.log('Stats loading skipped:', error)
+      setError('통계를 불러오는 중 오류가 발생했습니다.')
     } finally {
       setStatsLoading(false)
     }
@@ -147,10 +202,31 @@ export default function FastDashboardPage() {
     )
   }
 
+  const nextStep = getNextStepForUser(userRole, stats, profileComplete)
+
   return (
     <div className="container mx-auto p-6 space-y-6 animate-in fade-in duration-500">
+      {/* 에러 표시 */}
+      {error && (
+        <ErrorAlert
+          title="오류가 발생했습니다"
+          description={error}
+          type="generic"
+          action={{
+            label: "다시 시도",
+            onClick: () => {
+              setError(null)
+              if (userId && userRole) {
+                loadStatsInBackground(userId, userRole)
+                loadProfileStatus(userId, userRole)
+              }
+            }
+          }}
+        />
+      )}
+
       {/* 헤더 - 즉시 표시 */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">안녕하세요, {userName}님!</h1>
           <p className="text-muted-foreground">
@@ -165,31 +241,47 @@ export default function FastDashboardPage() {
         </Button>
       </div>
 
-      {/* 통계 카드 - 스켈레톤과 함께 즉시 표시 */}
+      {/* 다음 단계 위젯 */}
+      {nextStep && (
+        <NextStepWidget {...nextStep} />
+      )}
+
+      {/* 통계 카드 - 개선된 버전 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard 
+        <EnhancedStatCard
           title={userRole === 'expert' ? '진행 중 제안' : '활성 캠페인'}
           value={userRole === 'expert' ? stats.proposals : stats.campaigns}
           icon={Briefcase}
           loading={statsLoading}
+          href={userRole === 'expert' ? '/dashboard/proposals' : '/dashboard/campaigns'}
+          trend={userRole === 'expert' && stats.proposals > 0 ? {
+            value: 12,
+            period: '이번 주'
+          } : undefined}
+          description={userRole === 'expert' ? '제출한 제안서 수' : '진행 중인 캠페인 수'}
         />
-        <StatCard 
-          title="새 메시지" 
+        <EnhancedStatCard
+          title="새 메시지"
           value={stats.messages}
           icon={MessageSquare}
           loading={statsLoading}
+          href="/dashboard/messages"
+          description="받은 메시지 수"
         />
-        <StatCard 
-          title="연결" 
+        <EnhancedStatCard
+          title="연결"
           value={stats.connections}
           icon={Users}
           loading={statsLoading}
+          href="/dashboard/connection-requests"
+          description="연결된 사용자 수"
         />
-        <StatCard 
-          title="이번 달 활동" 
-          value={statsLoading ? '-' : '활발'}
+        <EnhancedStatCard
+          title="이번 달 활동"
+          value={statsLoading ? '-' : (stats.proposals + stats.campaigns + stats.messages > 0 ? '활발' : '시작하기')}
           icon={Activity}
           loading={statsLoading}
+          description="전체 활동 요약"
         />
       </div>
 
