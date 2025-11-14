@@ -10,6 +10,7 @@ import {
   Settings,
   LogOut,
   Home,
+  Mail,
 } from 'lucide-react';
 import AdminNav from '@/components/admin/AdminNav'
 
@@ -43,6 +44,7 @@ export default async function AdminLayout({
   const navigationItems = [
     { href: '/admin', label: '대시보드', icon: Home },
     { href: '/admin/users', label: '사용자', icon: Users },
+    { href: '/admin/invitations', label: '초대 관리', icon: Mail },
     { href: '/admin/campaigns', label: '캠페인', icon: Briefcase },
     { href: '/admin/proposals', label: '제안서', icon: FileText },
     { href: '/admin/analytics', label: '분석', icon: BarChart3 },
