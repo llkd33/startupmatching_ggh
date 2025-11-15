@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 export const campaignSchema = z.object({
-  title: z.string().min(5, '제목은 최소 5자 이상이어야 합니다'),
-  description: z.string().min(20, '설명은 최소 20자 이상이어야 합니다'),
+  title: z.string().min(5, '제목은 최소 5자 이상 입력해주세요'),
+  description: z.string().min(20, '설명은 최소 20자 이상 입력해주세요'),
   type: z.enum(['mentoring', 'investment', 'service']).describe('캠페인 유형을 선택해주세요'),
-  category: z.string().min(1, '카테고리를 선택해주세요'),
-  keywords: z.array(z.string()).min(1, '최소 1개 이상의 키워드를 입력해주세요'),
+  category: z.string().optional(), // 선택사항으로 변경
+  keywords: z.array(z.string()).optional(), // 선택사항으로 변경
   budgetMin: z.number().min(0, '최소 예산은 0 이상이어야 합니다').optional(),
   budgetMax: z.number().min(0, '최대 예산은 0 이상이어야 합니다').optional(),
   startDate: z.string().optional(),

@@ -4,29 +4,57 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './AuthContext'
 import { supabase } from '@/lib/supabase'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 export default function LoginForm() {
   const router = useRouter()
   const { signIn } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  })
+  
+  // Form validation
+  const {
+    values: formData,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    validateAllFields,
+  } = useFormValidation(
+    {
+      email: '',
+      password: '',
+    },
+    {
+      email: { required: true, email: true },
+      password: { required: true },
+    },
+    { mode: 'onBlur', reValidateMode: 'onChange' }
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
+
+    // Validate all fields
+    const isValid = await validateAllFields()
+    if (!isValid) {
+      toast.error('입력 정보를 확인해주세요.')
+      setLoading(false)
+      return
+    }
 
     try {
       const { error } = await signIn(formData.email, formData.password)
       
       if (error) {
-        setError(error.message)
+        toast.error(error.message)
       } else {
+        toast.success('로그인되었습니다.')
         // Redirect based on user role
         const { data: { user } } = await supabase.auth.getUser()
         const role = user?.user_metadata?.role
@@ -39,8 +67,8 @@ export default function LoginForm() {
           router.push('/dashboard')
         }
       }
-    } catch (err) {
-      setError('로그인 중 오류가 발생했습니다.')
+    } catch (err: any) {
+      toast.error(err.message || '로그인 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -63,46 +91,56 @@ export default function LoginForm() {
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <input type="hidden" name="remember" value="true" />
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="space-y-4">
             <div>
-              <label htmlFor="email-address" className="sr-only">
+              <Label htmlFor="email-address" className="sr-only">
                 이메일 주소
-              </label>
-              <input
+              </Label>
+              <Input
                 id="email-address"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className={`h-12 text-base ${touched.email && errors.email ? 'border-red-500' : ''}`}
                 placeholder="이메일 주소"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => handleChange('email', e.target.value)}
+                onBlur={() => handleBlur('email')}
+                aria-invalid={touched.email && !!errors.email}
+                aria-describedby={touched.email && errors.email ? 'email-error' : undefined}
               />
+              {touched.email && errors.email && (
+                <p id="email-error" className="text-sm text-red-600 mt-1" role="alert">
+                  {errors.email}
+                </p>
+              )}
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <Label htmlFor="password" className="sr-only">
                 비밀번호
-              </label>
-              <input
+              </Label>
+              <Input
                 id="password"
                 name="password"
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className={`h-12 text-base ${touched.password && errors.password ? 'border-red-500' : ''}`}
                 placeholder="비밀번호"
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) => handleChange('password', e.target.value)}
+                onBlur={() => handleBlur('password')}
+                aria-invalid={touched.password && !!errors.password}
+                aria-describedby={touched.password && errors.password ? 'password-error' : undefined}
               />
+              {touched.password && errors.password && (
+                <p id="password-error" className="text-sm text-red-600 mt-1" role="alert">
+                  {errors.password}
+                </p>
+              )}
             </div>
           </div>
-
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
-            </div>
-          )}
 
           <div className="flex items-center justify-between">
             <div className="text-sm">
@@ -113,13 +151,15 @@ export default function LoginForm() {
           </div>
 
           <div>
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 text-base font-medium"
+              isLoading={loading}
+              loadingText="로그인 중..."
             >
-              {loading ? '로그인 중...' : '로그인'}
-            </button>
+              로그인
+            </Button>
           </div>
         </form>
       </div>

@@ -26,6 +26,7 @@ import {
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { PageLoading } from '@/components/ui/loading-states'
 
 interface Campaign {
   id: string
@@ -104,7 +105,9 @@ export default function CampaignDetailPage() {
       .maybeSingle()
 
     if (userError) {
-      console.error('Failed to load user role:', userError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to load user role:', userError)
+      }
       return
     }
 
@@ -120,7 +123,9 @@ export default function CampaignDetailPage() {
           .maybeSingle()
 
         if (expertError) {
-          console.error('Failed to load expert profile:', expertError)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Failed to load expert profile:', expertError)
+          }
         } else {
           setExpertProfile(expertData)
         }
@@ -135,7 +140,9 @@ export default function CampaignDetailPage() {
             .maybeSingle()
 
           if (proposalError) {
-            console.error('Failed to check existing proposal:', proposalError)
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Failed to check existing proposal:', proposalError)
+            }
           } else {
             setExistingProposal(proposalData)
           }
@@ -168,7 +175,9 @@ export default function CampaignDetailPage() {
       if (error) throw error
       setCampaign(data)
     } catch (error) {
-      console.error('Error loading campaign:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading campaign:', error)
+      }
     }
   }
 
@@ -191,7 +200,9 @@ export default function CampaignDetailPage() {
       if (error) throw error
       setProposals(data || [])
     } catch (error) {
-      console.error('Error loading proposals:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading proposals:', error)
+      }
     } finally {
       setLoading(false)
     }
@@ -214,7 +225,9 @@ export default function CampaignDetailPage() {
         await loadProposals(campaign.id)
       }
     } catch (error) {
-      console.error('Error updating proposal:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error updating proposal:', error)
+      }
     }
   }
 
@@ -291,16 +304,7 @@ export default function CampaignDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center min-h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4">캠페인을 불러오는 중...</p>
-          </div>
-        </div>
-      </div>
-    )
+    return <PageLoading title="캠페인을 불러오는 중..." />
   }
 
   if (!campaign) {

@@ -3,15 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { db, auth } from '@/lib/supabase'
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages'
+import { notifyMessageReceived } from '@/lib/notifications'
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid'
 
 interface ChatWindowProps {
   campaignId: string
   otherUserId: string
   otherUserName: string
+  campaignTitle?: string
+  threadId?: string
 }
 
-export default function ChatWindow({ campaignId, otherUserId, otherUserName }: ChatWindowProps) {
+export default function ChatWindow({ campaignId, otherUserId, otherUserName, campaignTitle, threadId }: ChatWindowProps) {
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -46,14 +49,32 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName }: C
         message: newMessage.trim(),
       }
 
-      const { data, error } = await db.messages.send(messageData)
+      const messageText = newMessage.trim()
+      const { data, error } = await db.messages.send(
+        campaignId,
+        null, // proposalId
+        currentUser.id,
+        otherUserId,
+        messageText,
+        'text'
+      )
       if (error) throw error
 
       // The real-time subscription will automatically update the messages
 
       setNewMessage('')
       
-      // TODO: Send notification to receiver
+      // Send notification to receiver
+      if (otherUserId && campaignTitle) {
+        await notifyMessageReceived(
+          otherUserId,
+          currentUser.email || otherUserName,
+          campaignTitle,
+          messageText,
+          campaignId,
+          threadId
+        )
+      }
     } catch (err) {
       console.error('Failed to send message:', err)
     } finally {
@@ -119,7 +140,7 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName }: C
                     {!isOwnMessage && (
                       <p className="text-xs font-semibold mb-1">{senderName}</p>
                     )}
-                    <p className="text-sm">{message.message}</p>
+                    <p className="text-sm">{message.content || (message as any).message}</p>
                   </div>
                   <p className={`
                     text-xs text-gray-500 mt-1

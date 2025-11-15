@@ -16,7 +16,10 @@ import {
   MapPin,
   Eye,
   Edit,
-  Trash2
+  Trash2,
+  Copy,
+  BarChart3,
+  FileText
 } from 'lucide-react'
 import Link from 'next/link'
 import { CampaignListSkeleton } from '@/components/ui/loading-states'
@@ -43,6 +46,7 @@ export default function CampaignsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDuplicating, setIsDuplicating] = useState(false)
 
   // Fetch campaigns with pagination
   const {
@@ -159,15 +163,86 @@ export default function CampaignsPage() {
       toast.success('캠페인이 삭제되었습니다.')
       setDeleteDialogOpen(false)
       setCampaignToDelete(null)
-      
+
       // 캠페인 목록 새로고침
       await refreshCampaigns()
     } catch (error) {
-      console.error('Delete campaign error:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Delete campaign error:', error)
+      }
       handleSupabaseError(error as Error, true, { context: 'delete_campaign' })
       toast.error('캠페인 삭제에 실패했습니다.')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleDuplicateCampaign = async (campaignId: string) => {
+    if (!userId || isDuplicating) return
+
+    if (!confirm('이 캠페인을 복제하시겠습니까?')) return
+
+    setIsDuplicating(true)
+    try {
+      // organization_profile의 id 조회
+      const { data: orgProfile, error: orgError } = await browserSupabase
+        .from('organization_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (orgError) throw orgError
+      if (!orgProfile) {
+        toast.error('조직 프로필을 찾을 수 없습니다.')
+        return
+      }
+
+      // 원본 캠페인 데이터 가져오기
+      const { data: originalCampaign, error: fetchError } = await browserSupabase
+        .from('campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // 새 캠페인 데이터 생성
+      const duplicatedCampaign = {
+        title: `${originalCampaign.title} (복사본)`,
+        description: originalCampaign.description,
+        type: originalCampaign.type,
+        category: originalCampaign.category,
+        keywords: originalCampaign.keywords,
+        budget_min: originalCampaign.budget_min,
+        budget_max: originalCampaign.budget_max,
+        start_date: null, // 날짜는 새로 설정하도록
+        end_date: null,
+        location: originalCampaign.location,
+        required_experts: originalCampaign.required_experts,
+        organization_id: orgProfile.id,
+        status: 'draft' // 복제된 캠페인은 임시저장 상태로
+      }
+
+      const { data: newCampaign, error: createError } = await browserSupabase
+        .from('campaigns')
+        .insert([duplicatedCampaign])
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      toast.success('캠페인이 복제되었습니다. 수정하여 게시하세요.')
+
+      // 복제된 캠페인 수정 페이지로 이동
+      router.push(`/dashboard/campaigns/${newCampaign.id}/edit`)
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Duplicate campaign error:', error)
+      }
+      handleSupabaseError(error as Error, true, { context: 'duplicate_campaign' })
+      toast.error('캠페인 복제에 실패했습니다.')
+    } finally {
+      setIsDuplicating(false)
     }
   }
 
@@ -295,12 +370,12 @@ export default function CampaignsPage() {
                           variant="ghost"
                           size="sm"
                           className="md:h-9 h-11 min-h-[44px] md:min-h-0"
-                          aria-label={`${campaign.title} 상세보기`}
+                          aria-label={`${campaign.title} 제안서 보기`}
                           asChild
                         >
                           <Link href={`/dashboard/campaigns/${campaign.id}`}>
-                            <Eye className="h-4 w-4" aria-hidden="true" />
-                            <span className="sr-only">상세보기</span>
+                            <FileText className="h-4 w-4" aria-hidden="true" />
+                            <span className="sr-only md:inline ml-1">제안서</span>
                           </Link>
                         </Button>
                         <Button
@@ -312,18 +387,29 @@ export default function CampaignsPage() {
                         >
                           <Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
                             <Edit className="h-4 w-4" aria-hidden="true" />
-                            <span className="sr-only">수정</span>
+                            <span className="sr-only md:inline ml-1">수정</span>
                           </Link>
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="md:h-9 h-11 min-h-[44px] md:min-h-0"
+                          aria-label={`${campaign.title} 복제`}
+                          onClick={() => handleDuplicateCampaign(campaign.id)}
+                          disabled={isDuplicating}
+                        >
+                          <Copy className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only md:inline ml-1">복제</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="md:h-9 h-11 min-h-[44px] md:min-h-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           aria-label={`${campaign.title} 삭제`}
                           onClick={() => handleDeleteClick(campaign.id, campaign.title)}
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          <span className="sr-only">삭제</span>
+                          <span className="sr-only md:inline ml-1">삭제</span>
                         </Button>
                       </div>
                     )}

@@ -660,18 +660,44 @@ function generateSelectionEmailHTML(
  */
 export async function handleCampaignCreated(campaignId: string): Promise<void> {
   try {
-    // 1. 캠페인 정보 가져오기
-    const { data: campaign, error } = await supabase
-      .from('campaigns')
-      .select(`
-        *,
-        organization_profiles(organization_name)
-      `)
-      .eq('id', campaignId)
-      .single()
+    // 캠페인 생성 후 데이터베이스 반영을 위한 짧은 대기
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // 최대 3번 재시도
+    let campaign = null
+    let error = null
+    let retries = 3
+    
+    while (retries > 0 && !campaign) {
+      const result = await supabase
+        .from('campaigns')
+        .select(`
+          *,
+          organization_profiles(organization_name)
+        `)
+        .eq('id', campaignId)
+        .single()
+      
+      campaign = result.data
+      error = result.error
+      
+      if (campaign) {
+        break
+      }
+      
+      if (retries > 1) {
+        // 재시도 전 대기 시간 증가
+        await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)))
+      }
+      
+      retries--
+    }
 
     if (error || !campaign) {
-      throw new Error('Campaign not found')
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to find campaign after retries:', campaignId, error)
+      }
+      return // 오류 발생 시 조용히 종료 (캠페인은 이미 생성됨)
     }
 
     // 2. 매칭 기준 설정

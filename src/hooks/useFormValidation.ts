@@ -7,7 +7,7 @@ interface ValidationRule {
   minLength?: number
   maxLength?: number
   pattern?: RegExp
-  custom?: (value: any) => string | null | Promise<string | null>
+  custom?: (value: any, allValues?: any) => string | null | Promise<string | null>
   email?: boolean
   url?: boolean
   phone?: boolean
@@ -47,7 +47,7 @@ export function useFormValidation<T extends Record<string, any>>(
   const [isDirty, setIsDirty] = useState(false)
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({})
 
-  const validateField = useCallback(async (field: string, value: any): Promise<string | null> => {
+  const validateField = useCallback(async (field: string, value: any, allValues?: T): Promise<string | null> => {
     const rule = rules[field]
     if (!rule) return null
 
@@ -113,12 +113,12 @@ export function useFormValidation<T extends Record<string, any>>(
 
     // Custom validation (can be async)
     if (rule.custom) {
-      const result = await rule.custom(value)
+      const result = await rule.custom(value, allValues || values)
       return result
     }
 
     return null
-  }, [rules])
+  }, [rules, values])
 
   // Debounced validation
   const debouncedValidate = useCallback((field: string, value: any) => {
@@ -129,18 +129,18 @@ export function useFormValidation<T extends Record<string, any>>(
     setValidating(prev => ({ ...prev, [field]: true }))
 
     debounceTimers.current[field] = setTimeout(async () => {
-      const error = await validateField(field, value)
+      const error = await validateField(field, value, values)
       setErrors(prev => ({ ...prev, [field]: error || '' }))
       setValidating(prev => ({ ...prev, [field]: false }))
     }, debounceTime)
-  }, [validateField, debounceTime])
+  }, [validateField, debounceTime, values])
 
   const validateAllFields = useCallback(async (): Promise<boolean> => {
     const newErrors: ValidationErrors = {}
     let isValid = true
 
     for (const field of Object.keys(rules)) {
-      const error = await validateField(field, values[field])
+      const error = await validateField(field, values[field], values)
       if (error) {
         newErrors[field] = error
         isValid = false
@@ -175,7 +175,7 @@ export function useFormValidation<T extends Record<string, any>>(
     setTouched(prev => ({ ...prev, [field]: true }))
     
     if (mode === 'onBlur' || reValidateMode === 'onBlur') {
-      const error = await validateField(field as string, values[field])
+      const error = await validateField(field as string, values[field], values)
       setErrors(prev => ({ ...prev, [field]: error || '' }))
     }
   }, [values, validateField, mode, reValidateMode])
@@ -203,7 +203,7 @@ export function useFormValidation<T extends Record<string, any>>(
     onBlur: () => handleBlur(field),
     error: touched[field as string] ? errors[field as string] : undefined,
     'aria-invalid': touched[field as string] && !!errors[field as string],
-    'aria-describedby': errors[field as string] ? `${field}-error` : undefined,
+    'aria-describedby': errors[field as string] ? `${String(field)}-error` : undefined,
   }), [values, errors, touched, handleChange, handleBlur])
 
   // Cleanup debounce timers on unmount

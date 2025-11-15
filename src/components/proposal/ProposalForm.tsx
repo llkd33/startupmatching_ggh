@@ -1,9 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { useAutoSave, getDraftMetadata } from '@/hooks/useAutoSave'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { AutoSaveIndicator, DraftRestorePrompt } from '@/components/ui/auto-save-indicator'
 import { CalendarIcon, CurrencyDollarIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { toast } from 'sonner'
 
 interface ProposalFormProps {
   campaignId: string
@@ -14,22 +22,141 @@ interface ProposalFormProps {
 export default function ProposalForm({ campaignId, expertId, campaignData }: ProposalFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [newLink, setNewLink] = useState('')
+  const [portfolioLinks, setPortfolioLinks] = useState<string[]>([])
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false)
+  const [draftMetadata, setDraftMetadata] = useState<{ timestamp: string } | null>(null)
   
-  const [formData, setFormData] = useState({
-    proposal_text: '',
-    estimated_budget: '',
-    estimated_start_date: '',
-    estimated_end_date: '',
-    portfolio_links: [] as string[],
+  // 자동 저장 설정
+  const autoSaveKey = `proposal-draft-${campaignId}-${expertId}`
+  
+  const { save, restore, clear, state: autoSaveState } = useAutoSave<{
+    proposal_text: string
+    estimated_budget: string
+    estimated_start_date: string
+    estimated_end_date: string
+    portfolio_links: string[]
+  }>({
+    key: autoSaveKey,
+    delay: 3000, // 3초 후 자동 저장
+    enabled: true,
+    onSave: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Proposal draft auto-saved')
+      }
+    }
   })
 
-  const [newLink, setNewLink] = useState('')
+  // 초기 마운트 시 임시 저장 데이터 확인
+  useEffect(() => {
+    const metadata = getDraftMetadata(autoSaveKey)
+    if (metadata) {
+      setDraftMetadata(metadata)
+      setShowDraftPrompt(true)
+    }
+  }, [autoSaveKey])
+  
+  // Form validation
+  const {
+    values: formData,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    validateAllFields,
+    setValue
+  } = useFormValidation(
+    {
+      proposal_text: '',
+      estimated_budget: '',
+      estimated_start_date: '',
+      estimated_end_date: '',
+    },
+    {
+      proposal_text: { required: true, minLength: 50 },
+      estimated_budget: { 
+        custom: async (value) => {
+          if (value && (isNaN(Number(value)) || Number(value) < 0)) {
+            return '올바른 금액을 입력해주세요.'
+          }
+          return null
+        }
+      },
+      estimated_start_date: {
+        custom: async (value, allValues) => {
+          if (value && allValues.estimated_end_date) {
+            const startDate = new Date(value)
+            const endDate = new Date(allValues.estimated_end_date)
+            if (startDate > endDate) {
+              return '시작일은 완료일보다 이전이어야 합니다.'
+            }
+          }
+          return null
+        }
+      },
+      estimated_end_date: {
+        custom: async (value, allValues) => {
+          if (value && allValues.estimated_start_date) {
+            const startDate = new Date(allValues.estimated_start_date)
+            const endDate = new Date(value)
+            if (endDate < startDate) {
+              return '완료일은 시작일보다 이후여야 합니다.'
+            }
+          }
+          return null
+        }
+      },
+    },
+    { mode: 'onBlur', reValidateMode: 'onChange' }
+  )
+
+  // 폼 데이터 변경 시 자동 저장
+  useEffect(() => {
+    if (!formData.proposal_text && !formData.estimated_budget && !formData.estimated_start_date) {
+      return // 빈 폼은 저장 안 함
+    }
+
+    save({
+      proposal_text: formData.proposal_text,
+      estimated_budget: formData.estimated_budget,
+      estimated_start_date: formData.estimated_start_date,
+      estimated_end_date: formData.estimated_end_date,
+      portfolio_links: portfolioLinks,
+    })
+  }, [formData, portfolioLinks, save])
+
+  // 임시 저장 데이터 복구
+  const handleRestoreDraft = () => {
+    const restoredData = restore()
+    if (restoredData) {
+      setValue('proposal_text', restoredData.proposal_text || '')
+      setValue('estimated_budget', restoredData.estimated_budget || '')
+      setValue('estimated_start_date', restoredData.estimated_start_date || '')
+      setValue('estimated_end_date', restoredData.estimated_end_date || '')
+      setPortfolioLinks(restoredData.portfolio_links || [])
+      toast.success('임시 저장된 데이터를 불러왔습니다')
+      setShowDraftPrompt(false)
+    }
+  }
+
+  // 임시 저장 데이터 삭제하고 새로 시작
+  const handleDiscardDraft = () => {
+    clear()
+    setShowDraftPrompt(false)
+    toast.info('새로 작성합니다')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
+
+    // Validate all fields
+    const isValid = await validateAllFields()
+    if (!isValid) {
+      toast.error('입력 정보를 확인해주세요.')
+      setLoading(false)
+      return
+    }
 
     try {
       const proposalData = {
@@ -39,18 +166,23 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         estimated_budget: formData.estimated_budget ? parseInt(formData.estimated_budget) : null,
         estimated_start_date: formData.estimated_start_date || null,
         estimated_end_date: formData.estimated_end_date || null,
-        portfolio_links: formData.portfolio_links,
+        portfolio_links: portfolioLinks,
       }
 
       const { error } = await supabase
         .from('proposals')
-        .insert(proposalData)
+        .insert(proposalData as any)
 
       if (error) throw error
 
+      // 성공 시 임시 저장 데이터 삭제
+      clear()
+      localStorage.removeItem(autoSaveKey)
+
+      toast.success('제안서가 성공적으로 제출되었습니다.')
       router.push('/dashboard/proposals')
     } catch (err: any) {
-      setError(err.message || '제안서 제출 중 오류가 발생했습니다.')
+      toast.error(err.message || '제안서 제출 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -61,32 +193,37 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
 
     try {
       new URL(newLink)
-      setFormData(prev => ({
-        ...prev,
-        portfolio_links: [...prev.portfolio_links, newLink],
-      }))
+      setPortfolioLinks(prev => [...prev, newLink])
       setNewLink('')
+      toast.success('포트폴리오 링크가 추가되었습니다.')
     } catch {
-      setError('올바른 URL을 입력해주세요.')
+      toast.error('올바른 URL을 입력해주세요.')
     }
   }
 
   const removeLink = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      portfolio_links: prev.portfolio_links.filter((_, i) => i !== index),
-    }))
-  }
-
-  const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }))
+    setPortfolioLinks(prev => prev.filter((_, i) => i !== index))
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 max-w-3xl mx-auto">
+      {/* 자동 저장 인디케이터 */}
+      <AutoSaveIndicator
+        isSaving={autoSaveState.isSaving}
+        lastSaved={autoSaveState.lastSaved}
+        className="mb-4"
+      />
+
+      {/* 임시 저장 복구 프롬프트 */}
+      {showDraftPrompt && draftMetadata && (
+        <DraftRestorePrompt
+          draftTimestamp={draftMetadata.timestamp}
+          onRestore={handleRestoreDraft}
+          onDiscard={handleDiscardDraft}
+          className="mb-4"
+        />
+      )}
+
       {campaignData && (
         <div className="bg-gray-50 px-4 py-5 sm:rounded-lg sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -111,80 +248,123 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
       <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
         <div className="space-y-6">
           <div>
-            <label htmlFor="proposal_text" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="proposal_text" className="block text-sm font-medium text-gray-700">
               제안 내용 <span className="text-red-500">*</span>
-            </label>
+            </Label>
             <p className="mt-1 text-sm text-gray-500">
-              프로젝트에 대한 이해도, 수행 방안, 차별화 포인트 등을 자세히 작성해주세요.
+              프로젝트에 대한 이해도, 수행 방안, 차별화 포인트 등을 자세히 작성해주세요. (최소 50자)
             </p>
-            <textarea
+            <Textarea
               id="proposal_text"
               rows={8}
               value={formData.proposal_text}
               onChange={(e) => handleChange('proposal_text', e.target.value)}
+              onBlur={() => handleBlur('proposal_text')}
               required
-              className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              className={`mt-2 min-h-[44px] text-base ${touched.proposal_text && errors.proposal_text ? 'border-red-500' : ''}`}
               placeholder="안녕하세요. 저는 10년차 React 전문가로서..."
+              aria-invalid={touched.proposal_text && !!errors.proposal_text}
+              aria-describedby={touched.proposal_text && errors.proposal_text ? 'proposal_text-error' : 'proposal_text-help'}
             />
+            <div className="flex justify-between items-center mt-1">
+              <p id="proposal_text-help" className="text-xs text-gray-500">
+                {formData.proposal_text.length}/최소 50자
+              </p>
+              {formData.proposal_text.length >= 50 && !errors.proposal_text && (
+                <p className="text-xs text-green-600">✓ 충분한 길이입니다</p>
+              )}
+            </div>
+            {touched.proposal_text && errors.proposal_text && (
+              <p id="proposal_text-error" className="text-sm text-red-600 mt-1" role="alert">
+                {errors.proposal_text}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label htmlFor="estimated_budget" className="block text-sm font-medium text-gray-700">
+              <Label htmlFor="estimated_budget" className="block text-sm font-medium text-gray-700">
                 제안 금액 (원)
-              </label>
-              <input
+              </Label>
+              <Input
                 type="number"
                 id="estimated_budget"
                 value={formData.estimated_budget}
                 onChange={(e) => handleChange('estimated_budget', e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                onBlur={() => handleBlur('estimated_budget')}
+                className={`mt-1 h-12 text-base ${touched.estimated_budget && errors.estimated_budget ? 'border-red-500' : ''}`}
                 placeholder="3000000"
+                aria-invalid={touched.estimated_budget && !!errors.estimated_budget}
+                aria-describedby={touched.estimated_budget && errors.estimated_budget ? 'estimated_budget-error' : undefined}
               />
+              {touched.estimated_budget && errors.estimated_budget && (
+                <p id="estimated_budget-error" className="text-sm text-red-600 mt-1" role="alert">
+                  {errors.estimated_budget}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700">
+                <Label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700">
                   시작 가능일
-                </label>
-                <input
+                </Label>
+                <Input
                   type="date"
                   id="estimated_start_date"
                   value={formData.estimated_start_date}
                   onChange={(e) => handleChange('estimated_start_date', e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  onBlur={() => handleBlur('estimated_start_date')}
+                  className={`mt-1 h-12 text-base ${touched.estimated_start_date && errors.estimated_start_date ? 'border-red-500' : ''}`}
+                  aria-invalid={touched.estimated_start_date && !!errors.estimated_start_date}
+                  aria-describedby={touched.estimated_start_date && errors.estimated_start_date ? 'estimated_start_date-error' : undefined}
                 />
+                {touched.estimated_start_date && errors.estimated_start_date && (
+                  <p id="estimated_start_date-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.estimated_start_date}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label htmlFor="estimated_end_date" className="block text-sm font-medium text-gray-700">
+                <Label htmlFor="estimated_end_date" className="block text-sm font-medium text-gray-700">
                   완료 예정일
-                </label>
-                <input
+                </Label>
+                <Input
                   type="date"
                   id="estimated_end_date"
                   value={formData.estimated_end_date}
                   onChange={(e) => handleChange('estimated_end_date', e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  onBlur={() => handleBlur('estimated_end_date')}
+                  className={`mt-1 h-12 text-base ${touched.estimated_end_date && errors.estimated_end_date ? 'border-red-500' : formData.estimated_end_date && formData.estimated_start_date && new Date(formData.estimated_end_date) >= new Date(formData.estimated_start_date) ? 'border-green-500' : ''}`}
+                  aria-invalid={touched.estimated_end_date && !!errors.estimated_end_date}
+                  aria-describedby={touched.estimated_end_date && errors.estimated_end_date ? 'estimated_end_date-error' : undefined}
                 />
+                {touched.estimated_end_date && errors.estimated_end_date && (
+                  <p id="estimated_end_date-error" className="text-sm text-red-600 mt-1" role="alert">
+                    {errors.estimated_end_date}
+                  </p>
+                )}
+                {formData.estimated_end_date && formData.estimated_start_date && new Date(formData.estimated_end_date) >= new Date(formData.estimated_start_date) && !errors.estimated_end_date && (
+                  <p className="text-sm text-green-600 mt-1">✓ 날짜 범위가 올바릅니다</p>
+                )}
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <Label className="block text-sm font-medium text-gray-700">
               포트폴리오 링크
-            </label>
+            </Label>
             <p className="mt-1 text-sm text-gray-500">
               관련 프로젝트나 포트폴리오 링크를 추가해주세요.
             </p>
             
-            {formData.portfolio_links.length > 0 && (
+            {portfolioLinks.length > 0 && (
               <div className="mt-2 space-y-2">
-                {formData.portfolio_links.map((link, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <LinkIcon className="h-4 w-4 text-gray-400" />
+                {portfolioLinks.map((link, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                    <LinkIcon className="h-4 w-4 text-gray-400" aria-hidden="true" />
                     <a
                       href={link}
                       target="_blank"
@@ -193,60 +373,66 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
                     >
                       {link}
                     </a>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeLink(index)}
-                      className="text-sm text-red-600 hover:text-red-500"
+                      className="text-sm text-red-600 hover:text-red-500 min-h-[44px] min-w-[44px]"
+                      aria-label={`${link} 링크 삭제`}
                     >
                       삭제
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
             )}
 
             <div className="mt-2 flex gap-2">
-              <input
+              <Input
                 type="url"
                 value={newLink}
                 onChange={(e) => setNewLink(e.target.value)}
                 placeholder="https://portfolio.example.com"
-                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="flex-1 h-12 text-base"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addPortfolioLink()
+                  }
+                }}
               />
-              <button
+              <Button
                 type="button"
                 onClick={addPortfolioLink}
                 disabled={!newLink.trim()}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-[44px] min-w-[80px]"
               >
                 추가
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-md bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
       <div className="flex justify-end space-x-3">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => router.back()}
-          className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="min-h-[44px]"
         >
           취소
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={loading || !formData.proposal_text}
-          className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading || !formData.proposal_text || formData.proposal_text.length < 50}
+          className="min-h-[44px] min-w-[120px]"
+          isLoading={loading}
+          loadingText="제출 중..."
         >
-          {loading ? '제출 중...' : '제안서 제출'}
-        </button>
+          제안서 제출
+        </Button>
       </div>
     </form>
   )

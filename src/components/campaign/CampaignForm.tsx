@@ -49,8 +49,8 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
       title: initialData?.title || '',
       description: initialData?.description || '',
       type: initialData?.type || 'mentoring',
-      category: initialData?.category || '',
-      keywords: initialData?.keywords || [],
+      category: initialData?.category || undefined,
+      keywords: initialData?.keywords || undefined,
       budgetMin: initialData?.budget_min || undefined,
       budgetMax: initialData?.budget_max || undefined,
       startDate: initialData?.start_date || undefined,
@@ -63,6 +63,18 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
   const watchedType = watch('type')
   const watchedKeywords = watch('keywords')
   const watchedFormData = watch()
+  const watchedCategory = watch('category')
+
+  // 유형 변경 시 카테고리 초기화
+  useEffect(() => {
+    if (watchedType && watchedCategory) {
+      const availableCategories = CAMPAIGN_CATEGORIES[watchedType as keyof typeof CAMPAIGN_CATEGORIES] || []
+      // 현재 카테고리가 새로운 유형에 없으면 초기화
+      if (!availableCategories.includes(watchedCategory)) {
+        setValue('category', undefined)
+      }
+    }
+  }, [watchedType, watchedCategory, setValue])
 
   // 자동 저장 설정
   const autoSaveKey = initialData?.id
@@ -111,6 +123,27 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     })
   }, [watchedFormData, attachments, save, initialData?.id, showTemplateSelector])
 
+  // 브라우저 뒤로가기/새로고침 시 저장되지 않은 변경사항 경고
+  useEffect(() => {
+    if (initialData?.id) return // 수정 모드에서는 경고 안 함
+    
+    const hasUnsavedChanges = watchedFormData.title || watchedFormData.description
+    
+    if (!hasUnsavedChanges) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = '저장하지 않은 변경사항이 있습니다. 정말 나가시겠습니까?'
+      return e.returnValue
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [watchedFormData, initialData?.id])
+
   // 템플릿 선택 시 폼 데이터 채우기
   const handleTemplateSelect = (template: CampaignTemplate | null) => {
     if (template && template.id) {
@@ -150,15 +183,23 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
   }
 
   const onSubmit = async (data: CampaignInput, isDraft = false) => {
+    // 중복 제출 방지
+    if (loading || isSubmitting) {
+      return
+    }
+
     setSubmitError(null)
+    setLoading(true)
+
+    let newCampaign: any = null
 
     try {
       const campaignData = {
         title: data.title,
         description: data.description,
         type: data.type,
-        category: data.category,
-        keywords: data.keywords,
+        category: data.category || null,
+        keywords: data.keywords || [],
         budget_min: data.budgetMin || null,
         budget_max: data.budgetMax || null,
         start_date: data.startDate || null,
@@ -182,7 +223,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
         toast.success('캠페인이 수정되었습니다.')
       } else {
         // Create new campaign
-        const { data: newCampaign, error } = await supabase
+        const { data: createdCampaign, error } = await supabase
           .from('campaigns')
           .insert([campaignData])
           .select()
@@ -190,9 +231,14 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
         if (error) throw error
 
+        newCampaign = createdCampaign
+
         // 자동 매칭 및 알림 발송 (비동기, 백그라운드)
         if (newCampaign && !isDraft) {
-          toast.success('캠페인이 게시되었습니다. 매칭되는 전문가들에게 알림을 보내는 중입니다...')
+          toast.success('캠페인이 게시되었습니다!', {
+            description: '매칭되는 전문가들에게 알림을 보내는 중입니다...',
+            duration: 5000
+          })
 
           // 백그라운드에서 매칭 처리
           handleCampaignCreated(newCampaign.id).catch(error => {
@@ -210,9 +256,29 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
       clear()
       localStorage.removeItem(`campaign-step-${organizationId}`)
 
-      router.push('/dashboard/campaigns')
+      // 새로 생성된 캠페인 페이지로 리다이렉트
+      if (!initialData?.id && newCampaign) {
+        router.push(`/dashboard/campaigns/${newCampaign.id}`)
+      } else {
+        router.push('/dashboard/campaigns')
+      }
     } catch (err: any) {
-      setSubmitError(err.message || '캠페인 저장 중 오류가 발생했습니다.')
+      const errorMessage = err.message || '캠페인 저장 중 오류가 발생했습니다.'
+      
+      // 더 친절한 에러 메시지로 변환
+      let friendlyMessage = errorMessage
+      if (errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
+        friendlyMessage = '이미 동일한 제목의 캠페인이 존재합니다. 제목을 변경해주세요.'
+      } else if (errorMessage.includes('permission') || errorMessage.includes('권한')) {
+        friendlyMessage = '캠페인을 저장할 권한이 없습니다. 로그인 상태를 확인해주세요.'
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        friendlyMessage = '네트워크 연결에 문제가 있습니다. 인터넷 연결을 확인하고 다시 시도해주세요.'
+      }
+      
+      setSubmitError(friendlyMessage)
+      toast.error(friendlyMessage)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -384,10 +450,21 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
             <MultiStepWizard
               steps={wizardSteps}
               onComplete={async () => {
+                // 중복 제출 방지
+                if (loading || isSubmitting) {
+                  return
+                }
+                
                 const isValid = await trigger()
                 if (isValid) {
                   const formData = watch()
                   await onSubmit(formData, false)
+                } else {
+                  // Validation 실패 시 에러 표시
+                  setSubmitError('필수 정보를 모두 입력해주세요.')
+                  toast.error('입력한 정보를 확인해주세요.', {
+                    description: '필수 항목이 누락되었습니다.'
+                  })
                 }
               }}
               onSaveProgress={saveProgress}
@@ -402,27 +479,38 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push('/dashboard/campaigns')}
-                className="min-h-[44px]"
+            onClick={() => {
+              if (!loading && !isSubmitting) {
+                router.push('/dashboard/campaigns')
+              }
+            }}
+            disabled={isSubmitting || loading}
+            className="min-h-[44px]"
           >
             취소
           </Button>
           <Button
             type="button"
             variant="secondary"
-            onClick={handleSubmit((data) => onSubmit(data, true))}
-            disabled={isSubmitting}
-                className="min-h-[44px]"
+            onClick={async () => {
+              // 임시 저장은 validation 없이 진행
+              if (loading || isSubmitting) return
+              
+              const formData = watch()
+              await onSubmit(formData, true)
+            }}
+            disabled={isSubmitting || loading}
+            className="min-h-[44px]"
           >
             임시 저장
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting}
-                isLoading={isSubmitting}
-                className="min-h-[44px]"
+            disabled={isSubmitting || loading}
+            isLoading={isSubmitting || loading}
+            className="min-h-[44px]"
           >
-            {isSubmitting ? '저장 중...' : '캠페인 게시'}
+            {isSubmitting || loading ? '저장 중...' : '캠페인 게시'}
           </Button>
         </div>
       </form>

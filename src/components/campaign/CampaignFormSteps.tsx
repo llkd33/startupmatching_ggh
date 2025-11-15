@@ -8,7 +8,7 @@ import { campaignSchema, CampaignInput, CAMPAIGN_TYPES, CAMPAIGN_CATEGORIES } fr
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SelectRoot as Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import KeywordInput from './KeywordInput'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
@@ -42,15 +42,19 @@ export function CampaignBasicStep({ formData, errors, register, setValue, watch 
           <Input
             id="title"
             {...register('title')}
-            placeholder="예: React 전문가 멘토링 요청"
+            placeholder="예: 스타트업 성장 멘토링 요청"
             className={cn(errors.title && 'border-red-500', 'min-h-[44px]')}
-            aria-describedby="title-help"
+            aria-describedby={errors.title ? 'title-error title-help' : 'title-help'}
+            aria-invalid={errors.title ? 'true' : 'false'}
+            aria-required="true"
           />
           <p id="title-help" className="text-xs text-gray-500">
             프로젝트의 핵심을 한 줄로 표현해주세요 (최소 5자)
           </p>
           {errors.title && (
-            <p className="text-sm text-red-600" role="alert">{errors.title.message}</p>
+            <p id="title-error" className="text-sm text-red-600" role="alert" aria-live="polite">
+              {errors.title.message}
+            </p>
           )}
         </div>
 
@@ -64,9 +68,11 @@ export function CampaignBasicStep({ formData, errors, register, setValue, watch 
             {...register('description')}
             rows={3}
             maxLength={200}
-            placeholder="예: React 기반 웹 애플리케이션 개발 멘토링을 받고 싶습니다. 5년 이상 경력의 전문가를 찾고 있습니다."
+            placeholder="예: 초기 스타트업의 성장을 위한 멘토링을 받고 싶습니다. 스타트업 창업 및 성장 경험이 풍부한 전문가를 찾고 있습니다."
             className={cn(errors.description && 'border-red-500')}
-            aria-describedby="description-help"
+            aria-describedby={errors.description ? 'description-error description-help' : 'description-help'}
+            aria-invalid={errors.description ? 'true' : 'false'}
+            aria-required="true"
           />
           <div className="flex justify-between items-center">
             <p id="description-help" className="text-xs text-gray-500">
@@ -77,7 +83,9 @@ export function CampaignBasicStep({ formData, errors, register, setValue, watch 
             </p>
           </div>
           {errors.description && (
-            <p className="text-sm text-red-600" role="alert">{errors.description.message}</p>
+            <p id="description-error" className="text-sm text-red-600" role="alert" aria-live="polite">
+              {errors.description.message}
+            </p>
           )}
         </div>
 
@@ -90,7 +98,9 @@ export function CampaignBasicStep({ formData, errors, register, setValue, watch 
             onValueChange={(value) => setValue('type', value)}
           >
             <SelectTrigger className="min-h-[44px]" id="type">
-              <SelectValue placeholder="유형 선택" />
+              <SelectValue placeholder="유형 선택">
+                {CAMPAIGN_TYPES.find(t => t.value === (formData.type || 'mentoring'))?.label || '유형 선택'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {CAMPAIGN_TYPES.map((type) => (
@@ -130,7 +140,7 @@ export function CampaignDetailsStep({ formData, errors, register, setValue, watc
             id="description-full"
             {...register('description')}
             rows={6}
-            placeholder="예시:&#10;&#10;프로젝트 목적:&#10;- React 기반 웹 애플리케이션 개발 멘토링&#10;- 코드 리뷰 및 베스트 프랙티스 공유&#10;&#10;요구사항:&#10;- 5년 이상 React 개발 경력&#10;- 주 1회 2시간 멘토링&#10;&#10;예상 기간: 3개월"
+            placeholder="예시:&#10;&#10;프로젝트 목적:&#10;- 비즈니스 모델 검증 및 개선&#10;- 시장 진입 전략 수립&#10;- 팀 구성 및 조직 운영 조언&#10;&#10;요구사항:&#10;- 스타트업 창업 및 성장 경험 5년 이상&#10;- 주 1회 2시간 멘토링 세션&#10;&#10;예상 기간: 3개월"
             className={cn(errors.description && 'border-red-500')}
             aria-describedby="description-full-help"
           />
@@ -223,17 +233,21 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="category">카테고리</Label>
+          <Label htmlFor="category">
+            카테고리 <span className="text-gray-500 text-xs">(선택사항)</span>
+          </Label>
           <Select
             value={formData.category || ''}
-            onValueChange={(value) => setValue('category', value)}
+            onValueChange={(value) => setValue('category', value || undefined)}
           >
             <SelectTrigger className="min-h-[44px]" id="category">
-              <SelectValue placeholder="카테고리 선택" />
+              <SelectValue placeholder="카테고리 선택 (선택사항)">
+                {formData.category || '카테고리 선택 (선택사항)'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">카테고리 선택 (선택사항)</SelectItem>
-              {CAMPAIGN_CATEGORIES[watchedType]?.map((category) => (
+              {watchedType && CAMPAIGN_CATEGORIES[watchedType as keyof typeof CAMPAIGN_CATEGORIES]?.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -243,19 +257,28 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
           {errors.category && (
             <p className="text-sm text-red-600">{errors.category.message}</p>
           )}
+          {!formData.category && (
+            <p className="text-xs text-gray-500">
+              카테고리를 선택하면 더 정확한 매칭이 가능합니다 (선택사항)
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <Label>키워드</Label>
+          <Label>
+            키워드 <span className="text-gray-500 text-xs">(선택사항)</span>
+          </Label>
           <KeywordInput
             keywords={watchedKeywords || []}
             onChange={handleKeywordChange}
           />
-          <p className="text-xs text-gray-500">
-            관련 키워드를 추가하면 더 정확한 매칭이 가능합니다
-          </p>
           {errors.keywords && (
             <p className="text-sm text-red-600">{errors.keywords.message}</p>
+          )}
+          {(!watchedKeywords || watchedKeywords.length === 0) && !errors.keywords && (
+            <p className="text-xs text-gray-500">
+              키워드를 추가하면 더 정확한 매칭이 가능합니다 (선택사항)
+            </p>
           )}
         </div>
 

@@ -11,6 +11,7 @@ import { useAuth } from '@/components/auth/AuthContext'
 import { useToast } from '@/components/ui/toast-provider'
 import { SelectRoot as Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete'
+import { FilterStatusBar } from '@/components/search/FilterStatusBar'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { cn } from '@/lib/utils'
 
@@ -101,11 +102,13 @@ export default function EnhancedCampaignSearchPage() {
       if (error) throw error
       
       // Add mock data for demonstration
-      const enhancedCampaigns = (data || []).map(campaign => ({
+      const enhancedCampaigns = (data || []).map((campaign: any) => ({
         ...campaign,
         proposals_count: Math.floor(Math.random() * 20),
-        urgency: calculateUrgency(campaign.deadline),
-        match_score: Math.floor(Math.random() * 40) + 60
+        urgency: calculateUrgency(campaign.deadline || campaign.end_date || new Date().toISOString()),
+        match_score: Math.floor(Math.random() * 40) + 60,
+        budget: campaign.budget || campaign.budget_max || 0,
+        deadline: campaign.deadline || campaign.end_date || new Date().toISOString()
       }))
       
       setCampaigns(enhancedCampaigns)
@@ -380,6 +383,45 @@ export default function EnhancedCampaignSearchPage() {
             초기화
           </Button>
         </div>
+
+        {/* Filter Status Bar */}
+        <FilterStatusBar
+          activeFilters={[
+            ...(searchTerm ? [{
+              key: 'search',
+              label: '검색어',
+              value: searchTerm,
+              onRemove: () => setSearchTerm('')
+            }] : []),
+            ...(selectedIndustry !== 'all' ? [{
+              key: 'industry',
+              label: '산업',
+              value: selectedIndustry,
+              onRemove: () => setSelectedIndustry('all')
+            }] : []),
+            ...(selectedBudget !== 'all' ? [{
+              key: 'budget',
+              label: '예산',
+              value: selectedBudget === '50000000' ? '5000만원 이상' : 
+                     selectedBudget.split('-').map(n => `${Number(n) / 10000}만원`).join(' ~ '),
+              onRemove: () => setSelectedBudget('all')
+            }] : []),
+            ...(selectedUrgency !== 'all' ? [{
+              key: 'urgency',
+              label: '긴급도',
+              value: selectedUrgency === 'high' ? '긴급' : selectedUrgency === 'medium' ? '보통' : '여유',
+              onRemove: () => setSelectedUrgency('all')
+            }] : [])
+          ]}
+          onClearAll={() => {
+            setSearchTerm('')
+            setSelectedIndustry('all')
+            setSelectedBudget('all')
+            setSelectedUrgency('all')
+            setSortBy('newest')
+          }}
+          className="mt-4"
+        />
 
         {/* Results Count and View Toggle */}
         <div className="mt-4 flex items-center justify-between">

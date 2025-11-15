@@ -91,10 +91,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Mobile menu button */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="lg:hidden p-3 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="메뉴 토글"
+              aria-expanded={isSidebarOpen}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5" aria-hidden="true" />
             </button>
 
             {/* Logo and Home */}
@@ -106,13 +107,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Desktop sidebar toggle */}
             <button
               onClick={handleCollapse}
-              className="hidden lg:block p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              className="hidden lg:block p-2 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="사이드바 토글"
+              aria-expanded={!isCollapsed}
             >
               <ChevronLeft className={cn(
                 "w-4 h-4 transition-transform",
                 isCollapsed && "rotate-180"
-              )} />
+              )} aria-hidden="true" />
             </button>
           </div>
 
@@ -154,10 +156,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 onClick={handleLogout}
                 variant="ghost"
                 size="sm"
-                className="text-gray-600 hover:text-gray-900"
+                className="text-gray-600 hover:text-gray-900 min-h-[44px] md:min-h-0"
+                aria-label="로그아웃"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden sm:inline ml-2">로그아웃</span>
+                <span className="sr-only">로그아웃</span>
               </Button>
             </div>
           </div>
@@ -182,17 +186,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group min-h-[44px]",
                         isActive 
                           ? "bg-blue-50 text-blue-600" 
                           : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                       )}
                       title={isCollapsed ? item.label : undefined}
+                      aria-label={isCollapsed ? item.label : undefined}
+                      aria-current={isActive ? 'page' : undefined}
                     >
                       <Icon className={cn(
                         "w-5 h-5 flex-shrink-0",
                         isActive ? "text-blue-600" : "text-gray-500 group-hover:text-gray-700"
-                      )} />
+                      )} aria-hidden="true" />
                       {!isCollapsed && (
                         <span className="font-medium">{item.label}</span>
                       )}
@@ -240,9 +246,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </Link>
                 <button
                   onClick={() => setIsSidebarOpen(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100"
+                  className="p-3 rounded-lg hover:bg-gray-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="메뉴 닫기"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
 
@@ -259,16 +266,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           href={item.href}
                           onClick={() => setIsSidebarOpen(false)}
                           className={cn(
-                            "flex items-center gap-3 px-3 py-3 rounded-lg transition-colors",
+                            "flex items-center gap-3 px-3 py-3 rounded-lg transition-colors min-h-[44px]",
                             isActive 
                               ? "bg-blue-50 text-blue-600" 
                               : "text-gray-700 hover:bg-gray-100"
                           )}
+                          aria-current={isActive ? 'page' : undefined}
                         >
                           <Icon className={cn(
                             "w-5 h-5",
                             isActive ? "text-blue-600" : "text-gray-500"
-                          )} />
+                          )} aria-hidden="true" />
                           <span className="font-medium">{item.label}</span>
                         </Link>
                       </li>

@@ -58,105 +58,162 @@ export default function AdminUsersClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterRole])
   
-  const fetchUsers = async () => {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalUsers, setTotalUsers] = useState(0)
+  const pageSize = 20
+
+  const fetchUsers = async (page = currentPage) => {
     setLoading(true)
-    
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (!error && data) {
-      setUsers(data)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        setLoading(false)
+        return
+      }
+
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+        role: filterRole,
+        search: debouncedSearch || '',
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+      })
+
+      const response = await fetch(`/api/admin/users?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch users')
+      }
+
+      const result = await response.json()
+      setUsers(result.users || [])
+      setTotalPages(result.pagination.totalPages)
+      setTotalUsers(result.pagination.total)
+      setCurrentPage(result.pagination.page)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
-  
+
+  useEffect(() => {
+    fetchUsers(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterRole])
+
   const handleToggleAdmin = async (userId: string, currentIsAdmin: boolean) => {
     if (!confirm(`정말로 이 사용자의 관리자 권한을 ${currentIsAdmin ? '해제' : '부여'}하시겠습니까?`)) {
       return
     }
-    
-    const { error } = await supabase
-      .from('users')
-      .update({ is_admin: !currentIsAdmin })
-      .eq('id', userId)
-    
-    if (!error) {
-      // Log admin action
-      await supabase
-        .from('admin_logs')
-        .insert({
-          action: currentIsAdmin ? 'REVOKE_ADMIN' : 'GRANT_ADMIN',
-          entity_type: 'user',
-          entity_id: userId,
-          details: { timestamp: new Date().toISOString() }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'toggle_admin',
+          userId,
+          currentIsAdmin
         })
-      
-      await fetchUsers()
-    }
-  }
-  
-  const handleToggleVerified = async (userId: string, currentVerified: boolean) => {
-    // Update verification status in the appropriate profile table
-    const { data: user } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .single()
-    
-    if (user?.role === 'organization') {
-      const { error } = await supabase
-        .from('organization_profiles')
-        .update({ is_verified: !currentVerified })
-        .eq('user_id', userId)
-      
-      if (!error) {
-        await fetchUsers()
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle admin status')
       }
+
+      await fetchUsers()
+    } catch (error) {
+      console.error('Error toggling admin:', error)
+      alert('권한 변경에 실패했습니다.')
     }
   }
-  
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+
+  const handleToggleVerified = async (userId: string, currentVerified: boolean, userRole: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'toggle_verified',
+          userId,
+          currentVerified,
+          userRole
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle verified status')
+      }
+
+      await fetchUsers()
+    } catch (error) {
+      console.error('Error toggling verified:', error)
+      alert('인증 상태 변경에 실패했습니다.')
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`정말로 "${userName}" 사용자를 삭제하시겠습니까?\n\n이 작업은 소프트 삭제이며, 관련 캠페인/제안서는 유지됩니다.\n사용자는 로그인할 수 없게 되며, 관리자 목록에서 제거됩니다.`)) {
       return
     }
-    
-    // Note: Actual user deletion should be handled carefully
-    // For now, we'll just remove admin privileges
-    const { error } = await supabase
-      .from('users')
-      .update({ is_admin: false })
-      .eq('id', userId)
-    
-    if (!error) {
-      // Log admin action
-      await supabase
-        .from('admin_logs')
-        .insert({
-          action: 'DELETE_USER',
-          entity_type: 'user',
-          entity_id: userId,
-          details: { timestamp: new Date().toISOString() }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'soft_delete',
+          userId
         })
-      
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete user')
+      }
+
+      const result = await response.json()
+      alert(result.message || '사용자가 삭제되었습니다.')
+
+      if (result.hasRelatedData) {
+        alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
+      }
+
       await fetchUsers()
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      alert('사용자 삭제에 실패했습니다.')
     }
   }
   
-  const filteredUsers = useMemo(() => users.filter(user => {
-    const matchesSearch = 
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.organization_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesRole = 
-      filterRole === 'all' || 
-      user.role === filterRole ||
-      (filterRole === 'admin' && user.is_admin)
-    
-    return matchesSearch && matchesRole
-  }), [users, searchTerm, filterRole])
+  // 필터링은 서버에서 처리하므로 클라이언트에서는 그대로 사용
+  const filteredUsers = users
   
   return (
     <div>
@@ -216,8 +273,12 @@ export default function AdminUsersClient({
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>사용자 목록</CardTitle>
-          <CardDescription>총 {filteredUsers.length}명의 사용자</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>사용자 목록</CardTitle>
+              <CardDescription>총 {totalUsers.toLocaleString()}명의 사용자 (페이지 {currentPage}/{totalPages})</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading && (
@@ -299,7 +360,7 @@ export default function AdminUsersClient({
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.role === 'organization' && (
                           <button
-                            onClick={() => handleToggleVerified(user.id, user.is_verified || false)}
+                            onClick={() => handleToggleVerified(user.id, user.is_verified || false, user.role)}
                             className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
                               user.is_verified
                                 ? 'bg-green-100 text-green-800'
@@ -346,11 +407,11 @@ export default function AdminUsersClient({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => handleDeleteUser(user.id, user.name || user.organization_name || user.email)}
                             className="text-red-600 hover:text-red-900"
                             aria-label="사용자 삭제"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 w-4" />
                           </Button>
                         </div>
                       </td>
@@ -360,6 +421,36 @@ export default function AdminUsersClient({
               </tbody>
             </table>
           </div>
+
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                전체 {totalUsers.toLocaleString()}명 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalUsers)}명 표시
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchUsers(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                >
+                  이전
+                </Button>
+                <div className="flex items-center gap-2 px-3">
+                  {currentPage} / {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchUsers(currentPage + 1)}
+                  disabled={currentPage === totalPages || loading}
+                >
+                  다음
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

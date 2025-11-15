@@ -32,10 +32,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Map notification data to match database schema
+    const notificationRecords = notifications.map(n => ({
+      user_id: n.user_id,
+      type: n.type,
+      title: n.title,
+      message: n.content, // Map content to message field
+      data: n.data || {},
+      action_url: n.action_url,
+      action_text: n.action_text,
+      is_read: false,
+    }))
+
     // Insert notifications
     const { data, error } = await supabase
       .from('notifications')
-      .insert(notifications)
+      .insert(notificationRecords)
       .select()
 
     if (error) {

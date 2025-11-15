@@ -158,6 +158,33 @@ export const db = {
 
   // Expert operations
   experts: {
+    async getProfile(userId: string) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*, expert_profiles(*), organization_profiles(*)')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        // PGRST116 means no rows found - this is expected for new users
+        if (error.code === 'PGRST116') {
+          return { data: null, error: null }
+        }
+
+        // RLS policy errors should fail, not fallback
+        if (error.message?.includes('policy') || error.message?.includes('permission')) {
+          return {
+            data: null,
+            error: new Error('Insufficient permissions to access expert profile')
+          }
+        }
+
+        return { data: null, error }
+      }
+
+      return { data, error }
+    },
+
     async search(keywords: string[], location?: string) {
       let query = supabase
         .from('expert_search_view')
@@ -281,6 +308,10 @@ export const db = {
           expert_profiles(
             *,
             users(*)
+          ),
+          campaigns(
+            title,
+            id
           )
         `)
         .eq('campaign_id', campaignId)
@@ -363,7 +394,7 @@ export const db = {
 
   // Message operations
   messages: {
-    async send(campaignId: string, proposalId: string | null, senderId: string, receiverId: string, content: string, messageType: string = 'text') {
+    async send(campaignId: string, proposalId: string | null, senderId: string, receiverId: string, content: string, messageType: string = 'text', fileUrl?: string, fileName?: string, fileSize?: number) {
       const { data, error } = await supabase.rpc('send_message', {
         p_campaign_id: campaignId,
         p_proposal_id: proposalId,
@@ -372,6 +403,18 @@ export const db = {
         p_content: content,
         p_message_type: messageType
       })
+      
+      // If file is provided, update the message with file info
+      if (!error && data && (fileUrl || fileName)) {
+        await supabase
+          .from('messages')
+          .update({
+            file_url: fileUrl || null,
+            file_name: fileName || null,
+            file_size: fileSize || null
+          })
+          .eq('id', data)
+      }
       
       return { data, error }
     },
@@ -386,6 +429,44 @@ export const db = {
         .eq('campaign_id', campaignId)
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order('created_at', { ascending: true })
+      
+      return { data, error }
+    },
+
+    async search(campaignId: string, userId: string, searchTerm: string) {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:users!messages_sender_id_fkey(*)
+        `)
+        .eq('campaign_id', campaignId)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .ilike('content', `%${searchTerm}%`)
+        .order('created_at', { ascending: false })
+      
+      return { data, error }
+    },
+
+    async update(messageId: string, content: string) {
+      const { data, error } = await supabase
+        .from('messages')
+        .update({ 
+          content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .select()
+        .single()
+      
+      return { data, error }
+    },
+
+    async delete(messageId: string) {
+      const { data, error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
       
       return { data, error }
     },
@@ -405,6 +486,17 @@ export const db = {
         .from('messages')
         .update({ is_read: true, read_at: new Date().toISOString() })
         .in('id', messageIds)
+      
+      return { data, error }
+    },
+
+    async markAllAsRead(campaignId: string, userId: string) {
+      const { data, error } = await supabase
+        .from('messages')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('campaign_id', campaignId)
+        .eq('receiver_id', userId)
+        .eq('is_read', false)
       
       return { data, error }
     },

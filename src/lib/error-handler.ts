@@ -681,39 +681,30 @@ function logError(error: AppError, context?: Record<string, any>) {
     console.warn('Failed to store error log locally:', e)
   }
 
-  // TODO: Send to error reporting service
-  // Example with Sentry:
-  // if (typeof window !== 'undefined' && window.Sentry) {
-  //   window.Sentry.captureException(error, {
-  //     tags: {
-  //       category: error.category,
-  //       severity: error.severity,
-  //       code: error.code,
-  //       status: error.status,
-  //     },
-  //     extra: errorLog.context,
-  //     user: {
-  //       id: errorLog.userId,
-  //     },
-  //   })
-  // }
+  // 에러 리포팅 시스템으로 전송
+  if (typeof window !== 'undefined') {
+    import('./error-reporting').then(({ reportError }) => {
+      reportError(error, context).catch(() => {
+        // 리포팅 실패는 조용히 처리
+      })
+    })
+  }
   
   // Console logging with structured data
   const logLevel = error.severity === ErrorSeverity.CRITICAL ? 'error' :
                    error.severity === ErrorSeverity.HIGH ? 'error' :
                    error.severity === ErrorSeverity.MEDIUM ? 'warn' : 'info'
   
-  console[logLevel]('[Error Logger]', errorLog)
+  if (process.env.NODE_ENV === 'development') {
+    console[logLevel]('[Error Logger]', errorLog)
+  }
 }
 
 // Helper functions for error logging
 function getCurrentUserId(): string | undefined {
-  try {
-    // Try to get user ID from Supabase auth
-    return supabase.auth.getUser().then(({ data }) => data.user?.id).catch(() => undefined)
-  } catch {
-    return undefined
-  }
+  // 동기적으로 사용자 ID를 가져올 수 없으므로 undefined 반환
+  // 실제 사용자 ID는 reportError에서 비동기로 가져옴
+  return undefined
 }
 
 function getSessionId(): string {

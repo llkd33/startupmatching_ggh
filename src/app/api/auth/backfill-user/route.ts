@@ -11,12 +11,23 @@ function normalizeRole(value: unknown): UserRole | null {
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  // Use server-only SUPABASE_URL, fallback to NEXT_PUBLIC_SUPABASE_URL for development
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('Supabase configuration is missing for backfill-user route')
-    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+  if (!supabaseUrl) {
+    console.error('Supabase URL is missing for backfill-user route')
+    return NextResponse.json({ error: 'Server configuration error: Supabase URL not configured' }, { status: 500 })
+  }
+
+  if (!serviceRoleKey) {
+    console.error('Supabase service role key is missing for backfill-user route')
+    // Don't fail completely - return a warning but allow the request to proceed
+    // The client can fall back to user_metadata.role
+    return NextResponse.json({ 
+      error: 'Service role key not configured. User record sync skipped.',
+      warning: 'Please configure SUPABASE_SERVICE_ROLE_KEY for full functionality'
+    }, { status: 503 })
   }
 
   const authorization = request.headers.get('authorization')

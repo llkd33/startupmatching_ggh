@@ -11,6 +11,9 @@ interface AuthContextType {
   session: Session | null
   role: UserRole | null
   loading: boolean
+  isExpert: boolean
+  isOrganization: boolean
+  isAuthenticated: boolean
   signUp: (email: string, password: string, role: UserRole, metadata?: any) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
@@ -90,11 +93,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const user = await browserSupabase.auth.getUser()
         if (user.data.user) {
           const ensuredRole = await ensureUserRecord(user.data.user)
-          setRole(ensuredRole)
+          if (mountedRef.current) {
+            setRole(ensuredRole)
+          }
+        } else if (metaRole && mountedRef.current) {
+          // Fallback to metadata role if we can't get user
+          setRole(metaRole)
         }
       } else if (userRow?.role) {
         // Update with database role if different from metadata
-        setRole(userRow.role)
+        if (mountedRef.current) {
+          setRole(userRow.role)
+        }
+      } else {
+        // No row found - ensure user record exists and use metadata as fallback
+        const user = await browserSupabase.auth.getUser()
+        if (user.data.user) {
+          const ensuredRole = await ensureUserRecord(user.data.user)
+          if (mountedRef.current) {
+            setRole(ensuredRole)
+          }
+        } else if (metaRole && mountedRef.current) {
+          // Fallback to metadata role
+          setRole(metaRole)
+        }
       }
     } catch (error) {
       if (mountedRef.current) {
@@ -254,11 +276,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const isExpert = role === 'expert'
+  const isOrganization = role === 'organization'
+  const isAuthenticated = !!user
+
   const value = {
     user,
     session,
     role,
     loading,
+    isExpert,
+    isOrganization,
+    isAuthenticated,
     signUp,
     signIn,
     signOut,

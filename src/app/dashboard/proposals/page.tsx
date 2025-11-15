@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -76,11 +76,13 @@ interface ProposalStats {
 
 export default function ProposalsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [filteredProposals, setFilteredProposals] = useState<Proposal[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // URL 쿼리 파라미터에서 status 읽기
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all')
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [stats, setStats] = useState<ProposalStats>({
@@ -96,6 +98,14 @@ export default function ProposalsPage() {
   useEffect(() => {
     checkAuthAndLoadProposals()
   }, [])
+
+  // URL 쿼리 파라미터 변경 감지
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status')
+    if (statusFromUrl && statusFromUrl !== statusFilter) {
+      setStatusFilter(statusFromUrl)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     filterProposals()
