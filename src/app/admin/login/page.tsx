@@ -21,50 +21,104 @@ export default function AdminLogin() {
     setError('')
     
     try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Admin login attempt:', email)
+      }
+
       // Sign in
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password
       })
       
-      if (authError) throw authError
+      if (authError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Auth error:', authError)
+        }
+        throw authError
+      }
+
+      if (!authData?.user) {
+        throw new Error('로그인 정보를 확인할 수 없습니다.')
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Auth successful, checking admin status for user:', authData.user.id)
+      }
       
       // Check if user is admin (is_admin = true OR role = 'admin')
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('is_admin, role')
-        .eq('id', authData.user?.id)
+        .eq('id', authData.user.id)
         .single()
       
       if (userError) {
         // users 테이블에 레코드가 없을 수 있음
         console.error('User data error:', userError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('User error details:', {
+            code: userError.code,
+            message: userError.message,
+            details: userError.details,
+            hint: userError.hint
+          })
+        }
         throw new Error('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인을 시도해주세요.')
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('User data:', userData)
       }
       
       // is_admin = true 또는 role = 'admin' 확인
       const isAdmin = userData?.is_admin === true || userData?.role === 'admin'
       
       if (!isAdmin) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('User is not admin:', { is_admin: userData?.is_admin, role: userData?.role })
+        }
         await supabase.auth.signOut()
         throw new Error('관리자 권한이 없습니다. 관리자 계정으로 로그인해주세요.')
       }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Admin verified, logging action and redirecting...')
+      }
       
-      // Log admin action
-      await supabase
-        .from('admin_logs')
-        .insert({
-          admin_id: authData.user?.id,
-          action: 'ADMIN_LOGIN',
-          details: { timestamp: new Date().toISOString() }
-        })
+      // Log admin action (실패해도 로그인은 진행)
+      try {
+        const { error: logError } = await supabase
+          .from('admin_logs')
+          .insert({
+            admin_id: authData.user.id,
+            action: 'ADMIN_LOGIN',
+            details: { timestamp: new Date().toISOString() }
+          })
+        
+        if (logError) {
+          console.warn('Failed to log admin login action:', logError)
+        }
+      } catch (logError) {
+        // admin_logs 테이블이 없거나 RLS 정책 문제가 있어도 로그인은 진행
+        console.warn('Exception logging admin login action:', logError)
+      }
       
-      router.push('/admin')
+      // 리다이렉트 (window.location.href 사용하여 확실한 페이지 이동)
+      if (typeof window !== 'undefined') {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Redirecting to /admin')
+        }
+        window.location.href = '/admin'
+      } else {
+        router.push('/admin')
+      }
     } catch (err: any) {
+      console.error('Admin login error:', err)
       setError(err.message || '로그인 중 오류가 발생했습니다')
-    } finally {
-      setLoading(false)
+      setLoading(false) // 에러 발생 시 로딩 해제
     }
+    // finally는 window.location.href 사용 시 실행되지 않을 수 있으므로 제거
   }
   
   return (
