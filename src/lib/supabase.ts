@@ -478,7 +478,30 @@ export const db = {
         .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
         .order('last_message_at', { ascending: false })
       
-      return { data, error }
+      if (error || !data) {
+        return { data, error }
+      }
+
+      // Calculate unread_count for each thread
+      const threadsWithUnread = await Promise.all(
+        data.map(async (thread: any) => {
+          // Count unread messages for this thread where current user is receiver
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', thread.campaign_id || '')
+            .eq('receiver_id', userId)
+            .eq('is_read', false)
+            .in('sender_id', [thread.participant_1, thread.participant_2])
+
+          return {
+            ...thread,
+            unread_count: count || 0
+          }
+        })
+      )
+
+      return { data: threadsWithUnread, error: null }
     },
 
     async markAsRead(messageIds: string[]) {
