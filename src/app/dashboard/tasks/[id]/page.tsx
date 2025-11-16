@@ -30,8 +30,8 @@ export default async function TaskDetailPage({
       *,
       creator:users!tasks_creator_id_fkey(id, email, role),
       assignee:users!tasks_assignee_id_fkey(id, email, role),
-      task_categories!task_category_relations(
-        category:task_categories(*)
+      task_category_relations(
+        task_categories(*)
       ),
       comments:task_comments(
         *,
