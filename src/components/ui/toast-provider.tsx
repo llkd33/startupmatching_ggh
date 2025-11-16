@@ -82,13 +82,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast, success, error, warning, info }}>
       {children}
-      <div className="fixed top-0 z-50 flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-auto sm:right-0 sm:top-0 sm:flex-col md:max-w-[420px]">
-        {toasts.map((toast) => (
-          <div key={toast.id} className="mb-2">
-            <Toast {...toast} onClose={() => removeToast(toast.id)} />
-          </div>
-        ))}
-      </div>
+      {toasts.length > 0 && (
+        <div className="fixed top-0 z-50 flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-auto sm:right-0 sm:top-0 sm:flex-col md:max-w-[420px]">
+          {toasts.map((toast) => (
+            <div key={toast.id} className="mb-2">
+              <Toast {...toast} onClose={() => removeToast(toast.id)} />
+            </div>
+          ))}
+        </div>
+      )}
     </ToastContext.Provider>
   )
 }
