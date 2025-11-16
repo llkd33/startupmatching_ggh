@@ -1,5 +1,5 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -19,6 +19,15 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // /admin/login 페이지는 인증 체크를 건너뛰기
+  const headersList = headers();
+  const pathname = headersList.get('x-pathname') || headersList.get('referer') || '';
+  
+  // pathname에서 /admin/login 확인
+  if (pathname.includes('/admin/login')) {
+    return <>{children}</>;
+  }
+
   const supabase = createServerComponentClient({ cookies });
   
   const {
@@ -26,7 +35,7 @@ export default async function AdminLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/auth/login');
+    redirect('/admin/login');
   }
 
   // Check if user is admin
@@ -38,7 +47,7 @@ export default async function AdminLayout({
 
   // 허용 기준: users.is_admin = true 또는 role === 'admin'
   if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
-    redirect('/unauthorized');
+    redirect('/admin/login');
   }
 
   const navigationItems = [
