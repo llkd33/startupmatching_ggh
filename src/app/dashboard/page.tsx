@@ -329,38 +329,42 @@ export default function FastDashboardPage() {
           }))
         }
       } else {
-        // 기관: 캠페인, 제안서, 메시지 카운트
-        // 먼저 캠페인 ID 목록 가져오기
-        const { data: campaigns } = await supabase
-          .from('campaigns')
+        // 기관: organization_profiles에서 organization_id 가져오기
+        const { data: orgProfile } = await supabase
+          .from('organization_profiles')
           .select('id')
-          .eq('organization_id', userId)
+          .eq('user_id', userId)
+          .maybeSingle()
         
-        const campaignIds = campaigns?.map(c => c.id) || []
-        
-        const [campaignsResult, proposalsResult, messagesResult] = await Promise.all([
-          supabase
-            .from('campaigns')
-            .select('*', { count: 'exact', head: true })
-            .eq('organization_id', userId),
-          campaignIds.length > 0
-            ? supabase
+        if (orgProfile) {
+          // 병렬로 통계 조회 (성능 최적화)
+          const [campaignsResult, messagesResult] = await Promise.all([
+            supabase
+              .from('campaigns')
+              .select('id', { count: 'exact', head: true })
+              .eq('organization_id', orgProfile.id),
+            supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+          ])
+          
+          // 캠페인 ID로 제안서 통계 조회
+          const campaignIds = campaignsResult.data?.map((c: any) => c.id) || []
+          const proposalsResult = campaignIds.length > 0
+            ? await supabase
                 .from('proposals')
                 .select('*', { count: 'exact', head: true })
                 .in('campaign_id', campaignIds)
-            : Promise.resolve({ count: 0, error: null }),
-          supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        ])
-        
-        setStats(prev => ({
-          ...prev,
-          campaigns: campaignsResult.count || 0,
-          proposals: proposalsResult.count || 0,
-          messages: messagesResult.count || 0
-        }))
+            : { count: 0, error: null }
+          
+          setStats(prev => ({
+            ...prev,
+            campaigns: campaignsResult.count || 0,
+            proposals: proposalsResult.count || 0,
+            messages: messagesResult.count || 0
+          }))
+        }
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
