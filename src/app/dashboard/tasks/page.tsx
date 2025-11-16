@@ -54,36 +54,28 @@ export default function TasksPage() {
       setOrganizationId(orgId || null)
       setExpertId(expId || null)
 
-      // Fetch users for assignment (if organization)
+      // 병렬로 데이터 페칭 (성능 최적화)
       if (orgId) {
-        const { data: orgUsers } = await supabase
-          .from('users')
-          .select('id, email, role')
-          .order('email')
-        
-        setAssignableUsers(orgUsers || [])
-      }
+        const [orgUsersResult, categoriesResult, statisticsResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('id, email, role')
+            .order('email'),
+          supabase
+            .from('task_categories')
+            .select('*')
+            .eq('organization_id', orgId)
+            .order('name'),
+          supabase
+            .from('task_statistics')
+            .select('*')
+            .eq('organization_id', orgId)
+            .single()
+        ])
 
-      // Fetch categories
-      if (orgId) {
-        const { data: cats } = await supabase
-          .from('task_categories')
-          .select('*')
-          .eq('organization_id', orgId)
-          .order('name')
-        
-        setCategories(cats || [])
-      }
-
-      // Fetch task statistics
-      if (orgId) {
-        const { data: stats } = await supabase
-          .from('task_statistics')
-          .select('*')
-          .eq('organization_id', orgId)
-          .single()
-        
-        setStatistics(stats)
+        setAssignableUsers(orgUsersResult.data || [])
+        setCategories(categoriesResult.data || [])
+        setStatistics(statisticsResult.data)
       }
     } catch (err) {
       console.error('Error loading tasks page:', err)

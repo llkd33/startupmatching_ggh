@@ -482,32 +482,45 @@ export const db = {
         return { data, error }
       }
 
-      // Calculate unread_count for each thread
-      const threadsWithUnread = await Promise.all(
-        data.map(async (thread: any) => {
-          // Count unread messages for this thread where current user is receiver
-          let query = supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('receiver_id', userId)
-            .eq('is_read', false)
-            .in('sender_id', [thread.participant_1, thread.participant_2])
+      // Calculate unread_count for all threads in batch (성능 최적화)
+      // 모든 스레드의 unread 메시지를 한 번에 조회
+      const threadIds = data.map(t => t.id)
+      const campaignIds = [...new Set(data.map(t => t.campaign_id).filter(Boolean))]
+      
+      // Batch 쿼리로 모든 unread 메시지 조회
+      let unreadQuery = supabase
+        .from('messages')
+        .select('campaign_id, sender_id, receiver_id')
+        .eq('receiver_id', userId)
+        .eq('is_read', false)
+      
+      // Campaign ID 필터 적용
+      if (campaignIds.length > 0) {
+        unreadQuery = unreadQuery.in('campaign_id', campaignIds)
+      }
 
-          // Add campaign_id filter if it exists
-          if (thread.campaign_id) {
-            query = query.eq('campaign_id', thread.campaign_id)
-          } else {
-            query = query.is('campaign_id', null)
-          }
+      const { data: unreadMessages } = await unreadQuery
 
-          const { count } = await query
+      // 각 스레드별 unread_count 계산
+      const threadsWithUnread = data.map((thread: any) => {
+        const unreadCount = unreadMessages?.filter((msg: any) => {
+          // Campaign ID 매칭
+          const campaignMatch = thread.campaign_id 
+            ? msg.campaign_id === thread.campaign_id
+            : !msg.campaign_id
+          
+          // Participant 매칭
+          const participantMatch = 
+            (msg.sender_id === thread.participant_1 || msg.sender_id === thread.participant_2)
+          
+          return campaignMatch && participantMatch
+        }).length || 0
 
-          return {
-            ...thread,
-            unread_count: count || 0
-          }
-        })
-      )
+        return {
+          ...thread,
+          unread_count: unreadCount
+        }
+      })
 
       return { data: threadsWithUnread, error: null }
     },

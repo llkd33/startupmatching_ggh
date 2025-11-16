@@ -190,64 +190,100 @@ function ProposalsPageContent() {
         throw error
       }
 
-      // 관련 데이터를 별도로 조회하여 병합
-      const enrichedProposals = await Promise.all(
-        (proposalsData || []).map(async (proposal) => {
-          try {
-            // Campaign 정보 조회
-            const { data: campaign } = await supabase
+      // 관련 데이터를 batch로 조회하여 성능 최적화 (N+1 쿼리 문제 해결)
+      if (!proposalsData || proposalsData.length === 0) {
+        setProposals([])
+        calculateStats([])
+        return
+      }
+
+      // 모든 고유 ID 수집
+      const campaignIds = [...new Set(proposalsData.map(p => p.campaign_id).filter(Boolean))]
+      const expertIds = [...new Set(proposalsData.map(p => p.expert_id).filter(Boolean))]
+
+      // 병렬로 batch 쿼리 실행
+      const [campaignsResult, expertsResult] = await Promise.all([
+        // Campaigns batch 조회
+        campaignIds.length > 0
+          ? supabase
               .from('campaigns')
-              .select('title, description, status, organization_id')
-              .eq('id', proposal.campaign_id)
-              .single()
-
-            // Organization 정보 조회
-            let organizationProfile = null
-            if (campaign?.organization_id) {
-              const { data: org } = await supabase
-                .from('organization_profiles')
-                .select('organization_name, user_id')
-                .eq('id', campaign.organization_id)
-                .single()
-              organizationProfile = org
-            }
-
-            // Expert 정보 조회
-            const { data: expert } = await supabase
+              .select('id, title, description, status, organization_id')
+              .in('id', campaignIds)
+          : Promise.resolve({ data: [], error: null }),
+        
+        // Experts batch 조회
+        expertIds.length > 0
+          ? supabase
               .from('expert_profiles')
-              .select('name, title, hourly_rate, user_id')
-              .eq('id', proposal.expert_id)
-              .single()
+              .select('id, name, title, hourly_rate, user_id')
+              .in('id', expertIds)
+          : Promise.resolve({ data: [], error: null })
+      ])
 
-            // User 이메일 조회
-            let userEmail = null
-            if (expert?.user_id) {
-              const { data: user } = await supabase
-                .from('users')
-                .select('email')
-                .eq('id', expert.user_id)
-                .single()
-              userEmail = user?.email
-            }
-
-            return {
-              ...proposal,
-              campaigns: campaign ? {
-                ...campaign,
-                organization_profiles: organizationProfile
-              } : null,
-              expert_profiles: expert ? {
-                ...expert,
-                users: userEmail ? { email: userEmail } : null
-              } : null
-            }
-          } catch (err) {
-            // 개별 조회 실패 시 기본 데이터만 반환
-            console.warn('Error enriching proposal:', err)
-            return proposal
-          }
-        })
+      const campaignsMap = new Map(
+        (campaignsResult.data || []).map(c => [c.id, c])
       )
+      const expertsMap = new Map(
+        (expertsResult.data || []).map(e => [e.id, e])
+      )
+
+      // Organization IDs 수집 및 batch 조회
+      const orgIds = [...new Set(
+        Array.from(campaignsMap.values())
+          .map(c => c.organization_id)
+          .filter(Boolean)
+      )]
+
+      const orgsMap = new Map()
+      if (orgIds.length > 0) {
+        const { data: orgs } = await supabase
+          .from('organization_profiles')
+          .select('id, organization_name, user_id')
+          .in('id', orgIds)
+        
+        if (orgs) {
+          orgs.forEach(org => orgsMap.set(org.id, org))
+        }
+      }
+
+      // User IDs 수집 및 batch 조회
+      const userIds = [...new Set(
+        Array.from(expertsMap.values())
+          .map(e => e.user_id)
+          .filter(Boolean)
+      )]
+
+      const usersMap = new Map()
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, email')
+          .in('id', userIds)
+        
+        if (users) {
+          users.forEach(u => usersMap.set(u.id, u))
+        }
+      }
+
+      // 데이터 병합
+      const enrichedProposals = proposalsData.map((proposal) => {
+        const campaign = campaignsMap.get(proposal.campaign_id)
+        const expert = expertsMap.get(proposal.expert_id)
+        const org = campaign ? orgsMap.get(campaign.organization_id) : null
+        const user = expert ? usersMap.get(expert.user_id) : null
+
+        return {
+          ...proposal,
+          campaigns: campaign ? {
+            ...campaign,
+            organization_profiles: org
+          } : null,
+          expert_profiles: expert ? {
+            ...expert,
+            users: user ? { email: user.email } : null
+          } : null
+        }
+      })
 
       setProposals(enrichedProposals)
       calculateStats(enrichedProposals)

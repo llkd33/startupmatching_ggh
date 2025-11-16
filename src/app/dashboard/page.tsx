@@ -290,11 +290,8 @@ export default function FastDashboardPage() {
           .maybeSingle()
         
         if (expertProfile) {
-          const [proposalsResult, proposalsByStatus, messagesResult] = await Promise.all([
-            supabase
-              .from('proposals')
-              .select('*', { count: 'exact', head: true })
-              .eq('expert_id', expertProfile.id),
+          // 한 번의 쿼리로 제안서 데이터와 통계를 모두 가져오기 (성능 최적화)
+          const [proposalsResult, messagesResult] = await Promise.all([
             supabase
               .from('proposals')
               .select('status')
@@ -305,7 +302,7 @@ export default function FastDashboardPage() {
               .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
           ])
           
-          // 상태별 통계 계산
+          // 상태별 통계 계산 (클라이언트 측에서)
           const statusCounts = {
             pending: 0,
             accepted: 0,
@@ -314,8 +311,8 @@ export default function FastDashboardPage() {
             under_review: 0
           }
           
-          if (proposalsByStatus.data) {
-            proposalsByStatus.data.forEach((p: any) => {
+          if (proposalsResult.data) {
+            proposalsResult.data.forEach((p: any) => {
               const status = p.status || 'pending'
               if (status in statusCounts) {
                 statusCounts[status as keyof typeof statusCounts]++
@@ -327,7 +324,7 @@ export default function FastDashboardPage() {
           
           setStats(prev => ({
             ...prev,
-            proposals: proposalsResult.count || 0,
+            proposals: proposalsResult.data?.length || 0,
             messages: messagesResult.count || 0
           }))
         }
