@@ -69,98 +69,72 @@ export default function AdminLogin() {
 
       console.log('✅ Auth successful, user ID:', authData.user.id)
       
-      // Check if user is admin (is_admin = true OR role = 'admin')
-      console.log('🔍 Checking user data in users table...')
+      // Check if user is admin via server API (avoids RLS issues)
+      console.log('🔍 Checking admin status via server API...')
       let userData = null
-      let userError = null
+      let isAdmin = false
       
       try {
-        const result = await supabase
-          .from('users')
-          .select('is_admin, role')
-          .eq('id', authData.user.id)
-          .maybeSingle() // single() 대신 maybeSingle() 사용하여 레코드 없을 때 에러 방지
+        console.log('📤 Sending request to /api/auth/check-admin...')
+        const checkStartTime = Date.now()
         
-        userData = result.data
-        userError = result.error
+        const checkResponse = await Promise.race([
+          fetch('/api/auth/check-admin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: authData.user.id
+            }),
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+          )
+        ]) as Response
         
-        console.log('📋 User query result:', { userData, userError })
-      } catch (err) {
-        console.error('❌ Exception querying user data:', err)
-        userError = err as any
-      }
-      
-      if (userError) {
-        console.error('❌ User data error:', userError)
-        console.error('Error code:', userError.code)
-        console.error('Error message:', userError.message)
+        const checkDuration = Date.now() - checkStartTime
+        console.log(`⏱️ Check completed in ${checkDuration}ms`)
         
-        // PGRST116은 "no rows found" - 이 경우 users 테이블에 레코드가 없음
-        if (userError.code === 'PGRST116') {
-          setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
-        } else {
-          setError(`사용자 정보 조회 실패: ${userError.message}`)
-        }
-        await supabase.auth.signOut()
-        setLoading(false)
-        return
-      }
-
-      console.log('📋 User data:', userData)
-      
-      // users 테이블에 레코드가 없는 경우
-      if (!userData) {
-        console.warn('⚠️ User record not found in users table')
-        console.log('💡 Attempting to create user record...')
-        
-        // users 테이블에 레코드 자동 생성 시도
-        try {
-          const { data: newUserData, error: createError } = await supabase
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              email: authData.user.email || email.trim(),
-              role: 'admin',
-              is_admin: true
-            })
-            .select('is_admin, role')
-            .single()
+        if (!checkResponse.ok) {
+          const errorData = await checkResponse.json().catch(() => ({}))
+          console.error('❌ Admin check failed:', errorData)
           
-          if (createError) {
-            console.error('❌ Failed to create user record:', createError)
-            setError('사용자 정보를 생성할 수 없습니다. 관리자에게 문의하세요.')
-            await supabase.auth.signOut()
-            setLoading(false)
-            return
+          if (checkResponse.status === 404) {
+            setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
+          } else {
+            setError(`관리자 권한 확인 실패: ${errorData.error || '알 수 없는 오류'}`)
           }
-          
-          console.log('✅ User record created:', newUserData)
-          userData = newUserData
-        } catch (createErr) {
-          console.error('❌ Exception creating user record:', createErr)
-          setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
           await supabase.auth.signOut()
           setLoading(false)
           return
         }
+        
+        const checkData = await checkResponse.json()
+        isAdmin = checkData.isAdmin
+        userData = checkData.userData
+        
+        console.log('📋 Admin check result:', { isAdmin, userData })
+      } catch (err: any) {
+        console.error('❌ Exception checking admin status:', err)
+        console.error('Error type:', typeof err)
+        console.error('Error message:', err?.message)
+        console.error('Error stack:', err?.stack)
+        
+        setError(`관리자 권한 확인 중 오류가 발생했습니다: ${err?.message || '알 수 없는 오류'}`)
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
       }
       
-      // is_admin = true 또는 role = 'admin' 확인
-      const isAdmin = userData.is_admin === true || userData.role === 'admin'
-      
-      console.log('🔍 Admin check:', { 
-        is_admin: userData.is_admin, 
-        role: userData.role, 
-        isAdmin 
-      })
-      
+      // Admin check 결과 확인
       if (!isAdmin) {
         console.warn('⚠️ User is not admin:', { 
-          is_admin: userData.is_admin, 
-          role: userData.role 
+          is_admin: userData?.is_admin, 
+          role: userData?.role 
         })
         await supabase.auth.signOut()
-        setError(`관리자 권한이 없습니다. (현재 역할: ${userData.role || '없음'}, 관리자: ${userData.is_admin || false})`)
+        setError(`관리자 권한이 없습니다. (현재 역할: ${userData?.role || '없음'}, 관리자: ${userData?.is_admin || false})`)
         setLoading(false)
         return
       }
