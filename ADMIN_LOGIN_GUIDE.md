@@ -2,16 +2,16 @@
 
 ## 📍 관리자 로그인 페이지 접속 방법
 
-**URL**: `/admin/login`
+**URL**: `/admin-login`
 
 브라우저에서 다음 주소로 접속하세요:
 ```
-http://localhost:3000/admin/login
+http://localhost:3000/admin-login
 ```
 
 또는 프로덕션 환경:
 ```
-https://your-domain.com/admin/login
+https://startupmatching.up.railway.app/admin-login
 ```
 
 ---
@@ -33,12 +33,20 @@ SET
   is_admin = TRUE,
   role = 'admin',
   updated_at = NOW()
-WHERE email = 'your-email@example.com';  -- 여기에 실제 이메일 입력
+WHERE email = 'admin@startupmatching.com';  -- 또는 원하는 이메일
 
 -- 3. 확인
 SELECT id, email, role, is_admin, created_at 
 FROM public.users 
-WHERE email = 'your-email@example.com';
+WHERE email = 'admin@startupmatching.com';
+```
+
+**빠른 실행용 SQL** (`scripts/make_admin_simple.sql` 파일 참고):
+```sql
+-- admin@startupmatching.com을 관리자로 만들기
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+UPDATE public.users SET is_admin = TRUE, role = 'admin', updated_at = NOW() WHERE email = 'admin@startupmatching.com';
+SELECT id, email, role, is_admin FROM public.users WHERE email = 'admin@startupmatching.com';
 ```
 
 ### 방법 2: 새 관리자 계정 생성

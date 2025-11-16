@@ -17,13 +17,22 @@ export default function AdminLogin() {
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // 입력값 검증
+    if (!email || !email.trim()) {
+      setError('이메일을 입력해주세요.')
+      return
+    }
+    if (!password || !password.trim()) {
+      setError('비밀번호를 입력해주세요.')
+      return
+    }
+    
     setLoading(true)
     setError('')
     
     try {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Admin login attempt:', email)
-      }
+      console.log('🔐 Admin login attempt:', email.trim())
 
       // Sign in
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -32,59 +41,89 @@ export default function AdminLogin() {
       })
       
       if (authError) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Auth error:', authError)
+        console.error('❌ Auth error:', authError)
+        console.error('Error code:', authError.status)
+        console.error('Error message:', authError.message)
+        
+        // 사용자 친화적인 에러 메시지
+        let errorMessage = '로그인에 실패했습니다.'
+        if (authError.message?.includes('Invalid login credentials')) {
+          errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
+        } else if (authError.message?.includes('Email not confirmed')) {
+          errorMessage = '이메일 인증이 완료되지 않았습니다.'
+        } else {
+          errorMessage = authError.message || errorMessage
         }
-        throw authError
+        
+        setError(errorMessage)
+        setLoading(false)
+        return
       }
 
       if (!authData?.user) {
-        throw new Error('로그인 정보를 확인할 수 없습니다.')
+        console.error('❌ No user data returned')
+        setError('로그인 정보를 확인할 수 없습니다.')
+        setLoading(false)
+        return
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Auth successful, checking admin status for user:', authData.user.id)
-      }
+      console.log('✅ Auth successful, user ID:', authData.user.id)
       
       // Check if user is admin (is_admin = true OR role = 'admin')
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('is_admin, role')
         .eq('id', authData.user.id)
-        .single()
+        .maybeSingle() // single() 대신 maybeSingle() 사용하여 레코드 없을 때 에러 방지
       
       if (userError) {
-        // users 테이블에 레코드가 없을 수 있음
-        console.error('User data error:', userError)
-        if (process.env.NODE_ENV === 'development') {
-          console.error('User error details:', {
-            code: userError.code,
-            message: userError.message,
-            details: userError.details,
-            hint: userError.hint
-          })
+        console.error('❌ User data error:', userError)
+        console.error('Error code:', userError.code)
+        console.error('Error message:', userError.message)
+        
+        // PGRST116은 "no rows found" - 이 경우 users 테이블에 레코드가 없음
+        if (userError.code === 'PGRST116') {
+          setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
+        } else {
+          setError(`사용자 정보 조회 실패: ${userError.message}`)
         }
-        throw new Error('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인을 시도해주세요.')
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('User data:', userData)
+      console.log('📋 User data:', userData)
+      
+      // users 테이블에 레코드가 없는 경우
+      if (!userData) {
+        console.warn('⚠️ User record not found in users table')
+        setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
       }
       
       // is_admin = true 또는 role = 'admin' 확인
-      const isAdmin = userData?.is_admin === true || userData?.role === 'admin'
+      const isAdmin = userData.is_admin === true || userData.role === 'admin'
+      
+      console.log('🔍 Admin check:', { 
+        is_admin: userData.is_admin, 
+        role: userData.role, 
+        isAdmin 
+      })
       
       if (!isAdmin) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('User is not admin:', { is_admin: userData?.is_admin, role: userData?.role })
-        }
+        console.warn('⚠️ User is not admin:', { 
+          is_admin: userData.is_admin, 
+          role: userData.role 
+        })
         await supabase.auth.signOut()
-        throw new Error('관리자 권한이 없습니다. 관리자 계정으로 로그인해주세요.')
+        setError(`관리자 권한이 없습니다. (현재 역할: ${userData.role || '없음'}, 관리자: ${userData.is_admin || false})`)
+        setLoading(false)
+        return
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Admin verified, logging action and redirecting...')
-      }
+      console.log('✅ Admin verified, redirecting...')
       
       // Log admin action (실패해도 로그인은 진행)
       try {
@@ -97,28 +136,27 @@ export default function AdminLogin() {
           })
         
         if (logError) {
-          console.warn('Failed to log admin login action:', logError)
+          console.warn('⚠️ Failed to log admin login action:', logError)
+        } else {
+          console.log('✅ Admin login logged')
         }
       } catch (logError) {
-        // admin_logs 테이블이 없거나 RLS 정책 문제가 있어도 로그인은 진행
-        console.warn('Exception logging admin login action:', logError)
+        console.warn('⚠️ Exception logging admin login action:', logError)
       }
       
       // 리다이렉트 (window.location.href 사용하여 확실한 페이지 이동)
+      console.log('🔄 Redirecting to /admin')
       if (typeof window !== 'undefined') {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Redirecting to /admin')
-        }
         window.location.href = '/admin'
       } else {
         router.push('/admin')
       }
     } catch (err: any) {
-      console.error('Admin login error:', err)
-      setError(err.message || '로그인 중 오류가 발생했습니다')
-      setLoading(false) // 에러 발생 시 로딩 해제
+      console.error('❌ Unexpected error:', err)
+      console.error('Error stack:', err.stack)
+      setError(err.message || '로그인 중 예상치 못한 오류가 발생했습니다.')
+      setLoading(false)
     }
-    // finally는 window.location.href 사용 시 실행되지 않을 수 있으므로 제거
   }
   
   return (
