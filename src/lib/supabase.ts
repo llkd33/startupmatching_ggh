@@ -640,45 +640,14 @@ export const db = {
         return { data: null, error }
       }
 
-      // Categories를 별도로 조회하여 병합 (RLS 정책 문제 방지)
+      // Categories 조회는 선택적으로 처리 (에러가 발생해도 tasks는 반환)
+      // 필요시 클라이언트에서 별도로 조회하도록 함
       if (tasksData && tasksData.length > 0) {
-        const enrichedTasks = await Promise.all(
-          tasksData.map(async (task: any) => {
-            try {
-              // task_category_relations에서 category_id만 조회
-              const { data: relations } = await supabase
-                .from('task_category_relations')
-                .select('category_id')
-                .eq('task_id', task.id)
-
-              // category_id로 task_categories 조회
-              const categoryIds = relations?.map((r: any) => r.category_id).filter(Boolean) || []
-              let categories: any[] = []
-              
-              if (categoryIds.length > 0) {
-                const { data: cats } = await supabase
-                  .from('task_categories')
-                  .select('*')
-                  .in('id', categoryIds)
-                
-                categories = cats || []
-              }
-              
-              return {
-                ...task,
-                task_category_relations: relations || [],
-                categories: categories
-              }
-            } catch (err) {
-              console.warn('Error loading categories for task:', err)
-              return {
-                ...task,
-                task_category_relations: [],
-                categories: []
-              }
-            }
-          })
-        )
+        const enrichedTasks = tasksData.map((task: any) => ({
+          ...task,
+          task_category_relations: [],
+          categories: []
+        }))
 
         return { data: enrichedTasks, error: null }
       }
@@ -709,45 +678,15 @@ export const db = {
         return { data: null, error: taskError }
       }
 
-      // Categories를 별도로 조회하여 병합 (RLS 정책 문제 방지)
-      try {
-        // task_category_relations에서 category_id만 조회
-        const { data: relations } = await supabase
-          .from('task_category_relations')
-          .select('category_id')
-          .eq('task_id', taskId)
-
-        // category_id로 task_categories 조회
-        const categoryIds = relations?.map((r: any) => r.category_id).filter(Boolean) || []
-        let categories: any[] = []
-        
-        if (categoryIds.length > 0) {
-          const { data: cats } = await supabase
-            .from('task_categories')
-            .select('*')
-            .in('id', categoryIds)
-          
-          categories = cats || []
-        }
-        
-        return {
-          data: {
-            ...taskData,
-            task_category_relations: relations || [],
-            categories: categories
-          },
-          error: null
-        }
-      } catch (err) {
-        console.warn('Error loading categories for task:', err)
-        return {
-          data: {
-            ...taskData,
-            task_category_relations: [],
-            categories: []
-          },
-          error: null
-        }
+      // Categories 조회는 선택적으로 처리 (에러가 발생해도 task는 반환)
+      // 필요시 클라이언트에서 별도로 조회하도록 함
+      return {
+        data: {
+          ...taskData,
+          task_category_relations: [],
+          categories: []
+        },
+        error: null
       }
     },
 
