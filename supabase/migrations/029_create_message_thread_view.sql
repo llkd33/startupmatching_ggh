@@ -1,6 +1,8 @@
 -- Create message_thread_view for message threads with last message info
 -- This view aggregates message thread data with participant info and last message
--- NOTE: This migration depends on 027_create_message_threads_table.sql
+-- NOTE: This migration depends on:
+--   027_add_campaign_id_to_messages.sql (messages 테이블에 campaign_id 추가)
+--   028_create_message_threads_table.sql (message_threads 테이블 생성)
 
 -- Drop view if exists
 DROP VIEW IF EXISTS public.message_thread_view;
