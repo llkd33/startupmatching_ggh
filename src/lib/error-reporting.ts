@@ -33,8 +33,16 @@ export async function initSentry() {
   // Sentry는 선택적 의존성으로 처리
   if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
     try {
-      // 동적 import로 Sentry 로드
-      const SentryModule = await import('@sentry/nextjs')
+      // 동적 import로 Sentry 로드 (빌드 시 에러 방지)
+      // @ts-ignore - 선택적 의존성
+      const SentryModule = await import('@sentry/nextjs').catch(() => null)
+      if (!SentryModule) {
+        if (process.env.NODE_ENV === 'development') {
+          console.info('Sentry not installed. Using fallback error reporting.')
+        }
+        SentryInitialized = true
+        return
+      }
       Sentry = SentryModule
       
       if (Sentry.init) {

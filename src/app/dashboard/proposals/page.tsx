@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,7 +74,7 @@ interface ProposalStats {
   avgResponseTime: number
 }
 
-export default function ProposalsPage() {
+function ProposalsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -618,5 +618,17 @@ export default function ProposalsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+export default function ProposalsPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-6">
+        <FormSkeleton />
+      </div>
+    }>
+      <ProposalsPageContent />
+    </Suspense>
   )
 }

@@ -52,12 +52,33 @@ const globalForSupabase = globalThis as typeof globalThis & {
 let client: SupabaseBrowserClient
 
 if (typeof window !== 'undefined') {
+  // Client-side: 환경 변수 확인 후 클라이언트 생성
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables:', {
+      url: supabaseUrl ? 'set' : 'missing',
+      key: supabaseAnonKey ? 'set' : 'missing'
+    })
+    // 개발 환경에서는 경고만, 프로덕션에서는 에러
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Missing Supabase environment variables')
+    }
+  }
+  
   if (!globalForSupabase.__browserSupabase) {
-    globalForSupabase.__browserSupabase = createBrowserSupabaseClient()
+    try {
+      globalForSupabase.__browserSupabase = createBrowserSupabaseClient()
+    } catch (error) {
+      console.error('Failed to create Supabase client:', error)
+      // Fallback: placeholder 클라이언트 생성 (에러 방지)
+      globalForSupabase.__browserSupabase = createClient<Database>(buildUrl, buildKey, {
+        auth: { persistSession: false }
+      })
+    }
   }
   client = globalForSupabase.__browserSupabase
   ;(window as any).browserSupabase = client
 } else {
+  // Server-side: placeholder 클라이언트
   client = createClient<Database>(buildUrl, buildKey, {
     auth: {
       persistSession: false,

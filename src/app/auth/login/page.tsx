@@ -55,12 +55,35 @@ function LoginForm() {
     setLoading(true)
 
     try {
+      // 환경 변수 확인
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        throw new Error('서버 설정 오류: Supabase 환경 변수가 설정되지 않았습니다.')
+      }
+
+      // 입력값 검증
+      if (!email || !email.trim()) {
+        throw new Error('이메일을 입력해주세요.')
+      }
+      if (!password || !password.trim()) {
+        throw new Error('비밀번호를 입력해주세요.')
+      }
+
       const { data, error: signInError } = await browserSupabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       })
 
-      if (signInError) throw signInError
+      if (signInError) {
+        // 더 자세한 에러 정보 로깅
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Sign in error:', signInError)
+        }
+        throw signInError
+      }
+
+      if (!data?.user) {
+        throw new Error('로그인 정보를 확인할 수 없습니다.')
+      }
 
       const metadataRole = data.user.user_metadata?.role as UserRole | undefined
 
@@ -99,7 +122,8 @@ function LoginForm() {
           throw new Error('세션 정보를 확인할 수 없습니다. 다시 로그인해주세요.')
         }
 
-        let backfillResponse: Response
+        // Try to backfill user record (non-blocking)
+        let backfillResponse: Response | null = null
         try {
           backfillResponse = await fetch('/api/auth/backfill-user', {
             method: 'POST',
@@ -113,72 +137,75 @@ function LoginForm() {
             }),
           })
         } catch (networkError) {
+          // Network errors are non-blocking - continue with login
           if (process.env.NODE_ENV === 'development') {
-            console.error('Failed to backfill user record (network error):', networkError)
+            console.warn('Failed to backfill user record (network error):', networkError)
+            console.warn('Proceeding with user_metadata.role fallback')
           }
-          throw new Error('사용자 정보를 동기화하지 못했습니다. 네트워크 상태를 확인 후 다시 시도해주세요.')
+          backfillResponse = null
         }
 
-        let backfillResult: unknown = null
-        if (!backfillResponse.ok) {
-          try {
-            backfillResult = await backfillResponse.json()
-          } catch (parseError) {
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Failed to parse backfill error response:', parseError)
+        // Process backfill response if available
+        if (backfillResponse) {
+          let backfillResult: unknown = null
+          
+          if (!backfillResponse.ok) {
+            try {
+              backfillResult = await backfillResponse.json()
+            } catch (parseError) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Failed to parse backfill error response:', parseError)
+              }
             }
-          }
 
-          const payloadObject =
-            typeof backfillResult === 'object' && backfillResult !== null
-              ? (backfillResult as Record<string, unknown>)
-              : null
-          const serverMessage =
-            payloadObject && typeof payloadObject.error === 'string'
-              ? payloadObject.error
-              : null
+            const payloadObject =
+              typeof backfillResult === 'object' && backfillResult !== null
+                ? (backfillResult as Record<string, unknown>)
+                : null
+            const serverMessage =
+              payloadObject && typeof payloadObject.error === 'string'
+                ? payloadObject.error
+                : null
 
-          // 503 Service Unavailable means service key is missing - this is acceptable
-          // User can still proceed with metadata role
-          if (backfillResponse.status === 503) {
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('Backfill service unavailable (service key not configured):', serverMessage)
-              console.warn('Proceeding with user_metadata.role fallback')
+            // 404, 503, and other non-critical errors are acceptable
+            // User can still proceed with metadata role
+            if (backfillResponse.status === 404) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Backfill API endpoint not found (404). Proceeding with user_metadata.role fallback')
+              }
+            } else if (backfillResponse.status === 503) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Backfill service unavailable (service key not configured):', serverMessage)
+                console.warn('Proceeding with user_metadata.role fallback')
+              }
+            } else {
+              // For other errors, log but don't block login
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Failed to backfill user record:', backfillResult || backfillResponse.statusText)
+                console.warn('Status:', backfillResponse.status)
+                console.warn('Proceeding with user_metadata.role fallback')
+              }
             }
-            // Don't throw - allow login to proceed with metadata role
           } else {
-            // For other errors, log but don't block login
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Failed to backfill user record:', backfillResult || backfillResponse.statusText)
-              console.error('Attempted data:', {
-                id: data.user.id,
-                email: userEmail,
-                role: fallbackRole,
-                phone: data.user.user_metadata?.phone ?? null,
-              })
-              console.warn('Proceeding with user_metadata.role fallback')
-            }
-            // Don't throw - allow login to proceed
-          }
-        } else {
-          // Success case: parse the response
-          try {
-            backfillResult = await backfillResponse.json()
-          } catch (parseError) {
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Failed to parse backfill success response:', parseError)
-            }
-          }
-        }
-
-        // Extract role from backfill result if available
-        if (backfillResult && typeof backfillResult === 'object' && backfillResult !== null) {
-          const payloadUser = (backfillResult as Record<string, unknown>).user
-          if (typeof payloadUser === 'object' && payloadUser !== null) {
-            const maybeRole = (payloadUser as Record<string, unknown>).role
-            const syncedRole = typeof maybeRole === 'string' ? (maybeRole as UserRole) : undefined
-            if (syncedRole) {
-              resolvedRole = syncedRole
+            // Success case: parse the response
+            try {
+              backfillResult = await backfillResponse.json()
+              
+              // Extract role from backfill result if available
+              if (backfillResult && typeof backfillResult === 'object' && backfillResult !== null) {
+                const payloadUser = (backfillResult as Record<string, unknown>).user
+                if (typeof payloadUser === 'object' && payloadUser !== null) {
+                  const maybeRole = (payloadUser as Record<string, unknown>).role
+                  const syncedRole = typeof maybeRole === 'string' ? (maybeRole as UserRole) : undefined
+                  if (syncedRole) {
+                    resolvedRole = syncedRole
+                  }
+                }
+              }
+            } catch (parseError) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Failed to parse backfill success response:', parseError)
+              }
             }
           }
         }
@@ -272,8 +299,15 @@ function LoginForm() {
       setLoading(false)
       toast.success('로그인되었습니다! 어떤 역할로 접속하시겠어요?')
     } catch (err: unknown) {
+      // 에러 로깅
       if (process.env.NODE_ENV === 'development') {
         console.error('Login error:', err)
+        console.error('Error details:', {
+          email: email ? 'provided' : 'missing',
+          password: password ? 'provided' : 'missing',
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'missing',
+          supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'set' : 'missing',
+        })
       }
 
       let errorMessage = '로그인 중 오류가 발생했습니다.'
@@ -281,16 +315,21 @@ function LoginForm() {
       const errorObject = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null
       const message = typeof errorObject?.message === 'string' ? errorObject.message : null
       const status = typeof errorObject?.status === 'number' ? errorObject.status : null
+      const code = typeof errorObject?.code === 'string' ? errorObject.code : null
 
       // Supabase 에러 메시지를 더 친근하게 변환
-      if (message?.includes('Invalid login credentials')) {
+      if (message?.includes('Invalid login credentials') || code === 'invalid_credentials') {
         errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
-      } else if (message?.includes('Email not confirmed')) {
+      } else if (message?.includes('Email not confirmed') || code === 'email_not_confirmed') {
         errorMessage = '이메일 인증이 필요합니다. 이메일을 확인해주세요.'
-      } else if (message?.includes('User not found')) {
+      } else if (message?.includes('User not found') || code === 'user_not_found') {
         errorMessage = '등록되지 않은 사용자입니다.'
-      } else if (status === 401) {
+      } else if (status === 401 || code === 'unauthorized') {
         errorMessage = '인증에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
+      } else if (message?.includes('network') || message?.includes('fetch')) {
+        errorMessage = '네트워크 연결을 확인해주세요.'
+      } else if (message?.includes('Missing Supabase')) {
+        errorMessage = '서버 설정 오류가 발생했습니다. 관리자에게 문의해주세요.'
       } else if (message) {
         errorMessage = message
       }
