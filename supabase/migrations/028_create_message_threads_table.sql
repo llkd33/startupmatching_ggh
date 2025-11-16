@@ -21,6 +21,11 @@ CREATE INDEX IF NOT EXISTS idx_message_threads_last_message_at ON public.message
 -- Enable RLS
 ALTER TABLE public.message_threads ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "Users can view their message threads" ON public.message_threads;
+DROP POLICY IF EXISTS "Users can create message threads" ON public.message_threads;
+DROP POLICY IF EXISTS "Users can update their message threads" ON public.message_threads;
+
 -- RLS Policies for message_threads
 CREATE POLICY "Users can view their message threads" ON public.message_threads
     FOR SELECT USING (
