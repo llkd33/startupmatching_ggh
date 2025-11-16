@@ -72,23 +72,48 @@ export default function TaskCreateForm({
       // 빈 문자열을 undefined로 변환하여 UUID 필드 오류 방지
       const taskData: any = {
         title: formData.title.trim(),
-        description: formData.description?.trim() || undefined,
-        status: formData.status,
-        priority: formData.priority,
-        assignee_id: formData.assignee_id?.trim() || undefined,
-        organization_id: organizationId || formData.organization_id?.trim() || undefined,
-        campaign_id: campaignId || formData.campaign_id?.trim() || undefined,
-        expert_id: expertId || formData.expert_id?.trim() || undefined,
-        due_date: formData.due_date?.trim() || undefined,
-        estimated_hours: formData.estimated_hours ? Number(formData.estimated_hours) : undefined
       }
 
-      // 빈 문자열 필드 제거
-      Object.keys(taskData).forEach(key => {
-        if (taskData[key] === '' || taskData[key] === null) {
-          delete taskData[key]
-        }
-      })
+      // 선택적 필드 추가 (빈 문자열이 아닌 경우만)
+      if (formData.description?.trim()) {
+        taskData.description = formData.description.trim()
+      }
+      if (formData.status) {
+        taskData.status = formData.status
+      }
+      if (formData.priority) {
+        taskData.priority = formData.priority
+      }
+      
+      // UUID 필드들은 빈 문자열이 아닌 경우에만 추가
+      const assigneeId = formData.assignee_id?.trim()
+      if (assigneeId && assigneeId !== '') {
+        taskData.assignee_id = assigneeId
+      }
+      
+      const orgId = organizationId || formData.organization_id?.trim()
+      if (orgId && orgId !== '') {
+        taskData.organization_id = orgId
+      }
+      
+      const campId = campaignId || formData.campaign_id?.trim()
+      if (campId && campId !== '') {
+        taskData.campaign_id = campId
+      }
+      
+      const expId = expertId || formData.expert_id?.trim()
+      if (expId && expId !== '') {
+        taskData.expert_id = expId
+      }
+      
+      const dueDate = formData.due_date?.trim()
+      if (dueDate && dueDate !== '') {
+        taskData.due_date = dueDate
+      }
+      
+      if (formData.estimated_hours !== undefined && formData.estimated_hours !== null) {
+        taskData.estimated_hours = Number(formData.estimated_hours)
+      }
 
       // Create the task
       const { data: task, error: taskError } = await db.tasks.create(taskData)

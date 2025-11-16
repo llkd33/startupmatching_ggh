@@ -578,16 +578,57 @@ export const db = {
       }
 
       // 선택적 필드 추가 (빈 문자열이 아닌 경우만)
-      if (task.description) cleanTask.description = task.description
-      if (task.status) cleanTask.status = task.status
-      if (task.priority) cleanTask.priority = task.priority
-      if (task.assignee_id && task.assignee_id.trim()) cleanTask.assignee_id = task.assignee_id.trim()
-      if (task.organization_id && task.organization_id.trim()) cleanTask.organization_id = task.organization_id.trim()
-      if (task.campaign_id && task.campaign_id.trim()) cleanTask.campaign_id = task.campaign_id.trim()
-      if (task.expert_id && task.expert_id.trim()) cleanTask.expert_id = task.expert_id.trim()
-      if (task.due_date && task.due_date.trim()) cleanTask.due_date = task.due_date.trim()
-      if (task.estimated_hours !== undefined && task.estimated_hours !== null) cleanTask.estimated_hours = task.estimated_hours
-      if (task.metadata) cleanTask.metadata = task.metadata
+      if (task.description && task.description.trim()) {
+        cleanTask.description = task.description.trim()
+      }
+      if (task.status) {
+        cleanTask.status = task.status
+      }
+      if (task.priority) {
+        cleanTask.priority = task.priority
+      }
+      
+      // UUID 필드들은 빈 문자열이 아닌 경우에만 추가
+      const assigneeId = task.assignee_id?.trim()
+      if (assigneeId && assigneeId !== '') {
+        cleanTask.assignee_id = assigneeId
+      }
+      
+      const orgId = task.organization_id?.trim()
+      if (orgId && orgId !== '') {
+        cleanTask.organization_id = orgId
+      }
+      
+      const campId = task.campaign_id?.trim()
+      if (campId && campId !== '') {
+        cleanTask.campaign_id = campId
+      }
+      
+      const expId = task.expert_id?.trim()
+      if (expId && expId !== '') {
+        cleanTask.expert_id = expId
+      }
+      
+      const dueDate = task.due_date?.trim()
+      if (dueDate && dueDate !== '') {
+        cleanTask.due_date = dueDate
+      }
+      
+      if (task.estimated_hours !== undefined && task.estimated_hours !== null) {
+        cleanTask.estimated_hours = task.estimated_hours
+      }
+      
+      if (task.metadata) {
+        cleanTask.metadata = task.metadata
+      }
+      
+      // 최종 검증: UUID 필드에 빈 문자열이 있는지 확인
+      const uuidFields = ['assignee_id', 'organization_id', 'campaign_id', 'expert_id']
+      uuidFields.forEach(field => {
+        if (cleanTask[field] === '' || cleanTask[field] === null) {
+          delete cleanTask[field]
+        }
+      })
 
       const { data, error } = await supabase
         .from('tasks')
