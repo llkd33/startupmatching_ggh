@@ -570,13 +570,28 @@ export const db = {
       const user = await auth.getUser()
       if (!user) throw new Error('User not authenticated')
 
+      // 빈 문자열을 undefined로 변환하여 UUID 필드 오류 방지
+      const cleanTask: any = {
+        title: task.title,
+        creator_id: user.id,
+        updated_by: user.id
+      }
+
+      // 선택적 필드 추가 (빈 문자열이 아닌 경우만)
+      if (task.description) cleanTask.description = task.description
+      if (task.status) cleanTask.status = task.status
+      if (task.priority) cleanTask.priority = task.priority
+      if (task.assignee_id && task.assignee_id.trim()) cleanTask.assignee_id = task.assignee_id.trim()
+      if (task.organization_id && task.organization_id.trim()) cleanTask.organization_id = task.organization_id.trim()
+      if (task.campaign_id && task.campaign_id.trim()) cleanTask.campaign_id = task.campaign_id.trim()
+      if (task.expert_id && task.expert_id.trim()) cleanTask.expert_id = task.expert_id.trim()
+      if (task.due_date && task.due_date.trim()) cleanTask.due_date = task.due_date.trim()
+      if (task.estimated_hours !== undefined && task.estimated_hours !== null) cleanTask.estimated_hours = task.estimated_hours
+      if (task.metadata) cleanTask.metadata = task.metadata
+
       const { data, error } = await supabase
         .from('tasks')
-        .insert({
-          ...task,
-          creator_id: user.id,
-          updated_by: user.id
-        })
+        .insert(cleanTask)
         .select()
         .single()
       

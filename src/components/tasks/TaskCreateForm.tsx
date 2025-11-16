@@ -69,11 +69,29 @@ export default function TaskCreateForm({
     setLoading(true)
     
     try {
-      // Create the task
-      const { data: task, error: taskError } = await db.tasks.create({
-        ...formData,
+      // 빈 문자열을 undefined로 변환하여 UUID 필드 오류 방지
+      const taskData: any = {
+        title: formData.title.trim(),
+        description: formData.description?.trim() || undefined,
+        status: formData.status,
+        priority: formData.priority,
+        assignee_id: formData.assignee_id?.trim() || undefined,
+        organization_id: organizationId || formData.organization_id?.trim() || undefined,
+        campaign_id: campaignId || formData.campaign_id?.trim() || undefined,
+        expert_id: expertId || formData.expert_id?.trim() || undefined,
+        due_date: formData.due_date?.trim() || undefined,
         estimated_hours: formData.estimated_hours ? Number(formData.estimated_hours) : undefined
+      }
+
+      // 빈 문자열 필드 제거
+      Object.keys(taskData).forEach(key => {
+        if (taskData[key] === '' || taskData[key] === null) {
+          delete taskData[key]
+        }
       })
+
+      // Create the task
+      const { data: task, error: taskError } = await db.tasks.create(taskData)
       
       if (taskError) throw taskError
       
