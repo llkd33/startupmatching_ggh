@@ -146,34 +146,39 @@ export default function AdminLogin() {
       
       // 세션을 확실히 설정하기 위해 잠시 대기
       console.log('⏳ Waiting for session to be set...')
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 1500))
       
-      // 세션 확인
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) {
-        console.error('❌ Session error:', sessionError)
+      // 세션 확인 (여러 번 시도)
+      let session = null
+      let sessionAttempts = 0
+      const maxAttempts = 3
+      
+      while (sessionAttempts < maxAttempts && !session) {
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError) {
+          console.error(`❌ Session error (attempt ${sessionAttempts + 1}):`, sessionError)
+        }
+        if (currentSession) {
+          session = currentSession
+          console.log('✅ Session confirmed:', session.user.id)
+          break
+        }
+        sessionAttempts++
+        if (sessionAttempts < maxAttempts) {
+          console.log(`⏳ Session not found, retrying... (${sessionAttempts}/${maxAttempts})`)
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
       }
       
       if (!session) {
-        console.error('❌ Session not found after login')
-        // 세션이 없어도 리다이렉트 시도 (쿠키는 이미 설정되었을 수 있음)
-        console.log('⚠️ Proceeding with redirect despite no session (cookies may be set)')
-      } else {
-        console.log('✅ Session confirmed:', session.user.id)
+        console.warn('⚠️ Session not found after multiple attempts, but proceeding with redirect (cookies may be set)')
       }
       
-      // 리다이렉트 (window.location.replace 사용하여 확실한 페이지 이동)
+      // 리다이렉트 (전체 페이지 리로드로 쿠키 확실히 반영)
       console.log('🔄 Redirecting to /admin')
       if (typeof window !== 'undefined') {
-        // replace 대신 href 사용하고, 강제 리로드
+        // 쿠키가 확실히 설정되도록 전체 페이지 리로드
         window.location.href = '/admin'
-        // 추가 안전장치: 2초 후에도 리다이렉트가 안 되면 강제 리로드
-        setTimeout(() => {
-          if (window.location.pathname === '/admin-login') {
-            console.warn('⚠️ Redirect failed, forcing reload')
-            window.location.reload()
-          }
-        }, 2000)
       } else {
         router.push('/admin')
       }

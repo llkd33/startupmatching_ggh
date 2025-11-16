@@ -40,11 +40,26 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin') && pathname !== '/admin-login') {
     const {
       data: { user },
+      error: authError
     } = await supabase.auth.getUser();
 
     // If no user, redirect to admin login page
-    if (!user) {
+    if (authError || !user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Admin middleware: No user found', {
+          authError: authError?.message,
+          pathname
+        })
+      }
       return NextResponse.redirect(new URL('/admin-login', request.url));
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Admin middleware: User found', {
+        userId: user.id,
+        email: user.email,
+        pathname
+      })
     }
 
     // Check if user is admin
@@ -57,14 +72,23 @@ export async function middleware(request: NextRequest) {
     // users 테이블에 레코드가 없거나 관리자가 아닌 경우
     if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('Admin check failed:', {
+        console.log('Admin middleware: Admin check failed', {
           userError: userError?.message,
           userData,
           is_admin: userData?.is_admin,
-          role: userData?.role
+          role: userData?.role,
+          userId: user.id
         })
       }
       return NextResponse.redirect(new URL('/admin-login', request.url));
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Admin middleware: Admin check passed', {
+        userId: user.id,
+        is_admin: userData.is_admin,
+        role: userData.role
+      })
     }
   }
 

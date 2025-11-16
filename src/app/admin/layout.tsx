@@ -43,14 +43,22 @@ export default async function AdminLayout({
   }
 
   // Check if user is admin
-  const { data: userData } = await supabase
+  const { data: userData, error: userError } = await supabase
     .from('users')
     .select('role, is_admin')
     .eq('id', user.id)
-    .single();
+    .maybeSingle(); // single() 대신 maybeSingle() 사용
 
   // 허용 기준: users.is_admin = true 또는 role === 'admin'
-  if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
+  if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Admin layout check failed:', {
+        userError: userError?.message,
+        userData,
+        is_admin: userData?.is_admin,
+        role: userData?.role
+      })
+    }
     redirect('/admin-login');
   }
 
