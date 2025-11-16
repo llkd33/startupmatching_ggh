@@ -486,13 +486,21 @@ export const db = {
       const threadsWithUnread = await Promise.all(
         data.map(async (thread: any) => {
           // Count unread messages for this thread where current user is receiver
-          const { count } = await supabase
+          let query = supabase
             .from('messages')
             .select('*', { count: 'exact', head: true })
-            .eq('campaign_id', thread.campaign_id || '')
             .eq('receiver_id', userId)
             .eq('is_read', false)
             .in('sender_id', [thread.participant_1, thread.participant_2])
+
+          // Add campaign_id filter if it exists
+          if (thread.campaign_id) {
+            query = query.eq('campaign_id', thread.campaign_id)
+          } else {
+            query = query.is('campaign_id', null)
+          }
+
+          const { count } = await query
 
           return {
             ...thread,
