@@ -12,10 +12,6 @@ const nextConfig: NextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
-  // Admin pages should be dynamically rendered
-  experimental: {
-    dynamicIO: true,
-  },
 }
 
 export default nextConfig;
