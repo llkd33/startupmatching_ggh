@@ -23,6 +23,8 @@ import {
   Eye,
   Edit
 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { toast } from '@/components/ui/toast-custom'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -80,6 +82,8 @@ export default function CampaignDetailPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [expertProfile, setExpertProfile] = useState<any>(null)
   const [existingProposal, setExistingProposal] = useState<any>(null)
+  const [isClosing, setIsClosing] = useState(false)
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -303,6 +307,53 @@ export default function CampaignDetailPage() {
            !existingProposal
   }
 
+  const handleCloseCampaign = async () => {
+    if (!campaign || !userId) return
+
+    setIsClosing(true)
+    try {
+      // organization_profile의 id 조회
+      const { data: orgProfile, error: orgError } = await supabase
+        .from('organization_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (orgError) throw orgError
+      if (!orgProfile) {
+        toast.error('조직 프로필을 찾을 수 없습니다.')
+        setCloseDialogOpen(false)
+        return
+      }
+
+      // 캠페인 종료 (상태를 completed로 변경)
+      // 제안서가 있어도 종료 가능
+      const { error } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaign.id)
+        .eq('organization_id', orgProfile.id)
+
+      if (error) throw error
+
+      toast.success('캠페인이 종료되었습니다.')
+      setCloseDialogOpen(false)
+
+      // 캠페인 정보 새로고침
+      await checkAuthAndLoadData(campaign.id)
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Close campaign error:', error)
+      }
+      toast.error('캠페인 종료에 실패했습니다.')
+    } finally {
+      setIsClosing(false)
+    }
+  }
+
   if (loading) {
     return <PageLoading title="캠페인을 불러오는 중..." />
   }
@@ -387,10 +438,25 @@ export default function CampaignDetailPage() {
                 )}
                 
                 {canManageCampaign() && (
-                  <Button variant="outline" size="sm">
-                    <Edit className="h-4 w-4 mr-2" />
-                    수정
-                  </Button>
+                  <>
+                    {campaign.status === 'active' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCloseDialogOpen(true)}
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        종료
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/dashboard/campaigns/${campaign.id}/edit`}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        수정
+                      </Link>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -669,6 +735,19 @@ export default function CampaignDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 종료 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={closeDialogOpen}
+        onClose={() => setCloseDialogOpen(false)}
+        onConfirm={handleCloseCampaign}
+        title="캠페인 종료"
+        message="이 캠페인을 종료하시겠습니까? 종료된 캠페인은 더 이상 제안서를 받지 않습니다. 인원이 다 차지 않아도 종료할 수 있습니다."
+        type="warning"
+        confirmText="종료"
+        cancelText="취소"
+        loading={isClosing}
+      />
     </div>
   )
 }

@@ -21,6 +21,12 @@ NEXT_PUBLIC_APP_URL=https://your-app-name.up.railway.app
 ```
 Replace `your-app-name` with your actual Railway app URL.
 
+### Resend API Key (이메일 발송용)
+```
+RESEND_API_KEY=re_6kDHUGWP_QHKjjkd1ZhzsMGktWhCK38zE
+```
+이 변수는 제안서 승인/거절 시 이메일 발송에 사용됩니다.
+
 ## How to Add Environment Variables in Railway
 
 1. Go to your Railway project dashboard

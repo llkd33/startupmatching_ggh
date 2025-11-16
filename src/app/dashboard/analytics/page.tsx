@@ -118,28 +118,44 @@ export default function DashboardAnalyticsPage() {
         .select('status')
         .eq('organization_id', orgId)
 
-      // Fetch proposals
-      const { count: totalProposals } = await supabase
-        .from('proposals')
-        .select('*', { count: 'exact', head: true })
-        .eq('campaign_id', orgId)
+      // Get campaign IDs for this organization
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('organization_id', orgId)
 
-      const { count: pendingProposals } = await supabase
-        .from('proposals')
-        .select('*', { count: 'exact', head: true })
-        .in('campaign_id', [orgId])
-        .eq('status', 'pending')
+      const campaignIds = campaigns?.map(c => c.id) || []
 
-      const { count: acceptedProposals } = await supabase
-        .from('proposals')
-        .select('*', { count: 'exact', head: true })
-        .in('campaign_id', [orgId])
-        .eq('status', 'accepted')
+      // Fetch proposals - use campaign IDs instead of direct orgId
+      const { count: totalProposals } = campaignIds.length > 0
+        ? await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .in('campaign_id', campaignIds)
+        : { count: 0 }
 
-      const { data: proposalsData } = await supabase
-        .from('proposals')
-        .select('status, proposed_budget')
-        .in('campaign_id', [orgId])
+      const { count: pendingProposals } = campaignIds.length > 0
+        ? await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .in('campaign_id', campaignIds)
+            .eq('status', 'pending')
+        : { count: 0 }
+
+      const { count: acceptedProposals } = campaignIds.length > 0
+        ? await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .in('campaign_id', campaignIds)
+            .eq('status', 'accepted')
+        : { count: 0 }
+
+      const { data: proposalsData } = campaignIds.length > 0
+        ? await supabase
+            .from('proposals')
+            .select('status, estimated_budget')
+            .in('campaign_id', campaignIds)
+        : { data: null }
 
       // Calculate statistics
       const campaignsByStatus = campaignsData

@@ -19,7 +19,8 @@ import {
   Trash2,
   Copy,
   BarChart3,
-  FileText
+  FileText,
+  XCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { CampaignListSkeleton } from '@/components/ui/loading-states'
@@ -47,6 +48,9 @@ export default function CampaignsPage() {
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
+  const [campaignToClose, setCampaignToClose] = useState<string | null>(null)
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
 
   // Fetch campaigns with pagination
   const {
@@ -174,6 +178,61 @@ export default function CampaignsPage() {
       toast.error('캠페인 삭제에 실패했습니다.')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleCloseClick = (campaignId: string) => {
+    setCampaignToClose(campaignId)
+    setCloseDialogOpen(true)
+  }
+
+  const handleCloseConfirm = async () => {
+    if (!campaignToClose || !userId) return
+
+    setIsClosing(true)
+    try {
+      // organization_profile의 id 조회
+      const { data: orgProfile, error: orgError } = await browserSupabase
+        .from('organization_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (orgError) throw orgError
+      if (!orgProfile) {
+        toast.error('조직 프로필을 찾을 수 없습니다.')
+        setCloseDialogOpen(false)
+        setCampaignToClose(null)
+        return
+      }
+
+      // 캠페인 종료 (상태를 completed로 변경)
+      // 제안서가 있어도 종료 가능
+      const { error } = await browserSupabase
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaignToClose)
+        .eq('organization_id', orgProfile.id)
+
+      if (error) throw error
+
+      toast.success('캠페인이 종료되었습니다.')
+      setCloseDialogOpen(false)
+      setCampaignToClose(null)
+
+      // 캠페인 목록 새로고침
+      await refreshCampaigns()
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Close campaign error:', error)
+      }
+      handleSupabaseError(error as Error, true, { context: 'close_campaign' })
+      toast.error('캠페인 종료에 실패했습니다.')
+    } finally {
+      setIsClosing(false)
     }
   }
 
@@ -401,6 +460,19 @@ export default function CampaignsPage() {
                           <Copy className="h-4 w-4" aria-hidden="true" />
                           <span className="sr-only md:inline ml-1">복제</span>
                         </Button>
+                        {campaign.status === 'active' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="md:h-9 h-11 min-h-[44px] md:min-h-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            aria-label={`${campaign.title} 종료`}
+                            onClick={() => handleCloseClick(campaign.id)}
+                            disabled={isClosing}
+                          >
+                            <XCircle className="h-4 w-4" aria-hidden="true" />
+                            <span className="sr-only md:inline ml-1">종료</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -484,6 +556,22 @@ export default function CampaignsPage() {
           )}
         </>
       )}
+
+      {/* 종료 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={closeDialogOpen}
+        onClose={() => {
+          setCloseDialogOpen(false)
+          setCampaignToClose(null)
+        }}
+        onConfirm={handleCloseConfirm}
+        title="캠페인 종료"
+        message="이 캠페인을 종료하시겠습니까? 종료된 캠페인은 더 이상 제안서를 받지 않습니다. 인원이 다 차지 않아도 종료할 수 있습니다."
+        type="warning"
+        confirmText="종료"
+        cancelText="취소"
+        loading={isClosing}
+      />
 
       {/* 삭제 확인 다이얼로그 */}
       <ConfirmDialog

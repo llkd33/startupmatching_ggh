@@ -495,9 +495,26 @@ function LoginForm() {
   const handleRoleSelect = async (role: 'expert' | 'organization') => {
     setSelectedRole(role)
     const { data: { user } } = await browserSupabase.auth.getUser()
-    if (user) {
-      await handleRoleLogin(role, user.id)
+    if (!user) {
+      setError('사용자 정보를 확인할 수 없습니다.')
+      return
     }
+
+    // 사용자가 선택한 역할에 해당하는 프로필이 있는지 확인
+    const hasExpertProfile = availableRoles.some(r => r.role === 'expert' && r.hasProfile)
+    const hasOrgProfile = availableRoles.some(r => r.role === 'organization' && r.hasProfile)
+
+    // 역할과 프로필이 일치하지 않으면 경고
+    if (role === 'expert' && !hasExpertProfile && hasOrgProfile) {
+      toast.error('이 계정은 기관 계정입니다. 기관으로 로그인해주세요.')
+      return
+    }
+    if (role === 'organization' && !hasOrgProfile && hasExpertProfile) {
+      toast.error('이 계정은 전문가 계정입니다. 전문가로 로그인해주세요.')
+      return
+    }
+
+    await handleRoleLogin(role, user.id)
   }
 
   // 역할 선택 UI가 표시되면 폼 대신 역할 선택 화면 표시
