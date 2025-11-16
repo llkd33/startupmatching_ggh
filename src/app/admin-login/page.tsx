@@ -70,11 +70,25 @@ export default function AdminLogin() {
       console.log('✅ Auth successful, user ID:', authData.user.id)
       
       // Check if user is admin (is_admin = true OR role = 'admin')
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('is_admin, role')
-        .eq('id', authData.user.id)
-        .maybeSingle() // single() 대신 maybeSingle() 사용하여 레코드 없을 때 에러 방지
+      console.log('🔍 Checking user data in users table...')
+      let userData = null
+      let userError = null
+      
+      try {
+        const result = await supabase
+          .from('users')
+          .select('is_admin, role')
+          .eq('id', authData.user.id)
+          .maybeSingle() // single() 대신 maybeSingle() 사용하여 레코드 없을 때 에러 방지
+        
+        userData = result.data
+        userError = result.error
+        
+        console.log('📋 User query result:', { userData, userError })
+      } catch (err) {
+        console.error('❌ Exception querying user data:', err)
+        userError = err as any
+      }
       
       if (userError) {
         console.error('❌ User data error:', userError)
@@ -97,10 +111,38 @@ export default function AdminLogin() {
       // users 테이블에 레코드가 없는 경우
       if (!userData) {
         console.warn('⚠️ User record not found in users table')
-        setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
-        await supabase.auth.signOut()
-        setLoading(false)
-        return
+        console.log('💡 Attempting to create user record...')
+        
+        // users 테이블에 레코드 자동 생성 시도
+        try {
+          const { data: newUserData, error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              email: authData.user.email || email.trim(),
+              role: 'admin',
+              is_admin: true
+            })
+            .select('is_admin, role')
+            .single()
+          
+          if (createError) {
+            console.error('❌ Failed to create user record:', createError)
+            setError('사용자 정보를 생성할 수 없습니다. 관리자에게 문의하세요.')
+            await supabase.auth.signOut()
+            setLoading(false)
+            return
+          }
+          
+          console.log('✅ User record created:', newUserData)
+          userData = newUserData
+        } catch (createErr) {
+          console.error('❌ Exception creating user record:', createErr)
+          setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
+          await supabase.auth.signOut()
+          setLoading(false)
+          return
+        }
       }
       
       // is_admin = true 또는 role = 'admin' 확인
