@@ -123,7 +123,21 @@ export default function AdminLogin() {
         return
       }
 
-      console.log('✅ Admin verified, redirecting...')
+      console.log('✅ Admin verified, preparing redirect...')
+      
+      // 세션을 확실히 설정하기 위해 잠시 대기
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // 세션 확인
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('❌ Session not found after login')
+        setError('세션을 설정할 수 없습니다. 다시 시도해주세요.')
+        setLoading(false)
+        return
+      }
+      
+      console.log('✅ Session confirmed:', session.user.id)
       
       // Log admin action (실패해도 로그인은 진행)
       try {
@@ -147,7 +161,8 @@ export default function AdminLogin() {
       // 리다이렉트 (window.location.href 사용하여 확실한 페이지 이동)
       console.log('🔄 Redirecting to /admin')
       if (typeof window !== 'undefined') {
-        window.location.href = '/admin'
+        // 강제로 전체 페이지 리로드하여 세션 확실히 반영
+        window.location.replace('/admin')
       } else {
         router.push('/admin')
       }

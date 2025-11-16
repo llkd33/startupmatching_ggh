@@ -48,13 +48,22 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check if user is admin
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role, is_admin')
       .eq('id', user.id)
-      .single();
+      .maybeSingle(); // single() 대신 maybeSingle() 사용
 
-    if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
+    // users 테이블에 레코드가 없거나 관리자가 아닌 경우
+    if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Admin check failed:', {
+          userError: userError?.message,
+          userData,
+          is_admin: userData?.is_admin,
+          role: userData?.role
+        })
+      }
       return NextResponse.redirect(new URL('/admin-login', request.url));
     }
   }
