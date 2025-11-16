@@ -12,17 +12,17 @@ export async function checkAdminAuth() {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   
   if (authError || !user) {
-    redirect('/auth/login')
+    redirect('/admin-login')
   }
   
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('is_admin, role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle() // single() 대신 maybeSingle() 사용
   
-  if (userError || (!userData?.is_admin && userData?.role !== 'admin')) {
-    redirect('/unauthorized')
+  if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
+    redirect('/admin-login')
   }
   
   return user
