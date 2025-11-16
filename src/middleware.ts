@@ -36,15 +36,15 @@ export async function middleware(request: NextRequest) {
   // This is important for server components to read the session correctly
   await supabase.auth.getUser();
 
-  // Check if the route is an admin route (but exclude /admin/login)
-  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+  // Check if the route is an admin route (but exclude /admin-login)
+  if (pathname.startsWith('/admin') && pathname !== '/admin-login') {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     // If no user, redirect to admin login page
     if (!user) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+      return NextResponse.redirect(new URL('/admin-login', request.url));
     }
 
     // Check if user is admin
@@ -55,7 +55,7 @@ export async function middleware(request: NextRequest) {
       .single();
 
     if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+      return NextResponse.redirect(new URL('/admin-login', request.url));
     }
   }
 

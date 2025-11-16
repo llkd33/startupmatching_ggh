@@ -39,7 +39,7 @@ export default async function AdminLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/admin/login');
+    redirect('/admin-login');
   }
 
   // Check if user is admin
@@ -51,7 +51,7 @@ export default async function AdminLayout({
 
   // 허용 기준: users.is_admin = true 또는 role === 'admin'
   if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
-    redirect('/admin/login');
+    redirect('/admin-login');
   }
 
   const navigationItems = [
