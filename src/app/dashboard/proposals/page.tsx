@@ -138,23 +138,10 @@ function ProposalsPageContent() {
     setLoading(true)
     
     try {
+      // 먼저 proposals만 조회 (RLS 정책 문제 방지)
       let query = supabase
         .from('proposals')
-        .select(`
-          *,
-          campaigns(
-            title,
-            description,
-            status,
-            organization_profiles(organization_name, user_id)
-          ),
-          expert_profiles(
-            name,
-            title,
-            hourly_rate,
-            users(email)
-          )
-        `)
+        .select('*')
         .order('submitted_at', { ascending: false })
 
       if (role === 'expert') {
@@ -189,12 +176,81 @@ function ProposalsPageContent() {
         }
       }
 
-      const { data, error } = await query
+      const { data: proposalsData, error } = await query
 
-      if (error) throw error
+      if (error) {
+        console.error('Error loading proposals:', error)
+        // 403 에러인 경우 빈 배열로 처리하고 계속 진행
+        if (error.code === 'PGRST301' || error.message?.includes('403') || error.message?.includes('permission')) {
+          console.warn('Permission denied for proposals query, showing empty list')
+          setProposals([])
+          calculateStats([])
+          return
+        }
+        throw error
+      }
 
-      setProposals(data || [])
-      calculateStats(data || [])
+      // 관련 데이터를 별도로 조회하여 병합
+      const enrichedProposals = await Promise.all(
+        (proposalsData || []).map(async (proposal) => {
+          try {
+            // Campaign 정보 조회
+            const { data: campaign } = await supabase
+              .from('campaigns')
+              .select('title, description, status, organization_id')
+              .eq('id', proposal.campaign_id)
+              .single()
+
+            // Organization 정보 조회
+            let organizationProfile = null
+            if (campaign?.organization_id) {
+              const { data: org } = await supabase
+                .from('organization_profiles')
+                .select('organization_name, user_id')
+                .eq('id', campaign.organization_id)
+                .single()
+              organizationProfile = org
+            }
+
+            // Expert 정보 조회
+            const { data: expert } = await supabase
+              .from('expert_profiles')
+              .select('name, title, hourly_rate, user_id')
+              .eq('id', proposal.expert_id)
+              .single()
+
+            // User 이메일 조회
+            let userEmail = null
+            if (expert?.user_id) {
+              const { data: user } = await supabase
+                .from('users')
+                .select('email')
+                .eq('id', expert.user_id)
+                .single()
+              userEmail = user?.email
+            }
+
+            return {
+              ...proposal,
+              campaigns: campaign ? {
+                ...campaign,
+                organization_profiles: organizationProfile
+              } : null,
+              expert_profiles: expert ? {
+                ...expert,
+                users: userEmail ? { email: userEmail } : null
+              } : null
+            }
+          } catch (err) {
+            // 개별 조회 실패 시 기본 데이터만 반환
+            console.warn('Error enriching proposal:', err)
+            return proposal
+          }
+        })
+      )
+
+      setProposals(enrichedProposals)
+      calculateStats(enrichedProposals)
     } catch (error) {
       handleSupabaseError(error as Error)
     } finally {
