@@ -595,15 +595,13 @@ export const db = {
       due_date_to?: string
       is_archived?: boolean
     }) {
+      // 먼저 tasks만 조회 (categories는 별도로 조회)
       let query = supabase
         .from('tasks')
         .select(`
           *,
           creator:users!tasks_creator_id_fkey(id, email, role),
           assignee:users!tasks_assignee_id_fkey(id, email, role),
-          task_category_relations(
-            task_categories(*)
-          ),
           comments:task_comments(count)
         `)
         .order('created_at', { ascending: false })
@@ -636,21 +634,67 @@ export const db = {
         query = query.eq('is_archived', filters.is_archived)
       }
 
-      const { data, error } = await query
-      return { data, error }
+      const { data: tasksData, error } = await query
+      
+      if (error) {
+        return { data: null, error }
+      }
+
+      // Categories를 별도로 조회하여 병합 (RLS 정책 문제 방지)
+      if (tasksData && tasksData.length > 0) {
+        const enrichedTasks = await Promise.all(
+          tasksData.map(async (task: any) => {
+            try {
+              // task_category_relations에서 category_id만 조회
+              const { data: relations } = await supabase
+                .from('task_category_relations')
+                .select('category_id')
+                .eq('task_id', task.id)
+
+              // category_id로 task_categories 조회
+              const categoryIds = relations?.map((r: any) => r.category_id).filter(Boolean) || []
+              let categories: any[] = []
+              
+              if (categoryIds.length > 0) {
+                const { data: cats } = await supabase
+                  .from('task_categories')
+                  .select('*')
+                  .in('id', categoryIds)
+                
+                categories = cats || []
+              }
+              
+              return {
+                ...task,
+                task_category_relations: relations || [],
+                categories: categories
+              }
+            } catch (err) {
+              console.warn('Error loading categories for task:', err)
+              return {
+                ...task,
+                task_category_relations: [],
+                categories: []
+              }
+            }
+          })
+        )
+
+        return { data: enrichedTasks, error: null }
+      }
+
+      return { data: tasksData || [], error: null }
     },
 
     // Get single task by ID
     async get(taskId: string) {
-      const { data, error } = await supabase
+      // 먼저 task 기본 정보 조회
+      const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .select(`
           *,
           creator:users!tasks_creator_id_fkey(id, email, role),
           assignee:users!tasks_assignee_id_fkey(id, email, role),
-          task_category_relations(
-            task_categories(*)
-          ),
           comments:task_comments(*),
           activity_logs:task_activity_logs(
             *,
@@ -661,7 +705,50 @@ export const db = {
         .eq('id', taskId)
         .single()
       
-      return { data, error }
+      if (taskError || !taskData) {
+        return { data: null, error: taskError }
+      }
+
+      // Categories를 별도로 조회하여 병합 (RLS 정책 문제 방지)
+      try {
+        // task_category_relations에서 category_id만 조회
+        const { data: relations } = await supabase
+          .from('task_category_relations')
+          .select('category_id')
+          .eq('task_id', taskId)
+
+        // category_id로 task_categories 조회
+        const categoryIds = relations?.map((r: any) => r.category_id).filter(Boolean) || []
+        let categories: any[] = []
+        
+        if (categoryIds.length > 0) {
+          const { data: cats } = await supabase
+            .from('task_categories')
+            .select('*')
+            .in('id', categoryIds)
+          
+          categories = cats || []
+        }
+        
+        return {
+          data: {
+            ...taskData,
+            task_category_relations: relations || [],
+            categories: categories
+          },
+          error: null
+        }
+      } catch (err) {
+        console.warn('Error loading categories for task:', err)
+        return {
+          data: {
+            ...taskData,
+            task_category_relations: [],
+            categories: []
+          },
+          error: null
+        }
+      }
     },
 
     // Update task

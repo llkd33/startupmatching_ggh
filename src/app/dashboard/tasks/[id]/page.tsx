@@ -23,16 +23,13 @@ export default async function TaskDetailPage({
     redirect('/auth/login')
   }
 
-  // Fetch task details
+  // Fetch task details (categories는 별도로 조회)
   const { data: task, error: taskError } = await supabase
     .from('tasks')
     .select(`
       *,
       creator:users!tasks_creator_id_fkey(id, email, role),
       assignee:users!tasks_assignee_id_fkey(id, email, role),
-      task_category_relations(
-        task_categories(*)
-      ),
       comments:task_comments(
         *,
         user:users(id, email)
@@ -50,6 +47,35 @@ export default async function TaskDetailPage({
     redirect('/dashboard/tasks')
   }
 
+  // Categories를 별도로 조회하여 병합
+  let taskCategories: any[] = []
+  try {
+    const { data: relations } = await supabase
+      .from('task_category_relations')
+      .select('category_id')
+      .eq('task_id', id)
+
+    const categoryIds = relations?.map((r: any) => r.category_id).filter(Boolean) || []
+    
+    if (categoryIds.length > 0) {
+      const { data: cats } = await supabase
+        .from('task_categories')
+        .select('*')
+        .in('id', categoryIds)
+      
+      taskCategories = cats || []
+    }
+  } catch (err) {
+    console.warn('Error loading task categories:', err)
+  }
+
+  // task에 categories 추가
+  const taskWithCategories = {
+    ...task,
+    categories: taskCategories,
+    task_category_relations: []
+  }
+
   // Fetch available users for assignment
   const { data: users } = await supabase
     .from('users')
@@ -65,7 +91,7 @@ export default async function TaskDetailPage({
   return (
     <div className="container mx-auto px-4 py-8">
       <TaskDetailView
-        task={task}
+        task={taskWithCategories}
         currentUserId={user.id}
         assignableUsers={users || []}
         categories={categories || []}
