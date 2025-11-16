@@ -59,7 +59,6 @@ export default function ProposePage() {
 
   const [formData, setFormData] = useState({
     proposal_text: '',
-    estimated_budget: '',
     estimated_start_date: '',
     estimated_end_date: '',
     portfolio_links: [] as string[],
@@ -199,7 +198,7 @@ export default function ProposePage() {
         campaign_id: campaign.id,
         expert_id: expertProfile.id,
         proposal_text: formData.proposal_text,
-        estimated_budget: formData.estimated_budget ? parseInt(formData.estimated_budget) : null,
+        estimated_budget: null, // 기관에서 설정한 금액 사용
         estimated_start_date: formData.estimated_start_date || null,
         estimated_end_date: formData.estimated_end_date || null,
         portfolio_links: formData.portfolio_links,
@@ -417,26 +416,33 @@ export default function ProposePage() {
             <CardHeader>
               <CardTitle>제안 내용</CardTitle>
               <CardDescription>
-                프로젝트에 대한 이해도, 수행 방안, 차별화 포인트 등을 자세히 작성해주세요.
+                비즈니스 모델, 시장 진입 전략, 성장 방안 등 멘토링 제안 내용을 자세히 작성해주세요.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea
-                placeholder="안녕하세요. 저는 10년차 React 전문가로서...
+                placeholder="안녕하세요. 저는 스타트업 창업 및 성장 경험이 풍부한 멘토로서...
 
-이 프로젝트에 대한 제 이해는 다음과 같습니다:
-- 
+이 스타트업에 대한 제 이해는 다음과 같습니다:
+- 비즈니스 모델 및 핵심 가치 제안
+- 타겟 시장 및 고객 페르소나
+- 현재 단계 및 주요 과제
 
-제가 제공할 수 있는 가치:
-- 
+제가 제공할 수 있는 멘토링 가치:
+- 비즈니스 모델 검증 및 개선 방안
+- 시장 진입 전략 및 고객 확보 방법
+- 팀 구성 및 조직 운영 조언
+- 자금 조달 및 투자 유치 전략
 
-수행 계획:
-1. 
-2. 
-3. 
+멘토링 계획:
+1. 정기 멘토링 세션 (주 1회, 2시간)
+2. 비즈니스 모델 검증 워크샵
+3. 시장 진입 전략 수립 및 실행 지원
 
 기대 결과물:
-- "
+- 검증된 비즈니스 모델 및 실행 계획
+- 명확한 시장 진입 로드맵
+- 성장을 위한 핵심 지표 및 KPI 설정"
                 value={formData.proposal_text}
                 onChange={(e) => handleChange('proposal_text', e.target.value)}
                 required
@@ -450,24 +456,28 @@ export default function ProposePage() {
             <CardHeader>
               <CardTitle>프로젝트 세부사항</CardTitle>
               <CardDescription>
-                예상 금액, 일정 등을 입력해주세요.
+                일정 등을 입력해주세요. 금액은 기관에서 설정한 금액으로 진행됩니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label htmlFor="estimated_budget" className="block text-sm font-medium text-gray-700 mb-1">
-                    제안 금액 (원)
-                  </label>
-                  <Input
-                    id="estimated_budget"
-                    type="number"
-                    value={formData.estimated_budget}
-                    onChange={(e) => handleChange('estimated_budget', e.target.value)}
-                    placeholder="3000000"
-                  />
+              {campaign && (campaign.budget_min || campaign.budget_max) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-blue-800">
+                    <DollarSign className="h-4 w-4" />
+                    <span className="font-medium">예산 범위:</span>
+                    <span>
+                      {campaign.budget_min && campaign.budget_max
+                        ? `₩${campaign.budget_min.toLocaleString()} ~ ₩${campaign.budget_max.toLocaleString()}`
+                        : campaign.budget_min
+                        ? `₩${campaign.budget_min.toLocaleString()} 이상`
+                        : campaign.budget_max
+                        ? `₩${campaign.budget_max.toLocaleString()} 이하`
+                        : ''}
+                    </span>
+                  </div>
                 </div>
-
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700 mb-1">
                     시작 가능일

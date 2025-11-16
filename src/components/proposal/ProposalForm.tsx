@@ -32,7 +32,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
   
   const { save, restore, clear, state: autoSaveState } = useAutoSave<{
     proposal_text: string
-    estimated_budget: string
     estimated_start_date: string
     estimated_end_date: string
     portfolio_links: string[]
@@ -68,20 +67,11 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
   } = useFormValidation(
     {
       proposal_text: '',
-      estimated_budget: '',
       estimated_start_date: '',
       estimated_end_date: '',
     },
     {
       proposal_text: { required: true, minLength: 50 },
-      estimated_budget: { 
-        custom: async (value) => {
-          if (value && (isNaN(Number(value)) || Number(value) < 0)) {
-            return '올바른 금액을 입력해주세요.'
-          }
-          return null
-        }
-      },
       estimated_start_date: {
         custom: async (value, allValues) => {
           if (value && allValues.estimated_end_date) {
@@ -112,13 +102,12 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
 
   // 폼 데이터 변경 시 자동 저장
   useEffect(() => {
-    if (!formData.proposal_text && !formData.estimated_budget && !formData.estimated_start_date) {
+    if (!formData.proposal_text && !formData.estimated_start_date) {
       return // 빈 폼은 저장 안 함
     }
 
     save({
       proposal_text: formData.proposal_text,
-      estimated_budget: formData.estimated_budget,
       estimated_start_date: formData.estimated_start_date,
       estimated_end_date: formData.estimated_end_date,
       portfolio_links: portfolioLinks,
@@ -130,7 +119,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
     const restoredData = restore()
     if (restoredData) {
       setValue('proposal_text', restoredData.proposal_text || '')
-      setValue('estimated_budget', restoredData.estimated_budget || '')
       setValue('estimated_start_date', restoredData.estimated_start_date || '')
       setValue('estimated_end_date', restoredData.estimated_end_date || '')
       setPortfolioLinks(restoredData.portfolio_links || [])
@@ -162,11 +150,11 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
       const proposalData = {
         campaign_id: campaignId,
         expert_id: expertId,
-        proposal_text: formData.proposal_text,
-        estimated_budget: formData.estimated_budget ? parseInt(formData.estimated_budget) : null,
-        estimated_start_date: formData.estimated_start_date || null,
-        estimated_end_date: formData.estimated_end_date || null,
-        portfolio_links: portfolioLinks,
+      proposal_text: formData.proposal_text,
+      estimated_budget: null, // 기관에서 설정한 금액 사용
+      estimated_start_date: formData.estimated_start_date || null,
+      estimated_end_date: formData.estimated_end_date || null,
+      portfolio_links: portfolioLinks,
       }
 
       const { error } = await supabase
@@ -252,7 +240,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
               제안 내용 <span className="text-red-500">*</span>
             </Label>
             <p className="mt-1 text-sm text-gray-500">
-              프로젝트에 대한 이해도, 수행 방안, 차별화 포인트 등을 자세히 작성해주세요. (최소 50자)
+              비즈니스 모델, 시장 진입 전략, 성장 방안 등 멘토링 제안 내용을 자세히 작성해주세요. (최소 50자)
             </p>
             <Textarea
               id="proposal_text"
@@ -262,7 +250,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
               onBlur={() => handleBlur('proposal_text')}
               required
               className={`mt-2 min-h-[44px] text-base ${touched.proposal_text && errors.proposal_text ? 'border-red-500' : ''}`}
-              placeholder="안녕하세요. 저는 10년차 React 전문가로서..."
+              placeholder="안녕하세요. 저는 스타트업 창업 및 성장 경험이 풍부한 멘토로서..."
               aria-invalid={touched.proposal_text && !!errors.proposal_text}
               aria-describedby={touched.proposal_text && errors.proposal_text ? 'proposal_text-error' : 'proposal_text-help'}
             />
@@ -282,28 +270,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="estimated_budget" className="block text-sm font-medium text-gray-700">
-                제안 금액 (원)
-              </Label>
-              <Input
-                type="number"
-                id="estimated_budget"
-                value={formData.estimated_budget}
-                onChange={(e) => handleChange('estimated_budget', e.target.value)}
-                onBlur={() => handleBlur('estimated_budget')}
-                className={`mt-1 h-12 text-base ${touched.estimated_budget && errors.estimated_budget ? 'border-red-500' : ''}`}
-                placeholder="3000000"
-                aria-invalid={touched.estimated_budget && !!errors.estimated_budget}
-                aria-describedby={touched.estimated_budget && errors.estimated_budget ? 'estimated_budget-error' : undefined}
-              />
-              {touched.estimated_budget && errors.estimated_budget && (
-                <p id="estimated_budget-error" className="text-sm text-red-600 mt-1" role="alert">
-                  {errors.estimated_budget}
-                </p>
-              )}
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700">
