@@ -186,35 +186,48 @@ export default function AdminLogin() {
         console.warn('⚠️ Exception logging admin login action:', logError)
       }
       
-      // 세션을 확실히 설정하기 위해 잠시 대기
-      console.log('⏳ Waiting for session to be set...')
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      // 세션 토큰 가져오기
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      // 세션 확인 (여러 번 시도)
-      let session = null
-      let sessionAttempts = 0
-      const maxAttempts = 3
-      
-      while (sessionAttempts < maxAttempts && !session) {
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
-        if (sessionError) {
-          console.error(`❌ Session error (attempt ${sessionAttempts + 1}):`, sessionError)
-        }
-        if (currentSession) {
-          session = currentSession
-          console.log('✅ Session confirmed:', session.user.id)
-          break
-        }
-        sessionAttempts++
-        if (sessionAttempts < maxAttempts) {
-          console.log(`⏳ Session not found, retrying... (${sessionAttempts}/${maxAttempts})`)
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
+      if (sessionError || !session) {
+        console.error('❌ Failed to get session:', sessionError)
+        setError('세션을 가져올 수 없습니다. 다시 시도해주세요.')
+        setLoading(false)
+        return
       }
       
-      if (!session) {
-        console.warn('⚠️ Session not found after multiple attempts, but proceeding with redirect (cookies may be set)')
+      console.log('🔑 Got session tokens, setting cookies on server...')
+      
+      // 서버 사이드 API를 통해 쿠키에 세션 설정
+      try {
+        const setSessionResponse = await fetch('/api/auth/set-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        })
+        
+        if (!setSessionResponse.ok) {
+          const errorData = await setSessionResponse.json().catch(() => ({}))
+          console.error('❌ Failed to set session on server:', errorData)
+          // 쿠키 설정 실패해도 리다이렉트 시도 (localStorage 세션 사용)
+          console.warn('⚠️ Proceeding with redirect despite cookie setup failure')
+        } else {
+          console.log('✅ Session cookies set on server')
+        }
+      } catch (setSessionErr) {
+        console.error('❌ Exception setting session on server:', setSessionErr)
+        // 에러가 발생해도 리다이렉트 시도
+        console.warn('⚠️ Proceeding with redirect despite exception')
       }
+      
+      // 쿠키가 설정되도록 잠시 대기
+      console.log('⏳ Waiting for cookies to be set...')
+      await new Promise(resolve => setTimeout(resolve, 500))
       
       // 리다이렉트 (전체 페이지 리로드로 쿠키 확실히 반영)
       console.log('🔄 Redirecting to /admin')
