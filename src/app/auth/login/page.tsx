@@ -55,17 +55,25 @@ function LoginForm() {
     setLoading(true)
 
     try {
-      // 환경 변수 확인
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        throw new Error('서버 설정 오류: Supabase 환경 변수가 설정되지 않았습니다.')
-      }
-
       // 입력값 검증
       if (!email || !email.trim()) {
-        throw new Error('이메일을 입력해주세요.')
+        setError('이메일을 입력해주세요.')
+        setLoading(false)
+        return
       }
       if (!password || !password.trim()) {
-        throw new Error('비밀번호를 입력해주세요.')
+        setError('비밀번호를 입력해주세요.')
+        setLoading(false)
+        return
+      }
+
+      // Supabase 클라이언트 확인
+      if (!browserSupabase) {
+        throw new Error('인증 서비스를 초기화할 수 없습니다. 페이지를 새로고침해주세요.')
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Attempting login for:', email.trim())
       }
 
       const { data, error: signInError } = await browserSupabase.auth.signInWithPassword({
@@ -77,12 +85,22 @@ function LoginForm() {
         // 더 자세한 에러 정보 로깅
         if (process.env.NODE_ENV === 'development') {
           console.error('Sign in error:', signInError)
+          console.error('Error code:', signInError.status)
+          console.error('Error message:', signInError.message)
         }
         throw signInError
       }
 
       if (!data?.user) {
-        throw new Error('로그인 정보를 확인할 수 없습니다.')
+        const errorMsg = '로그인 정보를 확인할 수 없습니다.'
+        if (process.env.NODE_ENV === 'development') {
+          console.error('No user data returned from signIn:', data)
+        }
+        throw new Error(errorMsg)
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Login successful, user ID:', data.user.id)
       }
 
       const metadataRole = data.user.user_metadata?.role as UserRole | undefined
@@ -98,9 +116,15 @@ function LoginForm() {
         throw userResult.error
       }
 
-      let resolvedRole = (userResult.data?.role as UserRole | undefined) ?? metadataRole
+      let resolvedRole: UserRole | undefined = undefined
+      if (userResult.data) {
+        const userData = userResult.data as { role?: UserRole }
+        resolvedRole = userData.role
+      }
+      resolvedRole = resolvedRole ?? metadataRole
 
-      if (!userResult.data?.role) {
+      const userData = userResult.data as { role?: UserRole } | null
+      if (!userData || !userData.role) {
         const fallbackRole: UserRole = resolvedRole ?? 'organization'
         
         // Ensure we have valid data before upserting
@@ -148,24 +172,24 @@ function LoginForm() {
         // Process backfill response if available
         if (backfillResponse) {
           let backfillResult: unknown = null
-          
-          if (!backfillResponse.ok) {
-            try {
+
+        if (!backfillResponse.ok) {
+          try {
               backfillResult = await backfillResponse.json()
-            } catch (parseError) {
-              if (process.env.NODE_ENV === 'development') {
+          } catch (parseError) {
+            if (process.env.NODE_ENV === 'development') {
                 console.warn('Failed to parse backfill error response:', parseError)
               }
-            }
+          }
 
-            const payloadObject =
+          const payloadObject =
               typeof backfillResult === 'object' && backfillResult !== null
                 ? (backfillResult as Record<string, unknown>)
-                : null
-            const serverMessage =
-              payloadObject && typeof payloadObject.error === 'string'
-                ? payloadObject.error
-                : null
+              : null
+          const serverMessage =
+            payloadObject && typeof payloadObject.error === 'string'
+              ? payloadObject.error
+              : null
 
             // 404, 503, and other non-critical errors are acceptable
             // User can still proceed with metadata role
@@ -201,9 +225,9 @@ function LoginForm() {
                     resolvedRole = syncedRole
                   }
                 }
-              }
-            } catch (parseError) {
-              if (process.env.NODE_ENV === 'development') {
+          }
+        } catch (parseError) {
+          if (process.env.NODE_ENV === 'development') {
                 console.warn('Failed to parse backfill success response:', parseError)
               }
             }
@@ -238,35 +262,38 @@ function LoginForm() {
       }> = []
 
       if (expertProfileResult.data) {
+        const expertData = expertProfileResult.data as { name?: string; is_profile_complete?: boolean }
         availableRoles.push({
           role: 'expert',
-          name: expertProfileResult.data.name || '전문가',
+          name: expertData.name || '전문가',
           hasProfile: true,
-          isProfileComplete: expertProfileResult.data.is_profile_complete ?? false,
+          isProfileComplete: expertData.is_profile_complete ?? false,
         })
       }
 
       if (orgProfileResult.data) {
+        const orgData = orgProfileResult.data as { organization_name?: string; is_profile_complete?: boolean }
         availableRoles.push({
           role: 'organization',
-          name: orgProfileResult.data.organization_name || '기관',
+          name: orgData.organization_name || '기관',
           hasProfile: true,
-          isProfileComplete: orgProfileResult.data.is_profile_complete ?? false,
+          isProfileComplete: orgData.is_profile_complete ?? false,
         })
       }
 
       // users 테이블의 역할도 확인 (프로필이 없을 경우 fallback)
-      if (userResult.data?.role) {
-        const roleExists = availableRoles.some((r) => r.role === userResult.data.role)
+      if (userData && userData.role) {
+        const userRole = userData.role
+        const roleExists = availableRoles.some((r) => r.role === userRole)
         if (!roleExists) {
-          if (userResult.data.role === 'expert') {
+          if (userRole === 'expert') {
             availableRoles.push({
               role: 'expert',
               name: '전문가',
               hasProfile: false,
               isProfileComplete: false,
             })
-          } else if (userResult.data.role === 'organization') {
+          } else if (userRole === 'organization') {
             availableRoles.push({
               role: 'organization',
               name: '기관',
@@ -280,20 +307,48 @@ function LoginForm() {
       // 프로필이 없으면 기본 역할 사용
       if (availableRoles.length === 0) {
         if (!resolvedRole) {
-          throw new Error('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
+          if (process.env.NODE_ENV === 'development') {
+            console.error('No role found:', { resolvedRole, metadataRole, userResult: userResult.data })
+          }
+          setError('사용자 역할 정보를 확인할 수 없습니다. 관리자에게 문의해주세요.')
+          setLoading(false)
+          return
         }
         const role = resolvedRole as 'expert' | 'organization'
-        await handleRoleLogin(role, data.user.id)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('No profiles found, using resolved role:', role)
+        }
+        // handleRoleLogin은 비동기이지만 await하지 않음 (리다이렉트가 진행되므로)
+        handleRoleLogin(role, data.user.id).catch((err) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('handleRoleLogin error:', err)
+          }
+          setError('로그인 처리 중 오류가 발생했습니다.')
+          setLoading(false)
+        })
         return
       }
 
       // 프로필이 하나면 바로 로그인
       if (availableRoles.length === 1) {
-        await handleRoleLogin(availableRoles[0].role, data.user.id)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Single profile found, auto-login:', availableRoles[0])
+        }
+        // handleRoleLogin은 비동기이지만 await하지 않음 (리다이렉트가 진행되므로)
+        handleRoleLogin(availableRoles[0].role, data.user.id).catch((err) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('handleRoleLogin error:', err)
+          }
+          setError('로그인 처리 중 오류가 발생했습니다.')
+          setLoading(false)
+        })
         return
       }
 
       // 프로필이 여러 개면 역할 선택 UI 표시
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Multiple roles available:', availableRoles)
+      }
       setAvailableRoles(availableRoles)
       setShowRoleSelection(true)
       setLoading(false)
@@ -347,27 +402,58 @@ function LoginForm() {
     setLoading(true)
 
     try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('handleRoleLogin called:', { role, userId })
+      }
+
       // 선택한 역할을 세션 스토리지에 저장 (다른 탭과 공유되지 않음)
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('current_role', role)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Role saved to sessionStorage:', role)
+        }
       }
 
       // 역할에 따라 프로필 확인
       let profileComplete = true
-      if (role === 'expert') {
-        const { data: expertProfile } = await browserSupabase
-          .from('expert_profiles')
-          .select('is_profile_complete')
-          .eq('user_id', userId)
-          .maybeSingle()
-        profileComplete = expertProfile?.is_profile_complete ?? false
-      } else if (role === 'organization') {
-        const { data: orgProfile } = await browserSupabase
-          .from('organization_profiles')
-          .select('is_profile_complete')
-          .eq('user_id', userId)
-          .maybeSingle()
-        profileComplete = orgProfile?.is_profile_complete ?? false
+      try {
+        if (role === 'expert') {
+          const { data: expertProfile, error: expertError } = await browserSupabase
+            .from('expert_profiles')
+            .select('is_profile_complete')
+            .eq('user_id', userId)
+            .maybeSingle()
+          
+          if (expertError && expertError.code !== 'PGRST116') {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('Error fetching expert profile:', expertError)
+            }
+          }
+          profileComplete = expertProfile
+            ? ((expertProfile as { is_profile_complete?: boolean }).is_profile_complete ?? false)
+            : false
+        } else if (role === 'organization') {
+          const { data: orgProfile, error: orgError } = await browserSupabase
+            .from('organization_profiles')
+            .select('is_profile_complete')
+            .eq('user_id', userId)
+            .maybeSingle()
+          
+          if (orgError && orgError.code !== 'PGRST116') {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('Error fetching org profile:', orgError)
+            }
+          }
+          profileComplete = orgProfile
+            ? ((orgProfile as { is_profile_complete?: boolean }).is_profile_complete ?? false)
+            : false
+        }
+      } catch (profileError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Profile check error (non-blocking):', profileError)
+        }
+        // 프로필 확인 실패해도 계속 진행
+        profileComplete = false
       }
 
       // 리다이렉트 경로 결정
@@ -378,12 +464,27 @@ function LoginForm() {
         redirectPath = '/profile/organization/complete'
       }
       
-      // prefetch로 페이지 미리 로드
-      router.prefetch(redirectPath)
-      router.push(redirectPath)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Redirecting to:', redirectPath)
+      }
+      
+      // 리다이렉트 실행 - window.location.href를 사용하여 확실한 리다이렉트
+      // router.push()는 때때로 완료되지 않을 수 있으므로 브라우저 네이티브 리다이렉트 사용
+      if (typeof window !== 'undefined') {
+        // 리다이렉트 직전에 로딩 상태는 유지 (페이지가 변경되므로 자동으로 해제됨)
+        window.location.href = redirectPath
+        // window.location.href는 동기적으로 작동하므로 이후 코드는 실행되지 않음
+        return
+      } else {
+        // 서버 사이드에서는 router.push 사용
+        await router.push(redirectPath)
+        setIsRedirecting(false)
+        setLoading(false)
+      }
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Role login error:', err)
+        console.error('Error stack:', err instanceof Error ? err.stack : 'No stack')
       }
       toast.error('로그인 처리 중 오류가 발생했습니다.')
       setIsRedirecting(false)
