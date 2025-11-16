@@ -20,11 +20,15 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // /admin/login 페이지는 인증 체크를 건너뛰기
+  // Next.js App Router에서는 pathname을 직접 가져올 수 없으므로
+  // children의 타입을 확인하거나, 클라이언트 컴포넌트로 위임
+  // 대신 middleware에서 이미 처리했으므로, 여기서는 간단히 체크
   const headersList = headers();
-  const pathname = headersList.get('x-pathname') || headersList.get('referer') || '';
+  const pathnameHeader = headersList.get('x-pathname') || '';
   
-  // pathname에서 /admin/login 확인
-  if (pathname.includes('/admin/login')) {
+  // pathname에서 /admin/login 확인 (정확히 일치)
+  if (pathnameHeader === '/admin/login') {
+    // 로그인 페이지는 레이아웃 없이 렌더링
     return <>{children}</>;
   }
 
