@@ -115,21 +115,48 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
     }
 
     try {
+      const trimmedText = formData.proposal_text.trim()
       const proposalData = {
         campaign_id: campaignId,
         expert_id: expertId,
-        proposal_text: formData.proposal_text,
+        proposal_text: trimmedText,
+        cover_letter: trimmedText, // 백워드 호환성: cover_letter에도 같은 값 설정
         estimated_budget: null, // 기관에서 설정한 금액 사용
         estimated_start_date: null, // 기관에서 설정한 일정 사용
         estimated_end_date: null, // 기관에서 설정한 일정 사용
-        portfolio_links: portfolioLinks,
+        portfolio_links: Array.isArray(portfolioLinks) && portfolioLinks.length > 0 
+          ? portfolioLinks 
+          : [], // 빈 배열로 명시적으로 설정
       }
 
-      const { error } = await supabase
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Submitting proposal with data:', proposalData)
+      }
+
+      const { data: insertedData, error } = await supabase
         .from('proposals')
         .insert(proposalData as any)
+        .select()
 
-      if (error) throw error
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Proposal insert error:', error)
+          console.error('Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+          console.error('Proposal data:', JSON.stringify(proposalData, null, 2))
+          console.error('Expert ID:', expertId)
+          console.error('Campaign ID:', campaignId)
+        }
+        throw error
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Proposal inserted successfully:', insertedData)
+      }
 
       // 성공 시 임시 저장 데이터 삭제
       clear()

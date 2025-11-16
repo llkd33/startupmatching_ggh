@@ -22,8 +22,14 @@ export default function Header() {
   }, [])
 
   const handleLogout = async () => {
-    await signOut()
-    router.push('/')
+    try {
+      await signOut()
+      // signOut 함수 내부에서 이미 리다이렉트 처리됨
+    } catch (error) {
+      console.error('Logout error:', error)
+      // 에러가 발생해도 홈으로 이동
+      window.location.href = '/'
+    }
   }
 
   return (

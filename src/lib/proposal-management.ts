@@ -81,13 +81,20 @@ export async function acceptProposalAndRejectOthers(
     }
 
     // 6. 선정/탈락 이메일 발송 (비동기, 백그라운드)
-    sendSelectionResultEmails(
-      campaignId,
-      selectedProposal.expert_id,
-      rejectedProposalIds
-    ).catch((error) => {
+    // await를 사용하여 이메일 발송이 완료될 때까지 대기
+    try {
+      await sendSelectionResultEmails(
+        campaignId,
+        selectedProposal.expert_id,
+        rejectedProposalIds
+      )
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Selection result emails sent successfully')
+      }
+    } catch (error) {
       console.error('Error sending selection emails:', error)
-    })
+      // 이메일 발송 실패해도 제안서 승인은 성공으로 처리
+    }
 
     return { success: true }
   } catch (error: any) {

@@ -253,9 +253,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      await browserSupabase.auth.signOut()
+      // 세션 스토리지 정리
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('current_role')
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Clearing session storage')
+        }
+      }
+
+      // Supabase 로그아웃
+      const { error } = await browserSupabase.auth.signOut()
+      
+      if (error) {
+        handleSupabaseError(error as Error, true, { context: 'sign_out' })
+        throw error
+      }
+
+      // 상태 초기화
+      setUser(null)
+      setSession(null)
+      setRole(null)
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Sign out successful')
+      }
+
+      // 페이지 리다이렉트 (클라이언트 사이드에서만)
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
     } catch (error) {
       handleSupabaseError(error as Error, true, { context: 'sign_out' })
+      // 에러가 발생해도 강제 리다이렉트
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
     }
   }
 

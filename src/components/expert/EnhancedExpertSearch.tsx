@@ -117,7 +117,7 @@ export default function EnhancedExpertSearch({
       let query = supabase
         .from('expert_search_view')
         .select('*')
-        .gte('profile_completeness', 30)
+        // profile_completeness 필터 제거 - 전체 전문가 표시
 
       // Apply server-side filters for better performance
       if (searchFilters.location) {

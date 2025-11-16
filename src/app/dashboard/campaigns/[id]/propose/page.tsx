@@ -137,14 +137,43 @@ export default function ProposePage() {
     setExpertProfile(expertData)
 
     // Check if already submitted proposal
-    const { data: existingProposal } = await supabase
-      .from('proposals')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('expert_id', expertData.id)
-      .single()
+    // RLS 정책 문제로 인해 406 에러가 발생할 수 있으므로, 에러를 무시하고 계속 진행
+    let existingProposal = null
+    try {
+      const { data, error: proposalCheckError } = await supabase
+        .from('proposals')
+        .select('id')
+        .eq('campaign_id', campaignId)
+        .eq('expert_id', expertData.id)
+        .maybeSingle()
 
-    if (existingProposal) {
+      if (proposalCheckError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to check existing proposal:', proposalCheckError)
+          console.warn('Error code:', proposalCheckError.code)
+          // PGRST116은 "no rows found" - 정상적인 경우
+          // 406은 RLS 정책 문제일 수 있지만, 제안서가 없을 수도 있음
+          if (proposalCheckError.code === 'PGRST116') {
+            console.log('No existing proposal found (PGRST116) - proceeding')
+          } else if (proposalCheckError.code === 'PGRST301' || proposalCheckError.message?.includes('406')) {
+            console.warn('RLS policy issue detected (406). Will attempt to insert anyway.')
+            console.warn('Please apply migration 022_fix_proposals_insert_rls.sql if this persists.')
+          }
+        }
+        // 에러가 발생해도 계속 진행 (제안서가 없을 수도 있고, INSERT는 작동할 수 있음)
+        existingProposal = null
+      } else {
+        existingProposal = data
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Exception while checking existing proposal:', err)
+      }
+      // 예외가 발생해도 계속 진행
+      existingProposal = null
+    }
+
+    if (existingProposal?.id) {
       router.push(`/dashboard/proposals/${existingProposal.id}`)
       return
     }
@@ -188,25 +217,91 @@ export default function ProposePage() {
     e.preventDefault()
     if (!campaign || !expertProfile || submitting) return
 
+    // 입력값 검증
+    if (!formData.proposal_text || formData.proposal_text.trim().length < 50) {
+      setError('제안 내용을 최소 50자 이상 입력해주세요.')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
 
     try {
-      const proposalData = {
+      // 데이터 준비 및 검증
+      const trimmedText = formData.proposal_text.trim()
+      const portfolioLinksArray = Array.isArray(formData.portfolio_links) 
+        ? formData.portfolio_links.filter(link => link && typeof link === 'string' && link.trim().length > 0)
+        : []
+
+      const proposalData: {
+        campaign_id: string
+        expert_id: string
+        proposal_text: string
+        cover_letter?: string | null // 백워드 호환성을 위해 포함 (deprecated)
+        estimated_budget: null
+        estimated_start_date: null
+        estimated_end_date: null
+        portfolio_links: string[]
+      } = {
         campaign_id: campaign.id,
         expert_id: expertProfile.id,
-        proposal_text: formData.proposal_text,
+        proposal_text: trimmedText,
+        cover_letter: trimmedText, // 백워드 호환성: cover_letter에도 같은 값 설정
         estimated_budget: null, // 기관에서 설정한 금액 사용
         estimated_start_date: null, // 기관에서 설정한 일정 사용
         estimated_end_date: null, // 기관에서 설정한 일정 사용
-        portfolio_links: formData.portfolio_links,
+        portfolio_links: portfolioLinksArray, // 빈 배열로 명시적으로 설정
       }
 
-      const { error } = await supabase
+      // 필수 필드 검증
+      if (!proposalData.campaign_id || !proposalData.expert_id || !proposalData.proposal_text) {
+        throw new Error('필수 정보가 누락되었습니다.')
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Submitting proposal with data:', proposalData)
+        console.log('Campaign ID:', campaign.id)
+        console.log('Expert ID:', expertProfile.id)
+        console.log('Expert Profile:', expertProfile)
+      }
+
+      const { data: insertedData, error } = await supabase
         .from('proposals')
         .insert(proposalData)
+        .select()
 
-      if (error) throw error
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Proposal insert error:', error)
+          console.error('Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+          console.error('Proposal data:', JSON.stringify(proposalData, null, 2))
+          console.error('Expert profile:', expertProfile)
+          console.error('Campaign:', campaign)
+        }
+
+        // 사용자 친화적인 에러 메시지
+        let errorMessage = '제안서 제출 중 오류가 발생했습니다.'
+        if (error.code === '23505') {
+          errorMessage = '이미 제출한 제안서가 있습니다.'
+        } else if (error.code === '23503') {
+          errorMessage = '캠페인 또는 전문가 정보를 찾을 수 없습니다.'
+        } else if (error.message) {
+          errorMessage = error.message
+        }
+
+        setError(errorMessage)
+        toast.error(errorMessage)
+        return
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Proposal inserted successfully:', insertedData)
+      }
 
       // 성공 시 임시 저장 데이터 삭제
       clear()
@@ -214,7 +309,13 @@ export default function ProposePage() {
 
       router.push('/dashboard/proposals')
     } catch (err: any) {
-      setError(err.message || '제안서 제출 중 오류가 발생했습니다.')
+      const errorMessage = err.message || '제안서 제출 중 오류가 발생했습니다.'
+      setError(errorMessage)
+      toast.error(errorMessage)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Unexpected error:', err)
+      }
     } finally {
       setSubmitting(false)
     }

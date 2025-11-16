@@ -148,10 +148,10 @@ export default function ExpertSearchPage() {
       const { data, error } = await supabase
         .from('expert_search_view')
         .select('*')
-        .gte('profile_completeness', 30) // Lower threshold for more results
+        // profile_completeness 필터 제거 - 전체 전문가 표시
         .order('rating_average', { ascending: false })
         .order('total_reviews', { ascending: false })
-        .limit(100) // Add pagination limit
+        .limit(200) // 더 많은 결과 표시
 
       if (error) throw error
 
