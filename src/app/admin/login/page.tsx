@@ -29,18 +29,25 @@ export default function AdminLogin() {
       
       if (authError) throw authError
       
-      // Check if user is admin
+      // Check if user is admin (is_admin = true OR role = 'admin')
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('is_admin')
+        .select('is_admin, role')
         .eq('id', authData.user?.id)
         .single()
       
-      if (userError) throw userError
+      if (userError) {
+        // users 테이블에 레코드가 없을 수 있음
+        console.error('User data error:', userError)
+        throw new Error('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인을 시도해주세요.')
+      }
       
-      if (!userData?.is_admin) {
+      // is_admin = true 또는 role = 'admin' 확인
+      const isAdmin = userData?.is_admin === true || userData?.role === 'admin'
+      
+      if (!isAdmin) {
         await supabase.auth.signOut()
-        throw new Error('관리자 권한이 없습니다')
+        throw new Error('관리자 권한이 없습니다. 관리자 계정으로 로그인해주세요.')
       }
       
       // Log admin action
