@@ -32,8 +32,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
   
   const { save, restore, clear, state: autoSaveState } = useAutoSave<{
     proposal_text: string
-    estimated_start_date: string
-    estimated_end_date: string
     portfolio_links: string[]
   }>({
     key: autoSaveKey,
@@ -67,49 +65,21 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
   } = useFormValidation(
     {
       proposal_text: '',
-      estimated_start_date: '',
-      estimated_end_date: '',
     },
     {
       proposal_text: { required: true, minLength: 50 },
-      estimated_start_date: {
-        custom: async (value, allValues) => {
-          if (value && allValues.estimated_end_date) {
-            const startDate = new Date(value)
-            const endDate = new Date(allValues.estimated_end_date)
-            if (startDate > endDate) {
-              return '시작일은 완료일보다 이전이어야 합니다.'
-            }
-          }
-          return null
-        }
-      },
-      estimated_end_date: {
-        custom: async (value, allValues) => {
-          if (value && allValues.estimated_start_date) {
-            const startDate = new Date(allValues.estimated_start_date)
-            const endDate = new Date(value)
-            if (endDate < startDate) {
-              return '완료일은 시작일보다 이후여야 합니다.'
-            }
-          }
-          return null
-        }
-      },
     },
     { mode: 'onBlur', reValidateMode: 'onChange' }
   )
 
   // 폼 데이터 변경 시 자동 저장
   useEffect(() => {
-    if (!formData.proposal_text && !formData.estimated_start_date) {
+    if (!formData.proposal_text) {
       return // 빈 폼은 저장 안 함
     }
 
     save({
       proposal_text: formData.proposal_text,
-      estimated_start_date: formData.estimated_start_date,
-      estimated_end_date: formData.estimated_end_date,
       portfolio_links: portfolioLinks,
     })
   }, [formData, portfolioLinks, save])
@@ -119,8 +89,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
     const restoredData = restore()
     if (restoredData) {
       setValue('proposal_text', restoredData.proposal_text || '')
-      setValue('estimated_start_date', restoredData.estimated_start_date || '')
-      setValue('estimated_end_date', restoredData.estimated_end_date || '')
       setPortfolioLinks(restoredData.portfolio_links || [])
       toast.success('임시 저장된 데이터를 불러왔습니다')
       setShowDraftPrompt(false)
@@ -150,11 +118,11 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
       const proposalData = {
         campaign_id: campaignId,
         expert_id: expertId,
-      proposal_text: formData.proposal_text,
-      estimated_budget: null, // 기관에서 설정한 금액 사용
-      estimated_start_date: formData.estimated_start_date || null,
-      estimated_end_date: formData.estimated_end_date || null,
-      portfolio_links: portfolioLinks,
+        proposal_text: formData.proposal_text,
+        estimated_budget: null, // 기관에서 설정한 금액 사용
+        estimated_start_date: null, // 기관에서 설정한 일정 사용
+        estimated_end_date: null, // 기관에서 설정한 일정 사용
+        portfolio_links: portfolioLinks,
       }
 
       const { error } = await supabase
@@ -269,54 +237,41 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700">
-                  시작 가능일
-                </Label>
-                <Input
-                  type="date"
-                  id="estimated_start_date"
-                  value={formData.estimated_start_date}
-                  onChange={(e) => handleChange('estimated_start_date', e.target.value)}
-                  onBlur={() => handleBlur('estimated_start_date')}
-                  className={`mt-1 h-12 text-base ${touched.estimated_start_date && errors.estimated_start_date ? 'border-red-500' : ''}`}
-                  aria-invalid={touched.estimated_start_date && !!errors.estimated_start_date}
-                  aria-describedby={touched.estimated_start_date && errors.estimated_start_date ? 'estimated_start_date-error' : undefined}
-                />
-                {touched.estimated_start_date && errors.estimated_start_date && (
-                  <p id="estimated_start_date-error" className="text-sm text-red-600 mt-1" role="alert">
-                    {errors.estimated_start_date}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="estimated_end_date" className="block text-sm font-medium text-gray-700">
-                  완료 예정일
-                </Label>
-                <Input
-                  type="date"
-                  id="estimated_end_date"
-                  value={formData.estimated_end_date}
-                  onChange={(e) => handleChange('estimated_end_date', e.target.value)}
-                  onBlur={() => handleBlur('estimated_end_date')}
-                  className={`mt-1 h-12 text-base ${touched.estimated_end_date && errors.estimated_end_date ? 'border-red-500' : formData.estimated_end_date && formData.estimated_start_date && new Date(formData.estimated_end_date) >= new Date(formData.estimated_start_date) ? 'border-green-500' : ''}`}
-                  aria-invalid={touched.estimated_end_date && !!errors.estimated_end_date}
-                  aria-describedby={touched.estimated_end_date && errors.estimated_end_date ? 'estimated_end_date-error' : undefined}
-                />
-                {touched.estimated_end_date && errors.estimated_end_date && (
-                  <p id="estimated_end_date-error" className="text-sm text-red-600 mt-1" role="alert">
-                    {errors.estimated_end_date}
-                  </p>
-                )}
-                {formData.estimated_end_date && formData.estimated_start_date && new Date(formData.estimated_end_date) >= new Date(formData.estimated_start_date) && !errors.estimated_end_date && (
-                  <p className="text-sm text-green-600 mt-1">✓ 날짜 범위가 올바릅니다</p>
-                )}
-              </div>
+          {campaignData && (campaignData.budget_min || campaignData.budget_max || campaignData.start_date || campaignData.end_date) && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-medium text-gray-900">프로젝트 정보</h3>
+              {campaignData.budget_min || campaignData.budget_max ? (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">예산 범위:</span>
+                  <span>
+                    {campaignData.budget_min && campaignData.budget_max
+                      ? `₩${campaignData.budget_min.toLocaleString()} ~ ₩${campaignData.budget_max.toLocaleString()}`
+                      : campaignData.budget_min
+                      ? `₩${campaignData.budget_min.toLocaleString()} 이상`
+                      : campaignData.budget_max
+                      ? `₩${campaignData.budget_max.toLocaleString()} 이하`
+                      : ''}
+                  </span>
+                </div>
+              ) : null}
+              {campaignData.start_date || campaignData.end_date ? (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <CalendarIcon className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">프로젝트 일정:</span>
+                  <span>
+                    {campaignData.start_date && campaignData.end_date
+                      ? `${new Date(campaignData.start_date).toLocaleDateString('ko-KR')} ~ ${new Date(campaignData.end_date).toLocaleDateString('ko-KR')}`
+                      : campaignData.start_date
+                      ? `${new Date(campaignData.start_date).toLocaleDateString('ko-KR')}부터`
+                      : campaignData.end_date
+                      ? `${new Date(campaignData.end_date).toLocaleDateString('ko-KR')}까지`
+                      : ''}
+                  </span>
+                </div>
+              ) : null}
             </div>
-          </div>
+          )}
 
           <div>
             <Label className="block text-sm font-medium text-gray-700">

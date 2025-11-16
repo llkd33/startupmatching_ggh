@@ -59,8 +59,6 @@ export default function ProposePage() {
 
   const [formData, setFormData] = useState({
     proposal_text: '',
-    estimated_start_date: '',
-    estimated_end_date: '',
     portfolio_links: [] as string[],
   })
 
@@ -199,8 +197,8 @@ export default function ProposePage() {
         expert_id: expertProfile.id,
         proposal_text: formData.proposal_text,
         estimated_budget: null, // 기관에서 설정한 금액 사용
-        estimated_start_date: formData.estimated_start_date || null,
-        estimated_end_date: formData.estimated_end_date || null,
+        estimated_start_date: null, // 기관에서 설정한 일정 사용
+        estimated_end_date: null, // 기관에서 설정한 일정 사용
         portfolio_links: formData.portfolio_links,
       }
 
@@ -456,52 +454,48 @@ export default function ProposePage() {
             <CardHeader>
               <CardTitle>프로젝트 세부사항</CardTitle>
               <CardDescription>
-                일정 등을 입력해주세요. 금액은 기관에서 설정한 금액으로 진행됩니다.
+                금액과 일정은 기관에서 설정한 내용으로 진행됩니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {campaign && (campaign.budget_min || campaign.budget_max) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-blue-800">
-                    <DollarSign className="h-4 w-4" />
-                    <span className="font-medium">예산 범위:</span>
-                    <span>
-                      {campaign.budget_min && campaign.budget_max
-                        ? `₩${campaign.budget_min.toLocaleString()} ~ ₩${campaign.budget_max.toLocaleString()}`
-                        : campaign.budget_min
-                        ? `₩${campaign.budget_min.toLocaleString()} 이상`
-                        : campaign.budget_max
-                        ? `₩${campaign.budget_max.toLocaleString()} 이하`
-                        : ''}
-                    </span>
-                  </div>
-                </div>
+              {campaign && (
+                <>
+                  {(campaign.budget_min || campaign.budget_max) && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-sm text-blue-800">
+                        <DollarSign className="h-4 w-4" />
+                        <span className="font-medium">예산 범위:</span>
+                        <span>
+                          {campaign.budget_min && campaign.budget_max
+                            ? `₩${campaign.budget_min.toLocaleString()} ~ ₩${campaign.budget_max.toLocaleString()}`
+                            : campaign.budget_min
+                            ? `₩${campaign.budget_min.toLocaleString()} 이상`
+                            : campaign.budget_max
+                            ? `₩${campaign.budget_max.toLocaleString()} 이하`
+                            : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {(campaign.start_date || campaign.end_date) && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-sm text-green-800">
+                        <Calendar className="h-4 w-4" />
+                        <span className="font-medium">프로젝트 일정:</span>
+                        <span>
+                          {campaign.start_date && campaign.end_date
+                            ? `${new Date(campaign.start_date).toLocaleDateString('ko-KR')} ~ ${new Date(campaign.end_date).toLocaleDateString('ko-KR')}`
+                            : campaign.start_date
+                            ? `${new Date(campaign.start_date).toLocaleDateString('ko-KR')}부터`
+                            : campaign.end_date
+                            ? `${new Date(campaign.end_date).toLocaleDateString('ko-KR')}까지`
+                            : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="estimated_start_date" className="block text-sm font-medium text-gray-700 mb-1">
-                    시작 가능일
-                  </label>
-                  <Input
-                    id="estimated_start_date"
-                    type="date"
-                    value={formData.estimated_start_date}
-                    onChange={(e) => handleChange('estimated_start_date', e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="estimated_end_date" className="block text-sm font-medium text-gray-700 mb-1">
-                    완료 예정일
-                  </label>
-                  <Input
-                    id="estimated_end_date"
-                    type="date"
-                    value={formData.estimated_end_date}
-                    onChange={(e) => handleChange('estimated_end_date', e.target.value)}
-                  />
-                </div>
-              </div>
             </CardContent>
           </Card>
 
