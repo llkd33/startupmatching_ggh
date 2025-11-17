@@ -619,3 +619,73 @@ export default function AcceptInvitePage() {
   )
 }
 
+function generateWelcomeEmailHTML(
+  name: string,
+  role: 'expert' | 'organization',
+  email: string
+): string {
+  const profileUrl = role === 'organization' 
+    ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profile/organization/complete`
+    : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profile/expert/complete`
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>가입 완료</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  <div style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">가입이 완료되었습니다! 🎉</h1>
+    </div>
+    
+    <div style="padding: 40px 30px;">
+      <p style="font-size: 18px; margin-bottom: 20px; color: #333;">
+        안녕하세요, <strong style="color: #667eea;">${name}</strong>님!
+      </p>
+      
+      <p style="font-size: 16px; margin-bottom: 30px; color: #666;">
+        StartupMatching에 ${role === 'expert' ? '전문가로' : '기관으로'} 가입해주셔서 감사합니다!
+      </p>
+      
+      <p style="font-size: 16px; margin-bottom: 30px; color: #666;">
+        이제 프로필을 완성하여 더 많은 기회를 만나보세요. 아래 버튼을 클릭하여 상세 정보를 입력해주세요.
+      </p>
+      
+      <div style="text-align: center; margin: 40px 0;">
+        <a href="${profileUrl}" 
+           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 18px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+          프로필 완성하러 가기 →
+        </a>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #667eea;">
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666; font-weight: bold;">다음 단계:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+          <li>프로필 상세 정보 입력</li>
+          <li>${role === 'expert' ? '전문 분야 및 경력 등록' : '조직 정보 및 담당 업무 등록'}</li>
+          <li>활동 시작하기</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p style="font-size: 12px; color: #999; margin: 0;">
+          문의사항이 있으시면 관리자에게 연락해주세요.
+        </p>
+      </div>
+    </div>
+  </div>
+  
+  <div style="text-align: center; margin-top: 20px; padding: 20px;">
+    <p style="font-size: 12px; color: #999; margin: 0;">
+      이 이메일은 StartupMatching에서 발송되었습니다.
+    </p>
+  </div>
+</body>
+</html>
+  `
+}
+
