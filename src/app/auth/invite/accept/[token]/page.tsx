@@ -199,13 +199,35 @@ export default function AcceptInvitePage() {
           if (errorMessage.includes('Invalid login credentials')) {
             throw new Error('이메일 주소 또는 비밀번호가 올바르지 않습니다. 임시 비밀번호는 등록하신 전화번호(하이픈 없이 숫자만)입니다.')
           } else if (errorMessage.includes('Email not confirmed')) {
-            throw new Error('이메일 확인이 필요합니다. 운영팀에 문의해주시기 바랍니다.')
+            // 이메일 미확인 상태인 경우, 이메일 확인 링크를 보내거나 계속 진행
+            // 초대 토큰이 있으므로 계속 진행 가능
+            console.warn('Email not confirmed, but proceeding with invite token')
+            // 이메일 확인 없이 계속 진행 (초대 토큰으로 인증)
           } else {
             throw new Error('로그인에 실패했습니다. 운영팀에 문의해주시기 바랍니다.')
           }
         }
 
         signInData = signInResult.data
+      }
+
+      // 이메일 확인 상태 업데이트 (초대 수락 시)
+      if (signInData.user && !signInData.user.email_confirmed_at) {
+        // Admin API를 통해 이메일 확인 상태 업데이트
+        try {
+          const confirmResponse = await fetch('/api/auth/confirm-email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: signInData.user.id
+            }),
+          })
+          // 에러는 무시 (이미 확인된 경우일 수 있음)
+        } catch (err) {
+          // 에러 무시하고 계속 진행
+        }
       }
 
       // 2. 비밀번호 변경 (선택사항 - 사용자가 변경한 경우)

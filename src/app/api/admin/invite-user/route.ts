@@ -115,11 +115,16 @@ export async function POST(request: NextRequest) {
     // 5. 전화번호를 비밀번호로 변환 (하이픈 제거)
     const password = phone.replace(/-/g, '')
 
-    // 6. Supabase Admin API로 사용자 생성
+    // 6. 초대 토큰 생성 (사용자 생성 전에)
+    const token = randomUUID()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 7) // 7일 후 만료
+
+    // 7. Supabase Admin API로 사용자 생성 (이메일 미확인 상태로)
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // 이메일 인증 없이 바로 활성화
+      email_confirm: false, // 초대 이메일을 통해 가입 완료하도록
       user_metadata: {
         role,
         name,
@@ -127,7 +132,8 @@ export async function POST(request: NextRequest) {
         organization_name,
         position,
         invited: true,
-        invited_by: user.id
+        invited_by: user.id,
+        invite_token: token // 초대 토큰을 메타데이터에 저장
       }
     })
 
@@ -224,12 +230,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 9. 초대 토큰 생성
-    const token = randomUUID()
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7) // 7일 후 만료
-
-    // 10. 초대 레코드 저장
+    // 8. 초대 레코드 저장
     const { error: inviteError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
@@ -254,29 +255,43 @@ export async function POST(request: NextRequest) {
       // 사용자는 생성되었으므로 계속 진행
     }
 
-    // 11. 초대 이메일 발송
+    // 9. 초대 이메일 발송
     const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/invite/accept/${token}`
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     
     try {
-      const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/send-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: email,
-          subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 초대가 도착했습니다`,
-          html: generateInviteEmailHTML(name, inviteUrl, phone, organization_name || ''),
-        }),
+      // Resend API 직접 호출 (서버 사이드에서)
+      const resendApiKey = process.env.RESEND_API_KEY
+      if (!resendApiKey) {
+        console.warn('RESEND_API_KEY is not set. Email sending skipped.')
+        return NextResponse.json({
+          success: true,
+          user: {
+            id: userId,
+            email,
+            name,
+            role
+          },
+          message: 'User created successfully, but invitation email failed to send (RESEND_API_KEY not configured). Please send the invite link manually.',
+          warning: 'email_failed',
+          inviteUrl: inviteUrl
+        })
+      }
+
+      const { Resend } = await import('resend')
+      const resend = new Resend(resendApiKey)
+
+      const emailHtml = generateInviteEmailHTML(name, inviteUrl, email, phone, organization_name || '', role)
+      
+      const emailResult = await resend.emails.send({
+        from: 'StartupMatching <noreply@startupmatching.com>',
+        to: email,
+        subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 가입 초대가 도착했습니다`,
+        html: emailHtml,
       })
 
-      if (!emailResponse.ok) {
-        // 개발 모드에서만 로그 출력
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Failed to send invite email')
-        }
-        // 이메일 실패해도 사용자는 생성되었으므로 계속 진행
-        // 하지만 성공 응답에 경고 포함
+      if (!emailResult.data) {
+        console.error('Failed to send invite email:', emailResult.error)
         return NextResponse.json({
           success: true,
           user: {
@@ -290,11 +305,11 @@ export async function POST(request: NextRequest) {
           inviteUrl: inviteUrl
         })
       }
-    } catch (emailError) {
+
+      console.log('✅ Invitation email sent successfully:', emailResult.data.id)
+    } catch (emailError: any) {
       // 개발 모드에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error sending invite email:', emailError)
-      }
+      console.error('Error sending invite email:', emailError)
       // 이메일 실패해도 사용자는 생성되었으므로 계속 진행
       // 하지만 성공 응답에 경고 포함
       return NextResponse.json({
@@ -352,52 +367,81 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateInviteEmailHTML(name: string, inviteUrl: string, phone: string, organizationName: string): string {
+function generateInviteEmailHTML(
+  name: string, 
+  inviteUrl: string, 
+  email: string, 
+  phone: string, 
+  organizationName: string,
+  role: string
+): string {
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>초대장</title>
+  <title>가입 초대</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-    <h1 style="color: white; margin: 0; font-size: 24px;">초대가 도착했습니다! 🎉</h1>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  <div style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">가입 초대가 도착했습니다! 🎉</h1>
+    </div>
+    
+    <div style="padding: 40px 30px;">
+      <p style="font-size: 18px; margin-bottom: 20px; color: #333;">
+        안녕하세요, <strong style="color: #667eea;">${name}</strong>님!
+      </p>
+      
+      ${organizationName ? `
+      <p style="font-size: 16px; margin-bottom: 20px; color: #666;">
+        <strong>${organizationName}</strong>에서 ${role === 'expert' ? '전문가로' : '기관으로'} 초대해주셨습니다.
+      </p>
+      ` : ''}
+      
+      <p style="font-size: 16px; margin-bottom: 30px; color: #666;">
+        아래 버튼을 클릭하여 가입을 완료하고 추가 정보를 입력해주세요.
+      </p>
+      
+      <div style="text-align: center; margin: 40px 0;">
+        <a href="${inviteUrl}" 
+           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 18px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: transform 0.2s;">
+          가입 진행하기 →
+        </a>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #667eea;">
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666; font-weight: bold;">가입 정보:</p>
+        <p style="margin: 5px 0; font-size: 14px; color: #333;">이메일: <strong>${email}</strong></p>
+        <p style="margin: 5px 0; font-size: 14px; color: #333;">임시 비밀번호: <strong>${phone.replace(/-/g, '')}</strong> (전화번호)</p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">
+          💡 가입 완료 후 비밀번호를 변경하실 수 있습니다.
+        </p>
+      </div>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p style="font-size: 13px; color: #999; margin: 0 0 10px 0;">
+          링크가 작동하지 않으시나요? 아래 주소를 복사하여 브라우저에 붙여넣으세요:
+        </p>
+        <p style="font-size: 12px; color: #667eea; word-break: break-all; background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 0;">
+          ${inviteUrl}
+        </p>
+      </div>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <p style="font-size: 12px; color: #999; margin: 0;">
+          ⏰ 이 초대 링크는 7일간 유효합니다. 만료된 경우 관리자에게 문의해주세요.
+        </p>
+      </div>
+    </div>
   </div>
   
-  <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    <p style="font-size: 16px; margin-bottom: 20px;">안녕하세요, <strong>${name}</strong>님!</p>
-    
-    ${organizationName ? `<p style="font-size: 16px; margin-bottom: 20px;"><strong>${organizationName}</strong>에서 초대해주셨습니다.</p>` : ''}
-    
-    <p style="font-size: 16px; margin-bottom: 20px;">
-      계정이 생성되었습니다. 아래 링크를 클릭하여 로그인하고 프로필을 완성해주세요.
+  <div style="text-align: center; margin-top: 20px; padding: 20px;">
+    <p style="font-size: 12px; color: #999; margin: 0;">
+      이 이메일은 StartupMatching에서 발송되었습니다.<br>
+      문의사항이 있으시면 관리자에게 연락해주세요.
     </p>
-    
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-      <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;"><strong>로그인 정보:</strong></p>
-      <p style="margin: 5px 0; font-size: 14px;">이메일: <strong>${name}</strong>님의 이메일 주소</p>
-      <p style="margin: 5px 0; font-size: 14px;">비밀번호: <strong>${phone}</strong> (전화번호)</p>
-    </div>
-    
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${inviteUrl}" 
-         style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
-        프로필 완성하러 가기 →
-      </a>
-    </div>
-    
-    <p style="font-size: 14px; color: #666; margin-top: 30px;">
-      또는 아래 링크를 복사하여 브라우저에 붙여넣으세요:<br>
-      <a href="${inviteUrl}" style="color: #667eea; word-break: break-all;">${inviteUrl}</a>
-    </p>
-    
-    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-      <p style="font-size: 12px; color: #999; margin: 0;">
-        이 링크는 7일간 유효합니다. 만료된 경우 관리자에게 문의해주세요.
-      </p>
-    </div>
   </div>
 </body>
 </html>
