@@ -34,15 +34,55 @@ export default function AdminLogin() {
     try {
       console.log('[1/6] 🔐 Starting admin login for:', email.trim())
 
-      // Step 1: Sign in
+      // Step 1: Sign in with timeout
       console.log('[2/6] 🔑 Attempting signInWithPassword...')
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password
-      })
+      console.log('[2/6] 📤 Supabase client:', supabase ? 'exists' : 'missing')
+      
+      let authData: any = null
+      let authError: any = null
+      
+      try {
+        // Add timeout to prevent hanging
+        const signInPromise = supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        })
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('로그인 요청이 시간 초과되었습니다 (30초)')), 30000)
+        )
+        
+        console.log('[2/6] ⏳ Waiting for signIn response...')
+        const result = await Promise.race([signInPromise, timeoutPromise]) as any
+        
+        authData = result.data
+        authError = result.error
+        
+        console.log('[2/6] 📥 SignIn response received')
+        console.log('[2/6] 📋 Response data:', authData ? 'exists' : 'null')
+        console.log('[2/6] 📋 Response error:', authError ? authError.message : 'none')
+        
+      } catch (err: any) {
+        console.error('[2/6] ❌ Exception during signIn:', err)
+        console.error('[2/6] Error type:', typeof err)
+        console.error('[2/6] Error message:', err?.message)
+        console.error('[2/6] Error stack:', err?.stack)
+        
+        if (err?.message?.includes('시간 초과')) {
+          setError('로그인 요청이 시간 초과되었습니다. 네트워크 연결을 확인해주세요.')
+        } else {
+          setError(`로그인 중 오류가 발생했습니다: ${err?.message || '알 수 없는 오류'}`)
+        }
+        setLoading(false)
+        return
+      }
       
       if (authError) {
         console.error('[2/6] ❌ Auth error:', authError)
+        console.error('[2/6] Error status:', authError.status)
+        console.error('[2/6] Error message:', authError.message)
+        console.error('[2/6] Error code:', authError.code)
+        
         let errorMessage = '로그인에 실패했습니다.'
         if (authError.message?.includes('Invalid login credentials')) {
           errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
@@ -58,6 +98,7 @@ export default function AdminLogin() {
 
       if (!authData?.user) {
         console.error('[2/6] ❌ No user data returned')
+        console.error('[2/6] AuthData:', authData)
         setError('로그인 정보를 확인할 수 없습니다.')
         setLoading(false)
         return
