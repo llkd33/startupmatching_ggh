@@ -2,16 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import {
-  Users,
-  Briefcase,
-  FileText,
-  BarChart3,
-  Settings,
-  LogOut,
-  Home,
-  Mail,
-} from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import AdminNav from '@/components/admin/AdminNav'
 
 export default async function AdminLayout({
@@ -117,13 +108,13 @@ export default async function AdminLayout({
   }
 
   const navigationItems = [
-    { href: '/admin', label: '대시보드', icon: Home },
-    { href: '/admin/users', label: '사용자', icon: Users },
-    { href: '/admin/invitations', label: '초대 관리', icon: Mail },
-    { href: '/admin/campaigns', label: '캠페인', icon: Briefcase },
-    { href: '/admin/proposals', label: '제안서', icon: FileText },
-    { href: '/admin/analytics', label: '분석', icon: BarChart3 },
-    { href: '/admin/settings', label: '설정', icon: Settings },
+    { href: '/admin', label: '대시보드', icon: 'Home' as const },
+    { href: '/admin/users', label: '사용자', icon: 'Users' as const },
+    { href: '/admin/invitations', label: '초대 관리', icon: 'Mail' as const },
+    { href: '/admin/campaigns', label: '캠페인', icon: 'Briefcase' as const },
+    { href: '/admin/proposals', label: '제안서', icon: 'FileText' as const },
+    { href: '/admin/analytics', label: '분석', icon: 'BarChart3' as const },
+    { href: '/admin/settings', label: '설정', icon: 'Settings' as const },
   ];
 
   return (

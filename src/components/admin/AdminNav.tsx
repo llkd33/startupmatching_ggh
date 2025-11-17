@@ -2,11 +2,32 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import {
+  Users,
+  Briefcase,
+  FileText,
+  BarChart3,
+  Settings,
+  Home,
+  Mail,
+} from 'lucide-react'
+
+type IconName = 'Home' | 'Users' | 'Mail' | 'Briefcase' | 'FileText' | 'BarChart3' | 'Settings'
 
 type Item = {
   href: string
   label: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: IconName
+}
+
+const iconMap: Record<IconName, React.ComponentType<{ className?: string }>> = {
+  Home,
+  Users,
+  Mail,
+  Briefcase,
+  FileText,
+  BarChart3,
+  Settings,
 }
 
 export default function AdminNav({ items }: { items: Item[] }) {
@@ -15,7 +36,7 @@ export default function AdminNav({ items }: { items: Item[] }) {
   return (
     <nav className="mt-2">
       {items.map((item) => {
-        const Icon = item.icon
+        const Icon = iconMap[item.icon]
         const isActive = pathname === item.href || (
           item.href !== '/admin' && pathname.startsWith(item.href)
         )
