@@ -42,7 +42,31 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = createSupabaseAdmin()
 
     // Supabase Admin API로 이메일 존재 여부 확인
-    const { data: existingUser, error } = await supabaseAdmin.auth.admin.getUserByEmail(email)
+    // getUserByEmail이 없는 경우를 대비해 listUsers 사용
+    let existingUser = null
+    let error = null
+    
+    try {
+      // getUserByEmail이 있는지 확인
+      if (typeof supabaseAdmin.auth.admin.getUserByEmail === 'function') {
+        const result = await supabaseAdmin.auth.admin.getUserByEmail(email)
+        existingUser = result.data
+        error = result.error
+      } else {
+        // getUserByEmail이 없는 경우 listUsers로 검색
+        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+        if (listError) {
+          error = listError
+        } else {
+          existingUser = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+          if (existingUser) {
+            existingUser = { user: existingUser }
+          }
+        }
+      }
+    } catch (err: any) {
+      error = err
+    }
 
     if (error) {
       // 사용자를 찾을 수 없는 경우 (404)는 정상적인 경우

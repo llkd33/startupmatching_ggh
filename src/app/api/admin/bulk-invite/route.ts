@@ -106,7 +106,23 @@ export async function POST(request: NextRequest) {
         }
 
         // 이메일 중복 확인
-        const { data: existingUser } = await supabaseAdmin!.auth.admin.getUserByEmail(email)
+        let existingUser = null
+        try {
+          if (typeof supabaseAdmin!.auth.admin.getUserByEmail === 'function') {
+            const result = await supabaseAdmin!.auth.admin.getUserByEmail(email)
+            existingUser = result.data
+          } else {
+            // getUserByEmail이 없는 경우 listUsers로 검색
+            const { data: { users } } = await supabaseAdmin!.auth.admin.listUsers()
+            const found = users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+            if (found) {
+              existingUser = { user: found }
+            }
+          }
+        } catch (err) {
+          // 에러 무시하고 계속 진행
+        }
+        
         if (existingUser?.user) {
           results.failed++
           results.errors.push({
