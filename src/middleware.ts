@@ -69,17 +69,25 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle(); // single() 대신 maybeSingle() 사용
 
+    // Always log for debugging (production too)
+    console.log('🔍 Admin middleware check:', {
+      userId: user.id,
+      email: user.email,
+      userError: userError?.message || null,
+      userData: userData || null,
+      is_admin: userData?.is_admin || null,
+      role: userData?.role || null,
+      timestamp: new Date().toISOString()
+    })
+
     // users 테이블에 레코드가 없거나 관리자가 아닌 경우
     if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Admin middleware: Admin check failed', {
-          userError: userError?.message,
-          userData,
-          is_admin: userData?.is_admin,
-          role: userData?.role,
-          userId: user.id
-        })
-      }
+      console.log('❌ Admin middleware: Access denied', {
+        reason: userError ? 'database_error' : !userData ? 'user_not_found' : 'not_admin',
+        userError: userError?.message,
+        userData,
+        userId: user.id
+      })
       return NextResponse.redirect(new URL('/admin-login', request.url));
     }
 

@@ -220,7 +220,7 @@ export default function AdminLogin() {
         
         const checkData = await checkResponse.json()
         console.log('[5/6] 📋 Admin check result:', checkData)
-        
+
         if (!checkData.isAdmin) {
           console.warn('[5/6] ⚠️ User is not admin')
           await supabase.auth.signOut()
@@ -228,8 +228,10 @@ export default function AdminLogin() {
           setLoading(false)
           return
         }
-        
-        console.log('[5/6] ✅ Admin verified')
+
+        console.log('[5/6] ✅ Admin verified successfully!')
+        console.log('[5/6] 👤 User role:', checkData.userData.role)
+        console.log('[5/6] 🔐 Is admin:', checkData.userData.is_admin)
       } catch (checkErr: any) {
         console.error('[5/6] ❌ Exception checking admin:', checkErr)
         setError(`관리자 권한 확인 중 오류: ${checkErr?.message || '알 수 없는 오류'}`)
