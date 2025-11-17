@@ -13,6 +13,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get access token from Authorization header
+    const authHeader = request.headers.get('Authorization')
+    const accessToken = authHeader?.replace('Bearer ', '')
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Missing authorization token' },
+        { status: 401 }
+      )
+    }
+
     const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,13 +39,23 @@ export async function POST(request: NextRequest) {
             )
           },
         },
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
       }
     )
 
-    // Verify user is authenticated
+    // Verify user is authenticated using the provided token
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user || user.id !== user_id) {
+      console.error('Auth verification failed:', {
+        authError: authError?.message,
+        userId: user?.id,
+        expectedUserId: user_id
+      })
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

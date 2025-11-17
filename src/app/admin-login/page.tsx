@@ -173,6 +173,7 @@ export default function AdminLogin() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             user_id: authData.user.id
