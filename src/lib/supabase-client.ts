@@ -5,10 +5,28 @@ import { Database } from '@/types/supabase'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Client-side Supabase client with proper headers
+// Client-side Supabase client - cookie-based for SSR compatibility
 export function createBrowserSupabaseClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables')
+  }
+
+  // Use document.cookie for SSR compatibility with middleware
+  const cookieStorage = {
+    getItem: (key: string) => {
+      if (typeof document === 'undefined') return null
+      const cookies = document.cookie.split('; ')
+      const cookie = cookies.find(c => c.startsWith(`${key}=`))
+      return cookie ? decodeURIComponent(cookie.split('=')[1]) : null
+    },
+    setItem: (key: string, value: string) => {
+      if (typeof document === 'undefined') return
+      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+    },
+    removeItem: (key: string) => {
+      if (typeof document === 'undefined') return
+      document.cookie = `${key}=; path=/; max-age=0`
+    }
   }
 
   return createClient<Database>(supabaseUrl, supabaseAnonKey, {
@@ -17,8 +35,8 @@ export function createBrowserSupabaseClient() {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      storageKey: 'sb-auth-token',
+      storage: cookieStorage,
+      storageKey: `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`,
     },
     global: {
       headers: {
