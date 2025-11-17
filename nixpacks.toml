@@ -1,15 +1,15 @@
 # nixpacks.toml
 [phases.setup]
-nixPkgs = ["nodejs_20", "bun"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["bun install"]
+cmds = ["npm install"]
 
 [phases.build]
-cmds = ["bun run build"]
+cmds = ["npm run build"]
 
 [start]
-cmd = "bun run start"
+cmd = "npm start"
 
 [variables]
 NODE_ENV = "production"
