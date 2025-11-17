@@ -114,13 +114,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin-login', request.url));
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Admin middleware: Admin check passed', {
-        userId: user.id,
-        is_admin: userData.is_admin,
-        role: userData.role
-      })
-    }
+    console.log('✅ Admin middleware: Access granted', {
+      userId: user.id,
+      email: user.email,
+      is_admin: userData.is_admin,
+      role: userData.role,
+      timestamp: new Date().toISOString()
+    })
   }
 
   return response;
