@@ -62,19 +62,12 @@ export async function POST(request: NextRequest) {
 
     // 2. 요청 데이터 파싱
     const body = await request.json()
-    const { email, name, organization_name, position, phone, role } = body
+    const { email, phone } = body
 
-    // 3. 필수 필드 검증
-    if (!email || !name || !phone || !role) {
+    // 3. 필수 필드 검증 (이메일, 핸드폰만 필요)
+    if (!email || !phone) {
       return NextResponse.json(
-        { error: 'Missing required fields: email, name, phone, role' },
-        { status: 400 }
-      )
-    }
-
-    if (role !== 'expert' && role !== 'organization') {
-      return NextResponse.json(
-        { error: 'Invalid role. Must be "expert" or "organization"' },
+        { error: 'Missing required fields: email, phone' },
         { status: 400 }
       )
     }
@@ -120,17 +113,13 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7일 후 만료
 
-    // 7. Supabase Admin API로 사용자 생성 (이메일 미확인 상태로)
+    // 7. Supabase Admin API로 사용자 생성 (역할 없이, 이메일 미확인 상태로)
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false, // 초대 이메일을 통해 가입 완료하도록
+      email_confirm: true, // 가입 완료 이메일을 보내기 위해 먼저 확인 상태로
       user_metadata: {
-        role,
-        name,
         phone,
-        organization_name,
-        position,
         invited: true,
         invited_by: user.id,
         invite_token: token // 초대 토큰을 메타데이터에 저장
@@ -151,13 +140,13 @@ export async function POST(request: NextRequest) {
     const userId = authData.user.id
     createdUserId = userId // 롤백을 위해 저장
 
-    // 7. users 테이블에 레코드 생성 (트리거가 없을 경우를 대비)
+    // 7. users 테이블에 레코드 생성 (역할 없이)
     const { error: userError } = await supabaseAdmin
       .from('users')
       .upsert({
         id: userId,
         email,
-        role,
+        role: null, // 역할은 나중에 사용자가 선택
         phone
       }, { onConflict: 'id' })
 
@@ -169,77 +158,14 @@ export async function POST(request: NextRequest) {
       // 사용자는 생성되었으므로 계속 진행
     }
 
-    // 8. 프로필 테이블에 레코드 생성
-    if (role === 'organization') {
-      const { error: orgError } = await supabaseAdmin
-        .from('organization_profiles')
-        .upsert({
-          user_id: userId,
-          organization_name: organization_name || name,
-          representative_name: name,
-          contact_position: position || null,
-          is_profile_complete: false
-        }, { onConflict: 'user_id' })
+    // 프로필 테이블은 역할 선택 후 생성하므로 여기서는 생성하지 않음
 
-      if (orgError) {
-        // 개발 모드에서만 로그 출력
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error creating organization profile:', orgError)
-        }
-        // 프로필 생성 실패 시 사용자 삭제 (롤백)
-        try {
-          await supabaseAdmin.auth.admin.deleteUser(userId)
-        } catch (deleteError) {
-          // 개발 모드에서만 로그 출력
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error deleting user after profile creation failure:', deleteError)
-          }
-        }
-        return NextResponse.json(
-          { error: 'Failed to create organization profile' },
-          { status: 500 }
-        )
-      }
-    } else {
-      const { error: expertError } = await supabaseAdmin
-        .from('expert_profiles')
-        .upsert({
-          user_id: userId,
-          name,
-          is_profile_complete: false
-        }, { onConflict: 'user_id' })
-
-      if (expertError) {
-        // 개발 모드에서만 로그 출력
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error creating expert profile:', expertError)
-        }
-        // 프로필 생성 실패 시 사용자 삭제 (롤백)
-        try {
-          await supabaseAdmin.auth.admin.deleteUser(userId)
-        } catch (deleteError) {
-          // 개발 모드에서만 로그 출력
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error deleting user after profile creation failure:', deleteError)
-          }
-        }
-        return NextResponse.json(
-          { error: 'Failed to create expert profile' },
-          { status: 500 }
-        )
-      }
-    }
-
-    // 8. 초대 레코드 저장
+    // 8. 초대 레코드 저장 (역할 없이)
     const { error: inviteError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
         email,
-        name,
-        organization_name: organization_name || null,
-        position: position || null,
         phone,
-        role,
         invited_by: user.id,
         token,
         status: 'pending',
@@ -268,9 +194,7 @@ export async function POST(request: NextRequest) {
           success: true,
           user: {
             id: userId,
-            email,
-            name,
-            role
+            email
           },
           message: 'User created successfully, but invitation email failed to send (RESEND_API_KEY not configured). Please send the invite link manually.',
           warning: 'email_failed',
@@ -281,7 +205,7 @@ export async function POST(request: NextRequest) {
       const { Resend } = await import('resend')
       const resend = new Resend(resendApiKey)
 
-      const emailHtml = generateInviteEmailHTML(name, inviteUrl, email, phone, organization_name || '', role)
+      const emailHtml = generateInviteEmailHTML(inviteUrl, email, phone)
       
       const emailResult = await resend.emails.send({
         from: 'StartupMatching <noreply@startupmatching.com>',
@@ -296,9 +220,7 @@ export async function POST(request: NextRequest) {
           success: true,
           user: {
             id: userId,
-            email,
-            name,
-            role
+            email
           },
           message: 'User created successfully, but invitation email failed to send. Please send the invite link manually.',
           warning: 'email_failed',
@@ -368,12 +290,9 @@ export async function POST(request: NextRequest) {
 }
 
 function generateInviteEmailHTML(
-  name: string, 
   inviteUrl: string, 
   email: string, 
-  phone: string, 
-  organizationName: string,
-  role: string
+  phone: string
 ): string {
   return `
 <!DOCTYPE html>
@@ -391,30 +310,24 @@ function generateInviteEmailHTML(
     
     <div style="padding: 40px 30px;">
       <p style="font-size: 18px; margin-bottom: 20px; color: #333;">
-        안녕하세요, <strong style="color: #667eea;">${name}</strong>님!
+        안녕하세요!
       </p>
-      
-      ${organizationName ? `
-      <p style="font-size: 16px; margin-bottom: 20px; color: #666;">
-        <strong>${organizationName}</strong>에서 ${role === 'expert' ? '전문가로' : '기관으로'} 초대해주셨습니다.
-      </p>
-      ` : ''}
       
       <p style="font-size: 16px; margin-bottom: 30px; color: #666;">
-        아래 버튼을 클릭하여 가입을 완료하고 추가 정보를 입력해주세요.
+        StartupMatching에 가입 초대가 도착했습니다. 아래 버튼을 클릭하여 가입을 완료하고 역할(전문가/기관)을 선택해주세요.
       </p>
       
       <div style="text-align: center; margin: 40px 0;">
         <a href="${inviteUrl}" 
-           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 18px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: transform 0.2s;">
+           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 18px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
           가입 진행하기 →
         </a>
       </div>
       
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #667eea;">
-        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666; font-weight: bold;">가입 정보:</p>
-        <p style="margin: 5px 0; font-size: 14px; color: #333;">이메일: <strong>${email}</strong></p>
-        <p style="margin: 5px 0; font-size: 14px; color: #333;">임시 비밀번호: <strong>${phone.replace(/-/g, '')}</strong> (전화번호)</p>
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666; font-weight: bold;">로그인 정보:</p>
+        <p style="margin: 5px 0; font-size: 14px; color: #333;">이메일 (ID): <strong>${email}</strong></p>
+        <p style="margin: 5px 0; font-size: 14px; color: #333;">비밀번호: <strong>${phone.replace(/-/g, '')}</strong> (전화번호)</p>
         <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">
           💡 가입 완료 후 비밀번호를 변경하실 수 있습니다.
         </p>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from '@/components/ui/toast-custom'
 
@@ -23,6 +24,7 @@ export default function AcceptInvitePage() {
   const [userRole, setUserRole] = useState<'expert' | 'organization' | null>(null)
   const [autoLoggedIn, setAutoLoggedIn] = useState(false)
 
+  const [selectedRole, setSelectedRole] = useState<'expert' | 'organization' | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -141,14 +143,15 @@ export default function AcceptInvitePage() {
       }
 
       setInvitation(data)
-      setUserRole(data.role)
+      // 역할은 초대에 없으므로 null로 설정 (사용자가 선택해야 함)
+      setUserRole(null)
 
       // 초대 정보로 폼 초기화
       setFormData({
-        name: data.name || '',
+        name: '',
         phone: data.phone || '',
-        organization_name: data.organization_name || '',
-        position: data.position || '',
+        organization_name: '',
+        position: '',
         password: data.phone.replace(/-/g, ''), // 전화번호를 기본 비밀번호로
         confirmPassword: data.phone.replace(/-/g, '')
       })
@@ -167,6 +170,27 @@ export default function AcceptInvitePage() {
     setError(null)
 
     try {
+      // 역할 선택 확인
+      if (!selectedRole) {
+        setError('역할(전문가/기관)을 선택해주세요.')
+        setSubmitting(false)
+        return
+      }
+
+      // 이름 확인
+      if (!formData.name || formData.name.trim() === '') {
+        setError('이름을 입력해주세요.')
+        setSubmitting(false)
+        return
+      }
+
+      // 기관인 경우 조직명 확인
+      if (selectedRole === 'organization' && (!formData.organization_name || formData.organization_name.trim() === '')) {
+        setError('조직명을 입력해주세요.')
+        setSubmitting(false)
+        return
+      }
+
       // 비밀번호 확인
       if (formData.password !== formData.confirmPassword) {
         setError('비밀번호가 일치하지 않습니다.')
@@ -242,46 +266,50 @@ export default function AcceptInvitePage() {
         }
       }
 
-      // 3. 프로필 정보 업데이트 (어드민이 입력한 정보 사용)
-      if (userRole === 'organization') {
+      // 3. users 테이블에 역할 업데이트
+      const { error: userUpdateError } = await supabase
+        .from('users')
+        .update({
+          role: selectedRole,
+          phone: invitation.phone
+        })
+        .eq('id', signInData.user.id)
+
+      if (userUpdateError) {
+        console.error('Error updating user role:', userUpdateError)
+        throw new Error('사용자 정보 업데이트에 실패했습니다.')
+      }
+
+      // 4. 프로필 테이블 생성 (역할에 따라)
+      if (selectedRole === 'organization') {
         const { error: orgError } = await supabase
           .from('organization_profiles')
-          .update({
-            organization_name: invitation.organization_name || invitation.name,
-            representative_name: invitation.name,
-            contact_position: invitation.position || null
-          })
-          .eq('user_id', signInData.user.id)
+          .upsert({
+            user_id: signInData.user.id,
+            organization_name: formData.organization_name,
+            representative_name: formData.name,
+            contact_position: formData.position || null,
+            is_profile_complete: false
+          }, { onConflict: 'user_id' })
 
         if (orgError) {
-          // 개발 모드에서만 로그
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error updating organization profile:', orgError)
-          }
+          console.error('Error creating organization profile:', orgError)
+          throw new Error('조직 프로필 생성에 실패했습니다.')
         }
       } else {
         const { error: expertError } = await supabase
           .from('expert_profiles')
-          .update({
-            name: invitation.name
-          })
-          .eq('user_id', signInData.user.id)
+          .upsert({
+            user_id: signInData.user.id,
+            name: formData.name,
+            is_profile_complete: false
+          }, { onConflict: 'user_id' })
 
         if (expertError) {
-          // 개발 모드에서만 로그
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error updating expert profile:', expertError)
-          }
+          console.error('Error creating expert profile:', expertError)
+          throw new Error('전문가 프로필 생성에 실패했습니다.')
         }
       }
-
-      // 4. users 테이블 업데이트
-      await supabase
-        .from('users')
-        .update({
-          phone: invitation.phone
-        })
-        .eq('id', signInData.user.id)
 
       // 5. 초대 상태 업데이트
       await supabase
@@ -292,23 +320,31 @@ export default function AcceptInvitePage() {
         })
         .eq('token', token)
 
-      toast.success('가입이 완료되었습니다! 환영합니다.')
+      // 5. 가입 완료 이메일 발송
+      try {
+        const emailResponse = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: invitation.email,
+            subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 가입이 완료되었습니다`,
+            html: generateWelcomeEmailHTML(formData.name, selectedRole, invitation.email)
+          }),
+        })
+        // 이메일 실패해도 가입은 완료되었으므로 계속 진행
+      } catch (emailErr) {
+        console.error('Error sending welcome email:', emailErr)
+      }
 
-      // 6. 프로필 완성도 업데이트
-      if (userRole === 'organization') {
-        await supabase
-          .from('organization_profiles')
-          .update({ is_profile_complete: true })
-          .eq('user_id', signInData.user.id)
-        
-        router.push('/dashboard')
+      toast.success('가입이 완료되었습니다! 환영합니다. 상세 정보를 입력해주세요.')
+
+      // 6. 프로필 완성 페이지로 이동
+      if (selectedRole === 'organization') {
+        router.push('/profile/organization/complete')
       } else {
-        await supabase
-          .from('expert_profiles')
-          .update({ is_profile_complete: true })
-          .eq('user_id', signInData.user.id)
-        
-        router.push('/dashboard')
+        router.push('/profile/expert/complete')
       }
 
     } catch (err: any) {
@@ -405,40 +441,86 @@ export default function AcceptInvitePage() {
               </Alert>
             )}
 
-            {/* 읽기 전용 정보 표시 (어드민이 입력한 정보) */}
+            {/* 역할 선택 */}
+            <div className="space-y-2">
+              <Label htmlFor="role">
+                역할 선택 <span className="text-red-600">*</span>
+              </Label>
+              <Select
+                value={selectedRole || ''}
+                onValueChange={(value) => setSelectedRole(value as 'expert' | 'organization')}
+                disabled={submitting}
+              >
+                <SelectTrigger className="min-h-[44px]" id="role">
+                  <SelectValue placeholder="역할을 선택해주세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expert">전문가</SelectItem>
+                  <SelectItem value="organization">기관</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 이름 입력 */}
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                이름 <span className="text-red-600">*</span>
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="홍길동"
+                required
+                className="min-h-[44px]"
+                disabled={submitting}
+              />
+            </div>
+
+            {/* 기관인 경우 조직명 입력 */}
+            {selectedRole === 'organization' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="organization_name">
+                    조직명 <span className="text-red-600">*</span>
+                  </Label>
+                  <Input
+                    id="organization_name"
+                    type="text"
+                    value={formData.organization_name}
+                    onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
+                    placeholder="주식회사 테크노"
+                    required
+                    className="min-h-[44px]"
+                    disabled={submitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position">직책</Label>
+                  <Input
+                    id="position"
+                    type="text"
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    placeholder="인사팀장"
+                    className="min-h-[44px]"
+                    disabled={submitting}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* 읽기 전용 정보 표시 */}
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-3">
               <div>
-                <Label className="text-xs text-gray-500">이름</Label>
-                <p className="text-sm font-medium mt-1">{invitation?.name || formData.name}</p>
+                <Label className="text-xs text-gray-500">이메일 (ID)</Label>
+                <p className="text-sm font-medium mt-1">{invitation?.email}</p>
               </div>
               <div>
                 <Label className="text-xs text-gray-500">전화번호</Label>
                 <p className="text-sm font-medium mt-1">{invitation?.phone || formData.phone}</p>
               </div>
-              {userRole === 'organization' && (
-                <>
-                  <div>
-                    <Label className="text-xs text-gray-500">기관명</Label>
-                    <p className="text-sm font-medium mt-1">{invitation?.organization_name || formData.organization_name}</p>
-                  </div>
-                  {invitation?.position && (
-                    <div>
-                      <Label className="text-xs text-gray-500">직책</Label>
-                      <p className="text-sm font-medium mt-1">{invitation.position}</p>
-                    </div>
-                  )}
-                </>
-              )}
-              <div>
-                <Label className="text-xs text-gray-500">이메일</Label>
-                <p className="text-sm font-medium mt-1">{invitation?.email}</p>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
-              <p className="text-xs text-amber-800">
-                💡 위 정보가 정확한지 확인해주세요. 수정이 필요하시면 운영팀에 문의해주시기 바랍니다.
-              </p>
             </div>
 
             {/* 비밀번호 변경 옵션 */}

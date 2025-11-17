@@ -21,11 +21,7 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
 
   const [formData, setFormData] = useState({
     email: '',
-    name: '',
-    organization_name: '',
-    position: '',
-    phone: '',
-    role: 'expert' as 'expert' | 'organization'
+    phone: ''
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,7 +51,10 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          email: formData.email,
+          phone: formData.phone
+        }),
       })
 
       const data = await response.json()
@@ -69,11 +68,7 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
       // 폼 초기화
       setFormData({
         email: '',
-        name: '',
-        organization_name: '',
-        position: '',
-        phone: '',
-        role: 'expert'
+        phone: ''
       })
       
       setOpen(false)
@@ -113,9 +108,10 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
             </Alert>
           )}
 
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
             <p className="text-xs text-blue-800">
-              <strong>주의:</strong> 이메일이 ID가 되고, 전화번호가 초기 비밀번호가 됩니다.
+              <strong>안내:</strong> 이메일이 ID가 되고, 전화번호가 초기 비밀번호가 됩니다.<br />
+              역할(전문가/기관)은 사용자가 초대 이메일에서 선택합니다.
             </p>
           </div>
 
@@ -137,23 +133,6 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">
-              이름 <span className="text-red-600">*</span>
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="홍길동"
-              required
-              className="min-h-[44px]"
-              disabled={loading}
-              autoComplete="name"
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="phone">
               전화번호 (초기 비밀번호) <span className="text-red-600">*</span>
             </Label>
@@ -169,61 +148,9 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
               autoComplete="tel"
             />
             <p className="text-xs text-gray-500">
-              전화번호가 초기 비밀번호로 사용됩니다. (하이픈 제외)
+              전화번호가 초기 비밀번호로 사용됩니다. (하이픈 제외, 숫자만)
             </p>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="role">
-              역할 <span className="text-red-600">*</span>
-            </Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value) => setFormData({ ...formData, role: value as 'expert' | 'organization' })}
-              disabled={loading}
-            >
-              <SelectTrigger className="min-h-[44px]" id="role">
-                <SelectValue placeholder="역할 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expert">전문가</SelectItem>
-                <SelectItem value="organization">조직</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {formData.role === 'organization' && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="organization_name">
-                  조직명 <span className="text-red-600">*</span>
-                </Label>
-                <Input
-                  id="organization_name"
-                  type="text"
-                  value={formData.organization_name}
-                  onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
-                  placeholder="주식회사 테크노"
-                  required={formData.role === 'organization'}
-                  className="min-h-[44px]"
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="position">직책</Label>
-                <Input
-                  id="position"
-                  type="text"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  placeholder="인사팀장"
-                  className="min-h-[44px]"
-                  disabled={loading}
-                />
-              </div>
-            </>
-          )}
 
           <div className="flex gap-3 pt-4">
             <Button
