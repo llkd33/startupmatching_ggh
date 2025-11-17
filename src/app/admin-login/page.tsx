@@ -66,18 +66,36 @@ export default function AdminLogin() {
       
       try {
         // Add timeout to prevent hanging
+        console.log('[2/6] 🚀 Creating signIn promise...')
+        console.log('[2/6] 📧 Email:', email.trim())
+        console.log('[2/6] 🔑 Password length:', password.length)
+
         const signInPromise = supabase.auth.signInWithPassword({
           email: email.trim(),
           password
+        }).then((res: any) => {
+          console.log('[2/6] ✅ SignIn promise resolved')
+          console.log('[2/6] 📦 Response type:', typeof res)
+          console.log('[2/6] 📦 Response keys:', res ? Object.keys(res) : 'null')
+          return res
+        }).catch((err: any) => {
+          console.error('[2/6] ❌ SignIn promise rejected:', err)
+          throw err
         })
-        
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('로그인 요청이 시간 초과되었습니다 (30초)')), 30000)
+
+        console.log('[2/6] ⏰ Promise created, setting timeout...')
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => {
+            console.error('[2/6] ⏰ TIMEOUT TRIGGERED!')
+            reject(new Error('로그인 요청이 시간 초과되었습니다 (30초)'))
+          }, 30000)
         )
-        
-        console.log('[2/6] ⏳ Waiting for signIn response...')
+
+        console.log('[2/6] ⏳ Waiting for signIn response (race condition)...')
         const result = await Promise.race([signInPromise, timeoutPromise]) as any
-        
+        console.log('[2/6] 🏁 Race completed!')
+
         authData = result.data
         authError = result.error
         
@@ -128,19 +146,22 @@ export default function AdminLogin() {
       }
 
       console.log('[2/6] ✅ Auth successful, user ID:', authData.user.id)
-      
-      // Step 2: Get session immediately
-      console.log('[3/6] 📋 Getting session...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError || !session) {
-        console.error('[3/6] ❌ Failed to get session:', sessionError)
+
+      // Step 2: Use session from auth response instead of getSession()
+      console.log('[3/6] 📋 Checking session from auth response...')
+      const session = authData.session
+
+      if (!session) {
+        console.error('[3/6] ❌ No session in auth response')
+        console.error('[3/6] 📋 AuthData keys:', Object.keys(authData))
         setError('세션을 가져올 수 없습니다. 다시 시도해주세요.')
         setLoading(false)
         return
       }
-      
-      console.log('[3/6] ✅ Session obtained')
+
+      console.log('[3/6] ✅ Session obtained from auth response')
+      console.log('[3/6] 📋 Access token length:', session.access_token?.length || 0)
+      console.log('[3/6] 📋 Refresh token length:', session.refresh_token?.length || 0)
       
       // Step 3: Set session cookies on server
       console.log('[4/6] 🍪 Setting session cookies on server...')
