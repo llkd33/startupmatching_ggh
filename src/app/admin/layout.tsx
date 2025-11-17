@@ -32,62 +32,87 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch (error) {
-            // Ignore cookie setting errors in server components
-          }
-        },
-      },
-    }
-  );
-  
   let user = null;
+  let supabase: any = null;
+  
   try {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    user = authUser;
-  } catch (error: any) {
-    // Ignore cookie parsing errors - they're non-critical
-    if (error?.message?.includes('cookie') || error?.message?.includes('JSON')) {
-      console.warn('Cookie parsing error (non-critical):', error.message);
-    } else {
-      throw error;
+    const cookieStore = cookies();
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            try {
+              return cookieStore.getAll();
+            } catch (error) {
+              console.warn('Error getting cookies:', error);
+              return [];
+            }
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              );
+            } catch (error) {
+              // Ignore cookie setting errors in server components
+              console.warn('Error setting cookies:', error);
+            }
+          },
+        },
+      }
+    );
+    
+    try {
+      const result = await supabase.auth.getUser();
+      user = result.data?.user || null;
+    } catch (error: any) {
+      // Ignore cookie parsing errors - they're non-critical
+      if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64') || error?.message?.includes('parse')) {
+        console.warn('Cookie parsing error (non-critical):', error.message);
+        user = null;
+      } else {
+        console.error('Unexpected error getting user:', error);
+        user = null;
+      }
     }
+  } catch (error: any) {
+    console.error('Error initializing Supabase client:', error);
+    // If we can't initialize Supabase, redirect to login
+    redirect('/admin-login');
   }
 
-  if (!user) {
+  if (!user || !supabase) {
     redirect('/admin-login');
   }
 
   // Check if user is admin
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role, is_admin')
-    .eq('id', user.id)
-    .maybeSingle(); // single() 대신 maybeSingle() 사용
+  let userData = null;
+  let userError = null;
+  
+  try {
+    const result = await supabase
+      .from('users')
+      .select('role, is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    
+    userData = result.data;
+    userError = result.error;
+  } catch (error: any) {
+    console.error('Error querying users table:', error);
+    userError = error;
+  }
 
   // 허용 기준: users.is_admin = true 또는 role === 'admin'
   if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Admin layout check failed:', {
-        userError: userError?.message,
-        userData,
-        is_admin: userData?.is_admin,
-        role: userData?.role
-      })
-    }
+    console.log('Admin layout check failed:', {
+      userError: userError?.message,
+      userData,
+      is_admin: userData?.is_admin,
+      role: userData?.role
+    });
     redirect('/admin-login');
   }
 
