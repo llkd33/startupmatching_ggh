@@ -1,4 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -32,11 +32,40 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const supabase = createServerComponentClient({ cookies });
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch (error) {
+            // Ignore cookie setting errors in server components
+          }
+        },
+      },
+    }
+  );
   
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    user = authUser;
+  } catch (error: any) {
+    // Ignore cookie parsing errors - they're non-critical
+    if (error?.message?.includes('cookie') || error?.message?.includes('JSON')) {
+      console.warn('Cookie parsing error (non-critical):', error.message);
+    } else {
+      throw error;
+    }
+  }
 
   if (!user) {
     redirect('/admin-login');
