@@ -14,6 +14,19 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [supabase, setSupabase] = useState<any>(null)
+  
+  useEffect(() => {
+    // Initialize Supabase client
+    try {
+      const client = createBrowserSupabaseClient()
+      console.log('✅ Supabase client initialized')
+      setSupabase(client)
+    } catch (err) {
+      console.error('❌ Failed to initialize Supabase client:', err)
+      setError('인증 서비스를 초기화할 수 없습니다. 페이지를 새로고침해주세요.')
+    }
+  }, [])
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,12 +44,22 @@ export default function AdminLogin() {
     setLoading(true)
     setError('')
     
+    // Check if Supabase client is ready
+    if (!supabase) {
+      setError('인증 서비스를 초기화하는 중입니다. 잠시 후 다시 시도해주세요.')
+      setLoading(false)
+      return
+    }
+    
     try {
       console.log('[1/6] 🔐 Starting admin login for:', email.trim())
+      console.log('[1/6] 📋 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL || 'NOT SET')
+      console.log('[1/6] 📋 Supabase Anon Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET')
 
       // Step 1: Sign in with timeout
       console.log('[2/6] 🔑 Attempting signInWithPassword...')
       console.log('[2/6] 📤 Supabase client:', supabase ? 'exists' : 'missing')
+      console.log('[2/6] 📤 Supabase auth:', supabase?.auth ? 'exists' : 'missing')
       
       let authData: any = null
       let authError: any = null
