@@ -162,32 +162,9 @@ export default function AdminLogin() {
       console.log('[3/6] ✅ Session obtained from auth response')
       console.log('[3/6] 📋 Access token length:', session.access_token?.length || 0)
       console.log('[3/6] 📋 Refresh token length:', session.refresh_token?.length || 0)
-      
-      // Step 3: Set session cookies on server
-      console.log('[4/6] 🍪 Setting session cookies on server...')
-      try {
-        const setSessionResponse = await fetch('/api/auth/set-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          }),
-        })
-        
-        if (!setSessionResponse.ok) {
-          const errorData = await setSessionResponse.json().catch(() => ({}))
-          console.warn('[4/6] ⚠️ Failed to set session cookies:', errorData)
-          // Continue anyway - cookies might still work
-        } else {
-          console.log('[4/6] ✅ Session cookies set')
-        }
-      } catch (setSessionErr) {
-        console.warn('[4/6] ⚠️ Exception setting cookies:', setSessionErr)
-        // Continue anyway
-      }
+
+      // Step 3: Session cookies are automatically set by Supabase client
+      console.log('[4/6] ✅ Session cookies set by Supabase client')
       
       // Step 4: Check admin status via server API
       console.log('[5/6] 🔍 Checking admin status...')
