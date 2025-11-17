@@ -32,20 +32,17 @@ export default function AdminLogin() {
     setError('')
     
     try {
-      console.log('🔐 Admin login attempt:', email.trim())
+      console.log('[1/6] 🔐 Starting admin login for:', email.trim())
 
-      // Sign in
+      // Step 1: Sign in
+      console.log('[2/6] 🔑 Attempting signInWithPassword...')
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password
       })
       
       if (authError) {
-        console.error('❌ Auth error:', authError)
-        console.error('Error code:', authError.status)
-        console.error('Error message:', authError.message)
-        
-        // 사용자 친화적인 에러 메시지
+        console.error('[2/6] ❌ Auth error:', authError)
         let errorMessage = '로그인에 실패했습니다.'
         if (authError.message?.includes('Invalid login credentials')) {
           errorMessage = '이메일 또는 비밀번호가 올바르지 않습니다.'
@@ -54,125 +51,35 @@ export default function AdminLogin() {
         } else {
           errorMessage = authError.message || errorMessage
         }
-        
         setError(errorMessage)
         setLoading(false)
         return
       }
 
       if (!authData?.user) {
-        console.error('❌ No user data returned')
+        console.error('[2/6] ❌ No user data returned')
         setError('로그인 정보를 확인할 수 없습니다.')
         setLoading(false)
         return
       }
 
-      console.log('✅ Auth successful, user ID:', authData.user.id)
+      console.log('[2/6] ✅ Auth successful, user ID:', authData.user.id)
       
-      // Check if user is admin via server API (avoids RLS issues)
-      console.log('🔍 Checking admin status via server API...')
-      let userData = null
-      let isAdmin = false
-      
-      try {
-        console.log('📤 Sending request to /api/auth/check-admin...')
-        const checkStartTime = Date.now()
-        
-        const checkResponse = await Promise.race([
-          fetch('/api/auth/check-admin', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              user_id: authData.user.id
-            }),
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
-          )
-        ]) as Response
-        
-        const checkDuration = Date.now() - checkStartTime
-        console.log(`⏱️ Check completed in ${checkDuration}ms`)
-        
-        if (!checkResponse.ok) {
-          const errorData = await checkResponse.json().catch(() => ({}))
-          console.error('❌ Admin check failed:', errorData)
-          
-          if (checkResponse.status === 404) {
-            setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
-          } else {
-            setError(`관리자 권한 확인 실패: ${errorData.error || '알 수 없는 오류'}`)
-          }
-          await supabase.auth.signOut()
-          setLoading(false)
-          return
-        }
-        
-        const checkData = await checkResponse.json()
-        isAdmin = checkData.isAdmin
-        userData = checkData.userData
-        
-        console.log('📋 Admin check result:', { isAdmin, userData })
-      } catch (err: any) {
-        console.error('❌ Exception checking admin status:', err)
-        console.error('Error type:', typeof err)
-        console.error('Error message:', err?.message)
-        console.error('Error stack:', err?.stack)
-        
-        setError(`관리자 권한 확인 중 오류가 발생했습니다: ${err?.message || '알 수 없는 오류'}`)
-        await supabase.auth.signOut()
-        setLoading(false)
-        return
-      }
-      
-      // Admin check 결과 확인
-      if (!isAdmin) {
-        console.warn('⚠️ User is not admin:', { 
-          is_admin: userData?.is_admin, 
-          role: userData?.role 
-        })
-        await supabase.auth.signOut()
-        setError(`관리자 권한이 없습니다. (현재 역할: ${userData?.role || '없음'}, 관리자: ${userData?.is_admin || false})`)
-        setLoading(false)
-        return
-      }
-
-      console.log('✅ Admin verified, preparing redirect...')
-      
-      // Log admin action (실패해도 로그인은 진행)
-      try {
-        const { error: logError } = await supabase
-          .from('admin_logs')
-          .insert({
-            admin_id: authData.user.id,
-            action: 'ADMIN_LOGIN',
-            details: { timestamp: new Date().toISOString() }
-          })
-        
-        if (logError) {
-          console.warn('⚠️ Failed to log admin login action:', logError)
-        } else {
-          console.log('✅ Admin login logged')
-        }
-      } catch (logError) {
-        console.warn('⚠️ Exception logging admin login action:', logError)
-      }
-      
-      // 세션 토큰 가져오기
+      // Step 2: Get session immediately
+      console.log('[3/6] 📋 Getting session...')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError || !session) {
-        console.error('❌ Failed to get session:', sessionError)
+        console.error('[3/6] ❌ Failed to get session:', sessionError)
         setError('세션을 가져올 수 없습니다. 다시 시도해주세요.')
         setLoading(false)
         return
       }
       
-      console.log('🔑 Got session tokens, setting cookies on server...')
+      console.log('[3/6] ✅ Session obtained')
       
-      // 서버 사이드 API를 통해 쿠키에 세션 설정
+      // Step 3: Set session cookies on server
+      console.log('[4/6] 🍪 Setting session cookies on server...')
       try {
         const setSessionResponse = await fetch('/api/auth/set-session', {
           method: 'POST',
@@ -187,30 +94,73 @@ export default function AdminLogin() {
         
         if (!setSessionResponse.ok) {
           const errorData = await setSessionResponse.json().catch(() => ({}))
-          console.error('❌ Failed to set session on server:', errorData)
-          // 쿠키 설정 실패해도 리다이렉트 시도 (localStorage 세션 사용)
-          console.warn('⚠️ Proceeding with redirect despite cookie setup failure')
+          console.warn('[4/6] ⚠️ Failed to set session cookies:', errorData)
+          // Continue anyway - cookies might still work
         } else {
-          console.log('✅ Session cookies set on server')
+          console.log('[4/6] ✅ Session cookies set')
         }
       } catch (setSessionErr) {
-        console.error('❌ Exception setting session on server:', setSessionErr)
-        // 에러가 발생해도 리다이렉트 시도
-        console.warn('⚠️ Proceeding with redirect despite exception')
+        console.warn('[4/6] ⚠️ Exception setting cookies:', setSessionErr)
+        // Continue anyway
       }
       
-      // 쿠키가 설정되도록 잠시 대기
-      console.log('⏳ Waiting for cookies to be set...')
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Step 4: Check admin status via server API
+      console.log('[5/6] 🔍 Checking admin status...')
+      try {
+        const checkResponse = await fetch('/api/auth/check-admin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: authData.user.id
+          }),
+        })
+        
+        if (!checkResponse.ok) {
+          const errorData = await checkResponse.json().catch(() => ({}))
+          console.error('[5/6] ❌ Admin check failed:', errorData)
+          
+          if (checkResponse.status === 404) {
+            setError('사용자 정보를 찾을 수 없습니다. 먼저 일반 로그인(/auth/login)을 통해 계정을 생성해주세요.')
+          } else if (checkResponse.status === 401) {
+            setError('인증에 실패했습니다. 쿠키가 설정되지 않았을 수 있습니다.')
+          } else {
+            setError(`관리자 권한 확인 실패: ${errorData.error || '알 수 없는 오류'}`)
+          }
+          await supabase.auth.signOut()
+          setLoading(false)
+          return
+        }
+        
+        const checkData = await checkResponse.json()
+        console.log('[5/6] 📋 Admin check result:', checkData)
+        
+        if (!checkData.isAdmin) {
+          console.warn('[5/6] ⚠️ User is not admin')
+          await supabase.auth.signOut()
+          setError(`관리자 권한이 없습니다. (역할: ${checkData.userData?.role || '없음'}, 관리자: ${checkData.userData?.is_admin || false})`)
+          setLoading(false)
+          return
+        }
+        
+        console.log('[5/6] ✅ Admin verified')
+      } catch (checkErr: any) {
+        console.error('[5/6] ❌ Exception checking admin:', checkErr)
+        setError(`관리자 권한 확인 중 오류: ${checkErr?.message || '알 수 없는 오류'}`)
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
+      }
       
-      // 리다이렉트 (전체 페이지 리로드로 쿠키 확실히 반영)
-      console.log('🔄 Redirecting to /admin')
-      if (typeof window !== 'undefined') {
-        // 쿠키가 확실히 설정되도록 전체 페이지 리로드
+      // Step 5: Wait a bit for cookies to propagate
+      console.log('[6/6] ⏳ Waiting for cookies to propagate...')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Step 6: Redirect
+      console.log('[6/6] 🔄 Redirecting to /admin')
         window.location.href = '/admin'
-      } else {
-        router.push('/admin')
-      }
+      
     } catch (err: any) {
       console.error('❌ Unexpected error:', err)
       console.error('Error stack:', err.stack)
