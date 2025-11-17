@@ -34,14 +34,37 @@ export async function middleware(request: NextRequest) {
 
   // Refresh session for all routes to ensure cookies are up to date
   // This is important for server components to read the session correctly
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch (error: any) {
+    // Ignore cookie parsing errors - they're non-critical
+    if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64')) {
+      // Cookie parsing errors are non-critical, continue
+    } else {
+      // Re-throw other errors
+      throw error;
+    }
+  }
 
   // Check if the route is an admin route (but exclude /admin-login)
   if (pathname.startsWith('/admin') && pathname !== '/admin-login') {
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser();
+    let user = null;
+    let authError = null;
+    
+    try {
+      const result = await supabase.auth.getUser();
+      user = result.data.user;
+      authError = result.error;
+    } catch (error: any) {
+      // Ignore cookie parsing errors - they're non-critical
+      if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64')) {
+        // Cookie parsing errors are non-critical, treat as no user
+        authError = { message: 'Cookie parsing error' };
+      } else {
+        // Re-throw other errors
+        throw error;
+      }
+    }
 
     // If no user, redirect to admin login page
     if (authError || !user) {
