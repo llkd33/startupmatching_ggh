@@ -18,6 +18,7 @@ export function createBrowserSupabaseClient() {
       detectSessionInUrl: true,
       flowType: 'pkce',
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      storageKey: 'sb-auth-token',
     },
     global: {
       headers: {
@@ -25,7 +26,6 @@ export function createBrowserSupabaseClient() {
         'Content-Type': 'application/json',
         'Prefer': 'return=representation',
         'x-client-info': 'startup-matching@1.0.0',
-        'apikey': supabaseAnonKey
       }
     },
     db: {
