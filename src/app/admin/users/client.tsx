@@ -267,38 +267,51 @@ export default function AdminUsersClient({
         alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
       }
 
-        // 삭제 후 데이터 다시 가져오기 - fetchUsers 직접 호출
-        await fetchUsers(currentPage)
+        // 삭제 후 강제로 데이터 다시 가져오기
+        // 먼저 현재 사용자 목록에서 삭제된 사용자 제거
+        setUsers(prevUsers => prevUsers.filter(u => u.id !== userId))
+        
+        // 그 다음 서버에서 최신 데이터 가져오기
+        try {
+          await fetchUsers(currentPage)
+        } catch (fetchError) {
+          console.error('Error refreshing users after delete:', fetchError)
+          // 에러가 발생해도 이미 로컬 상태에서 제거했으므로 계속 진행
+        }
         
         // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
         setTimeout(async () => {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (!session) return
-          
-          const params = new URLSearchParams({
-            page: currentPage.toString(),
-            limit: pageSize.toString(),
-            role: filterRole,
-            search: debouncedSearch || '',
-            sortBy: 'created_at',
-            sortOrder: 'desc'
-          })
-          
-          const checkResponse = await fetch(`/api/admin/users?${params}`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            cache: 'no-store'
-          })
-          
-          if (checkResponse.ok) {
-            const checkResult = await checkResponse.json()
-            if ((!checkResult.users || checkResult.users.length === 0) && currentPage > 1) {
-              setCurrentPage(currentPage - 1)
-              await fetchUsers(currentPage - 1)
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) return
+            
+            const params = new URLSearchParams({
+              page: currentPage.toString(),
+              limit: pageSize.toString(),
+              role: filterRole,
+              search: debouncedSearch || '',
+              sortBy: 'created_at',
+              sortOrder: 'desc'
+            })
+            
+            const checkResponse = await fetch(`/api/admin/users?${params}`, {
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              cache: 'no-store'
+            })
+            
+            if (checkResponse.ok) {
+              const checkResult = await checkResponse.json()
+              if ((!checkResult.users || checkResult.users.length === 0) && currentPage > 1) {
+                setCurrentPage(currentPage - 1)
+                await fetchUsers(currentPage - 1)
+              }
             }
+          } catch (checkError) {
+            console.error('Error checking page after delete:', checkError)
           }
-        }, 100)
+        }, 200)
       } else {
         throw new Error(result.error || '사용자 삭제에 실패했습니다.')
       }
