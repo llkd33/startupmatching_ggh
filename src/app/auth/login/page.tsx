@@ -76,10 +76,17 @@ function LoginForm() {
         console.log('Attempting login for:', email.trim())
       }
 
-      const { data, error: signInError } = await browserSupabase.auth.signInWithPassword({
+      // 타임아웃 설정 (30초)
+      const signInPromise = browserSupabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('로그인 요청이 시간 초과되었습니다. 다시 시도해주세요.')), 30000)
+      })
+      
+      const { data, error: signInError } = await Promise.race([signInPromise, timeoutPromise]) as any
 
       if (signInError) {
         // 더 자세한 에러 정보 로깅
@@ -325,6 +332,7 @@ function LoginForm() {
           }
           setError('로그인 처리 중 오류가 발생했습니다.')
           setLoading(false)
+          setIsRedirecting(false)
         })
         return
       }
@@ -341,6 +349,7 @@ function LoginForm() {
           }
           setError('로그인 처리 중 오류가 발생했습니다.')
           setLoading(false)
+          setIsRedirecting(false)
         })
         return
       }
@@ -392,7 +401,6 @@ function LoginForm() {
       setError(errorMessage)
       toast.error(errorMessage)
       setIsRedirecting(false)
-    } finally {
       setLoading(false)
     }
   }
