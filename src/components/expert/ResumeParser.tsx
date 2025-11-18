@@ -107,7 +107,7 @@ export default function ResumeParser({ onParseComplete }: ResumeParserProps) {
 
     // Extract skills (common IT/business terms)
     const skillKeywords = [
-      'Java', 'Python', 'JavaScript', 'React', 'Node.js', 'Spring', 
+      '투자', '유통', '마케팅', '비즈니스 개발', '재무', '법무', 'HR', '브랜딩', 
       'AWS', 'Docker', 'Kubernetes', 'SQL', 'MongoDB',
       '마케팅', '영업', '기획', '전략', '컨설팅', '프로젝트', 
       '관리', '분석', '개발', '디자인', 'PM', 'PO'

@@ -126,7 +126,7 @@ export default function HashtagManager({
               setError(null)
             }}
             onKeyPress={handleKeyPress}
-            placeholder="태그 추가 (예: React, 스타트업)"
+            placeholder="태그 추가 (예: 투자, 마케팅, 스타트업)"
             className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             disabled={hashtags.length >= maxTags}
           />

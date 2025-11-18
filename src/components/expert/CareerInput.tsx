@@ -160,7 +160,7 @@ export default function CareerInput({ careers, onChange }: CareerInputProps) {
                 value={career.description || ''}
                 onChange={(e) => updateCareer(index, 'description', e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                placeholder="예: React 프론트엔드 개발"
+                placeholder="예: 스타트업 투자 및 성장 전략 컨설팅"
               />
             </div>
           </div>
