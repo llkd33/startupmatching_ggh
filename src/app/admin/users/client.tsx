@@ -54,8 +54,6 @@ export default function AdminUsersClient({
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
   const pageSize = 20
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [newEmail, setNewEmail] = useState('')
 
   const fetchUsers = useCallback(async (page: number = currentPage) => {
     setLoading(true)
