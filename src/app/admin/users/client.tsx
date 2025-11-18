@@ -213,7 +213,13 @@ export default function AdminUsersClient({
           alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
         }
 
-        await fetchUsers()
+        // 삭제 후 현재 페이지의 데이터가 없으면 이전 페이지로 이동
+        const shouldGoToPrevPage = filteredUsers.length === 1 && currentPage > 1
+        if (shouldGoToPrevPage) {
+          setCurrentPage(currentPage - 1)
+        } else {
+          await fetchUsers(currentPage)
+        }
       } else {
         throw new Error(result.error || '사용자 삭제에 실패했습니다.')
       }
@@ -292,78 +298,86 @@ export default function AdminUsersClient({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading && (
+          {loading && filteredUsers.length === 0 ? (
             <div className="p-4">
               <SkeletonTable rows={8} />
             </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    사용자
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    역할
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    상태
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    가입일
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    작업
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {!loading && filteredUsers.length === 0 ? (
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
                   <tr>
-                    <td colSpan={5} className="px-6 py-6 text-center text-gray-600">
-                      <div className="space-y-3">
-                        <div>조건에 맞는 사용자가 없습니다.</div>
-                        {(searchTerm || filterRole !== 'all') && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSearchTerm('')
-                              setFilterRole('all')
-                            }}
-                          >
-                            필터 초기화
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      사용자
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      역할
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      상태
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      가입일
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      작업
+                    </th>
                   </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {user.name || user.organization_name || '이름 없음'}
-                          </div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-6 text-center text-gray-600">
+                        <div className="space-y-3">
+                          <div>조건에 맞는 사용자가 없습니다.</div>
+                          {(searchTerm || filterRole !== 'all') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSearchTerm('')
+                                setFilterRole('all')
+                              }}
+                            >
+                              필터 초기화
+                            </Button>
+                          )}
                         </div>
                       </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {user.name || user.organization_name || '이름 없음'}
+                            </div>
+                            <div className="text-sm text-gray-500">{user.email || ''}</div>
+                          </div>
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
-                            user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.role === 'expert' ? '전문가' :
-                             user.role === 'organization' ? '기관' : '기타'}
-                          </span>
+                          {user.role && (
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
+                              user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {user.role === 'expert' ? '전문가' :
+                               user.role === 'organization' ? '기관' : 
+                               user.role === 'admin' ? '관리자' : '기타'}
+                            </span>
+                          )}
                           {user.is_admin && (
                             <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
                               <Shield className="w-3 h-3 mr-1" />
                               관리자
+                            </span>
+                          )}
+                          {!user.role && (
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                              미가입
                             </span>
                           )}
                         </div>
@@ -402,7 +416,7 @@ export default function AdminUsersClient({
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString('ko-KR')}
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString('ko-KR') : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
@@ -431,7 +445,8 @@ export default function AdminUsersClient({
                 )}
               </tbody>
             </table>
-          </div>
+            </div>
+          )}
 
           {/* 페이지네이션 */}
           {totalPages > 1 && (
