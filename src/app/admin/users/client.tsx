@@ -12,7 +12,8 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  UserPlus
+  UserPlus,
+  Mail
 } from 'lucide-react'
 import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
 import { BulkInviteDialog } from '@/components/admin/BulkInviteDialog'
@@ -53,6 +54,8 @@ export default function AdminUsersClient({
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
   const pageSize = 20
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [newEmail, setNewEmail] = useState('')
 
   const fetchUsers = useCallback(async (page: number = currentPage) => {
     setLoading(true)
@@ -176,6 +179,59 @@ export default function AdminUsersClient({
     } catch (error) {
       console.error('Error toggling verified:', error)
       alert('인증 상태 변경에 실패했습니다.')
+    }
+  }
+
+  const handleUpdateEmail = async (userId: string, currentEmail: string) => {
+    const email = prompt(`새 이메일 주소를 입력하세요:\n\n현재: ${currentEmail}`, currentEmail)
+    
+    if (!email || email === currentEmail) {
+      return
+    }
+
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      alert('올바른 이메일 형식이 아닙니다.')
+      return
+    }
+
+    if (!confirm(`이메일을 "${email}"로 변경하시겠습니까?`)) {
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'update_email',
+          userId,
+          newEmail: email
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || '이메일 업데이트에 실패했습니다.')
+      }
+
+      if (result.success) {
+        alert(result.message || '이메일이 업데이트되었습니다.')
+        await fetchUsers(currentPage)
+      } else {
+        throw new Error(result.error || '이메일 업데이트에 실패했습니다.')
+      }
+    } catch (error: any) {
+      console.error('Error updating email:', error)
+      alert(error.message || '이메일 업데이트에 실패했습니다.')
     }
   }
 
@@ -423,9 +479,20 @@ export default function AdminUsersClient({
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => handleUpdateEmail(user.id, user.email)}
+                            className="text-blue-600 hover:text-blue-900"
+                            aria-label="이메일 수정"
+                            title="이메일 수정"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleToggleAdmin(user.id, user.is_admin)}
                             className="text-gray-600 hover:text-gray-900"
                             aria-label={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
+                            title={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
                           >
                             <Shield className="w-4 h-4" />
                           </Button>
@@ -435,6 +502,7 @@ export default function AdminUsersClient({
                             onClick={() => handleDeleteUser(user.id, user.name || user.organization_name || user.email)}
                             className="text-red-600 hover:text-red-900"
                             aria-label="사용자 삭제"
+                            title="사용자 삭제"
                           >
                             <Trash2 className="w-4 w-4" />
                           </Button>

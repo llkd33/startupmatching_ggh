@@ -189,6 +189,75 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'update_email': {
+        const { newEmail } = body
+
+        if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+          return NextResponse.json({ error: '올바른 이메일 형식이 아닙니다.' }, { status: 400 })
+        }
+
+        // 이메일 중복 확인
+        const { data: existingUser } = await adminClient
+          .from('users')
+          .select('id')
+          .eq('email', newEmail.toLowerCase())
+          .neq('id', userId)
+          .maybeSingle()
+
+        if (existingUser) {
+          return NextResponse.json({ error: '이미 사용 중인 이메일입니다.' }, { status: 400 })
+        }
+
+        // auth.users에서 이메일 업데이트
+        const { data: authUser } = await adminClient.auth.admin.getUserById(userId)
+        if (!authUser?.user) {
+          return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 })
+        }
+
+        // auth.users 이메일 업데이트
+        const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
+          email: newEmail.toLowerCase()
+        })
+
+        if (authUpdateError) {
+          throw new Error(`이메일 업데이트 실패: ${authUpdateError.message}`)
+        }
+
+        // public.users 이메일 업데이트
+        const { error: userUpdateError } = await adminClient
+          .from('users')
+          .update({ email: newEmail.toLowerCase(), updated_at: new Date().toISOString() })
+          .eq('id', userId)
+
+        if (userUpdateError) {
+          throw new Error(`사용자 이메일 업데이트 실패: ${userUpdateError.message}`)
+        }
+
+        // 로그 기록
+        try {
+          await adminClient
+            .from('admin_logs')
+            .insert({
+              admin_user_id: authResult.user.id,
+              action: 'UPDATE_USER_EMAIL',
+              entity_type: 'user',
+              entity_id: userId,
+              details: {
+                timestamp: new Date().toISOString(),
+                previous_email: authUser.user.email,
+                new_email: newEmail.toLowerCase()
+              }
+            })
+        } catch (logError) {
+          console.error('Admin log error:', logError)
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          message: '이메일이 업데이트되었습니다.'
+        })
+      }
+
       case 'soft_delete': {
         // 관련 데이터 확인
         const { data: campaigns } = await adminClient
