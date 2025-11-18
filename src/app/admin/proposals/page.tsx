@@ -361,8 +361,8 @@ export default function ProposalManagement() {
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-gray-600">
-          {total > 0
-            ? `${(currentPage - 1) * pageSize + 1} - ${Math.min(currentPage * pageSize, total)} / 총 ${total}개`
+          {(total || 0) > 0
+            ? `${(currentPage - 1) * pageSize + 1} - ${Math.min(currentPage * pageSize, total || 0)} / 총 ${total || 0}개`
             : '총 0개'}
         </div>
         <div className="flex items-center gap-2">

@@ -386,8 +386,8 @@ export default function CampaignManagement() {
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-gray-600">
-          {total > 0
-            ? `${(currentPage - 1) * pageSize + 1} - ${Math.min(currentPage * pageSize, total)} / 총 ${total}개`
+          {(total || 0) > 0
+            ? `${(currentPage - 1) * pageSize + 1} - ${Math.min(currentPage * pageSize, total || 0)} / 총 ${total || 0}개`
             : '총 0개'}
         </div>
         <div className="flex items-center gap-2">
@@ -426,7 +426,7 @@ export default function CampaignManagement() {
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-bold text-gray-900">{selectedCampaign.title}</h2>
+                <h2 className="text-xl font-bold text-gray-900">{selectedCampaign.title || '제목 없음'}</h2>
                 <button
                   onClick={() => setSelectedCampaign(null)}
                   className="text-gray-400 hover:text-gray-600"
@@ -438,36 +438,44 @@ export default function CampaignManagement() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-semibold text-gray-700">설명</h3>
-                  <p className="text-gray-600 mt-1">{selectedCampaign.description}</p>
+                  <p className="text-gray-600 mt-1">{selectedCampaign.description || '-'}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h3 className="font-semibold text-gray-700">기관</h3>
                     <p className="text-gray-600 mt-1">
-                      {selectedCampaign.organization_profiles.organization_name}
+                      {selectedCampaign.organization_profiles?.organization_name || '-'}
                     </p>
                   </div>
                   
                   <div>
                     <h3 className="font-semibold text-gray-700">유형</h3>
-                    <p className="text-gray-600 mt-1">{selectedCampaign.type}</p>
+                    <p className="text-gray-600 mt-1">{selectedCampaign.type || '-'}</p>
                   </div>
                   
                   <div>
                     <h3 className="font-semibold text-gray-700">카테고리</h3>
-                    <p className="text-gray-600 mt-1">{selectedCampaign.category}</p>
+                    <p className="text-gray-600 mt-1">{selectedCampaign.category || '-'}</p>
                   </div>
                   
                   <div>
                     <h3 className="font-semibold text-gray-700">예산 범위</h3>
-                    <p className="text-gray-600 mt-1">₩{selectedCampaign.budget_min.toLocaleString()} - ₩{selectedCampaign.budget_max.toLocaleString()}</p>
+                    <p className="text-gray-600 mt-1">
+                      {selectedCampaign.budget_min && selectedCampaign.budget_max
+                        ? `₩${selectedCampaign.budget_min.toLocaleString()} - ₩${selectedCampaign.budget_max.toLocaleString()}`
+                        : '-'}
+                    </p>
                   </div>
                 </div>
                 
                 <div>
                   <h3 className="font-semibold text-gray-700">생성일</h3>
-                  <p className="text-gray-600 mt-1">{new Date(selectedCampaign.created_at).toLocaleString('ko-KR')}</p>
+                  <p className="text-gray-600 mt-1">
+                    {selectedCampaign.created_at 
+                      ? new Date(selectedCampaign.created_at).toLocaleString('ko-KR')
+                      : '-'}
+                  </p>
                 </div>
               </div>
             </div>

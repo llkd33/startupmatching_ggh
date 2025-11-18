@@ -88,9 +88,9 @@ export default function AdminUsersClient({
 
       const result = await response.json()
       setUsers(result.users || [])
-      setTotalPages(result.pagination.totalPages)
-      setTotalUsers(result.pagination.total)
-      setCurrentPage(result.pagination.page)
+      setTotalPages(result.pagination?.totalPages || 1)
+      setTotalUsers(result.pagination?.total || 0)
+      setCurrentPage(result.pagination?.page || 1)
     } catch (error) {
       console.error('Error fetching users:', error)
     } finally {
@@ -293,7 +293,7 @@ export default function AdminUsersClient({
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>사용자 목록</CardTitle>
-              <CardDescription>총 {totalUsers.toLocaleString()}명의 사용자 (페이지 {currentPage}/{totalPages})</CardDescription>
+              <CardDescription>총 {(totalUsers || 0).toLocaleString()}명의 사용자 (페이지 {currentPage || 1}/{totalPages || 1})</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -452,7 +452,7 @@ export default function AdminUsersClient({
           {!loading && totalPages > 1 && (
             <div className="px-6 py-4 border-t flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                전체 {totalUsers.toLocaleString()}명 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalUsers)}명 표시
+                전체 {(totalUsers || 0).toLocaleString()}명 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalUsers || 0)}명 표시
               </div>
               <div className="flex gap-2">
                 <Button
@@ -464,7 +464,7 @@ export default function AdminUsersClient({
                   이전
                 </Button>
                 <div className="flex items-center gap-2 px-3">
-                  {currentPage} / {totalPages}
+                  {currentPage || 1} / {totalPages || 1}
                 </div>
                 <Button
                   variant="outline"
