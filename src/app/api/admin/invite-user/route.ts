@@ -80,9 +80,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 이메일 중복 확인
+    // 이메일 중복 확인 및 가입 완료 여부 확인
     let existingUser = null
+    let existingUserRecord = null
+    
     try {
+      // auth.users에서 사용자 확인
       if (typeof supabaseAdmin.auth.admin.getUserByEmail === 'function') {
         const result = await supabaseAdmin.auth.admin.getUserByEmail(email)
         existingUser = result.data
@@ -94,13 +97,35 @@ export async function POST(request: NextRequest) {
           existingUser = { user: found }
         }
       }
+      
+      // public.users에서 사용자 레코드 확인 (가입 완료 여부 확인)
+      if (existingUser?.user) {
+        const { data: userRecord } = await supabaseAdmin
+          .from('users')
+          .select('id, role, email')
+          .eq('email', email.toLowerCase())
+          .maybeSingle()
+        
+        existingUserRecord = userRecord
+      }
     } catch (err) {
       // 에러 무시하고 계속 진행
     }
     
+    // 사용자가 존재하는 경우
     if (existingUser?.user) {
+      // 가입 완료한 사용자(role이 null이 아님)는 재초대 불가
+      if (existingUserRecord && existingUserRecord.role) {
+        return NextResponse.json(
+          { error: '이미 가입 완료한 사용자입니다. 재초대할 수 없습니다.' },
+          { status: 400 }
+        )
+      }
+      
+      // 초대만 하고 가입 안 한 사용자는 재초대 가능 (기존 사용자 삭제 후 재초대)
+      // 또는 기존 초대 상태 확인 후 재초대 가능하도록 처리
       return NextResponse.json(
-        { error: 'User with this email already exists' },
+        { error: '이미 초대된 사용자입니다. 기존 초대를 삭제한 후 다시 초대해주세요.' },
         { status: 400 }
       )
     }
@@ -208,7 +233,7 @@ export async function POST(request: NextRequest) {
       const emailHtml = generateInviteEmailHTML(inviteUrl, email, phone)
       
       const emailResult = await resend.emails.send({
-        from: 'StartupMatching <noreply@startupmatching.com>',
+        from: process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>',
         to: email,
         subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 가입 초대가 도착했습니다`,
         html: emailHtml,
@@ -216,6 +241,10 @@ export async function POST(request: NextRequest) {
 
       if (!emailResult.data) {
         console.error('Failed to send invite email:', emailResult.error)
+        // 상세한 에러 로깅
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Resend API Error:', JSON.stringify(emailResult.error, null, 2))
+        }
         return NextResponse.json({
           success: true,
           user: {
@@ -224,7 +253,8 @@ export async function POST(request: NextRequest) {
           },
           message: 'User created successfully, but invitation email failed to send. Please send the invite link manually.',
           warning: 'email_failed',
-          inviteUrl: inviteUrl
+          inviteUrl: inviteUrl,
+          error: emailResult.error ? JSON.stringify(emailResult.error) : 'Unknown error'
         })
       }
 

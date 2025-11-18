@@ -69,9 +69,12 @@ export async function GET(req: NextRequest) {
   const adminClient = getAdminClient()
 
   try {
+    // 필요한 컬럼만 선택하여 성능 최적화
+    const selectColumns = 'id, email, name, role, is_admin, organization_name, is_verified, created_at, updated_at'
+    
     let query = adminClient
       .from('user_profiles')
-      .select('*', { count: 'exact' })
+      .select(selectColumns, { count: 'exact' })
 
     // 필터 적용
     if (role && role !== 'all') {
@@ -86,7 +89,7 @@ export async function GET(req: NextRequest) {
       query = query.or(`email.ilike.%${search}%,name.ilike.%${search}%,organization_name.ilike.%${search}%`)
     }
 
-    // 정렬
+    // 정렬 (인덱스가 있는 컬럼 우선 사용)
     query = query.order(sortBy, { ascending: sortOrder === 'asc' })
 
     // 페이지네이션

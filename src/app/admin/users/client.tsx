@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,21 +49,12 @@ export default function AdminUsersClient({
   const [loading, setLoading] = useState(false)
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
 
-  // Sync filters to URL (debounced)
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (debouncedSearch) params.set('q', debouncedSearch); else params.delete('q')
-    if (filterRole && filterRole !== 'all') params.set('role', filterRole); else params.delete('role')
-    router.replace(`${pathname}?${params.toString()}`)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, filterRole])
-  
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
   const pageSize = 20
 
-  const fetchUsers = async (page = currentPage) => {
+  const fetchUsers = useCallback(async (page: number = currentPage) => {
     setLoading(true)
 
     try {
@@ -86,7 +77,9 @@ export default function AdminUsersClient({
       const response = await fetch(`/api/admin/users?${params}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
-        }
+        },
+        // 캐싱 비활성화 (항상 최신 데이터)
+        cache: 'no-store'
       })
 
       if (!response.ok) {
@@ -103,12 +96,25 @@ export default function AdminUsersClient({
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, filterRole, debouncedSearch])
 
+  // 필터 변경 시 URL 업데이트 및 첫 페이지로 리셋
   useEffect(() => {
-    fetchUsers(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (debouncedSearch) params.set('q', debouncedSearch); else params.delete('q')
+    if (filterRole && filterRole !== 'all') params.set('role', filterRole); else params.delete('role')
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterRole])
+  
+  // 페이지 또는 필터 변경 시 데이터 로드
+  useEffect(() => {
+    fetchUsers(currentPage)
+  }, [currentPage, fetchUsers])
 
   const handleToggleAdmin = async (userId: string, currentIsAdmin: boolean) => {
     if (!confirm(`정말로 이 사용자의 관리자 권한을 ${currentIsAdmin ? '해제' : '부여'}하시겠습니까?`)) {
