@@ -328,37 +328,8 @@ export default function CampaignManagement() {
                               alert('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
                             }
 
-                            // 데이터 새로고침
-                            const from = (currentPage - 1) * pageSize
-                            const to = from + pageSize - 1
-                            let query = supabase
-                              .from('campaigns')
-                              .select(`
-                                *,
-                                organization_profiles!inner(organization_name, is_verified),
-                                proposals(id)
-                              `, { count: 'exact' })
-                              .order('created_at', { ascending: false })
-
-                            if (filterStatus && filterStatus !== 'all') {
-                              query = query.eq('status', filterStatus)
-                            }
-
-                            const term = debouncedSearch?.trim()
-                            if (term) {
-                              query = query.or(
-                                `title.ilike.%${term}%,category.ilike.%${term}%,organization_profiles.organization_name.ilike.%${term}%`
-                              )
-                            }
-
-                            const { data, count, error: queryError } = await query.range(from, to)
-                            
-                            if (queryError) {
-                              throw new Error(`데이터 새로고침 실패: ${queryError.message}`)
-                            }
-                            
-                            setCampaigns(data || [])
-                            setTotal(count || 0)
+                            // 페이지 새로고침으로 데이터 갱신
+                            window.location.reload()
                           } catch (error: any) {
                             console.error('Error deleting campaign:', error)
                             const errorMessage = error.message || '캠페인 삭제에 실패했습니다.'
