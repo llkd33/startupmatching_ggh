@@ -158,6 +158,28 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         console.log('Proposal inserted successfully:', insertedData)
       }
 
+      // 기관에 이메일 알림 발송 (비동기, 실패해도 계속 진행)
+      if (insertedData && insertedData[0]) {
+        try {
+          await fetch('/api/proposals/notify-organization', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              proposalId: insertedData[0].id,
+              campaignId: campaignId,
+              expertId: expertId
+            })
+          })
+        } catch (emailError) {
+          // 이메일 발송 실패는 로그만 남기고 계속 진행
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Failed to send proposal notification email:', emailError)
+          }
+        }
+      }
+
       // 성공 시 임시 저장 데이터 삭제
       clear()
       localStorage.removeItem(autoSaveKey)

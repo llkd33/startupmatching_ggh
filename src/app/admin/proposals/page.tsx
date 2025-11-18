@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Search, FileText, DollarSign } from 'lucide-react';
+import { Search, FileText, DollarSign, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { SkeletonTable } from '@/components/ui/skeleton';
@@ -207,12 +208,15 @@ export default function ProposalManagement() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 제출일
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                작업
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {!loading && filteredProposals.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-6 text-center text-gray-600">
+                <td colSpan={7} className="px-6 py-6 text-center text-gray-600">
                   <div className="space-y-3">
                     <div>조건에 맞는 제안서가 없습니다.</div>
                     {(searchTerm || filterStatus !== 'all') && (
@@ -256,7 +260,76 @@ export default function ProposalManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(proposal.created_at).toLocaleDateString('ko-KR')}
+                    {proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('ko-KR') : '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm(`정말로 이 제안서를 삭제하시겠습니까?`)) {
+                          return
+                        }
+
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession()
+                          if (!session) return
+
+                          const response = await fetch(`/api/admin/proposals?id=${proposal.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                              'Authorization': `Bearer ${session.access_token}`,
+                              'Content-Type': 'application/json'
+                            }
+                          })
+
+                          const result = await response.json()
+
+                          if (!response.ok) {
+                            throw new Error(result.error || 'Failed to delete proposal')
+                          }
+
+                          alert(result.message || '제안서가 삭제되었습니다.')
+                          // 데이터 새로고침
+                          const from = (currentPage - 1) * pageSize
+                          const to = from + pageSize - 1
+                          let query = supabase
+                            .from('proposals')
+                            .select(`
+                              *,
+                              campaigns!inner(
+                                title,
+                                type,
+                                organization_profiles!inner(organization_name)
+                              ),
+                              expert_profiles!inner(name, hourly_rate)
+                            `, { count: 'exact' })
+                            .order('created_at', { ascending: false })
+
+                          if (filterStatus && filterStatus !== 'all') {
+                            query = query.eq('status', filterStatus)
+                          }
+
+                          const term = debouncedSearch?.trim()
+                          if (term) {
+                            query = query.or(
+                              `campaigns.title.ilike.%${term}%,expert_profiles.name.ilike.%${term}%,campaigns.organization_profiles.organization_name.ilike.%${term}%`
+                            )
+                          }
+
+                          const { data, count } = await query.range(from, to)
+                          setProposals(data || [])
+                          setTotal(count || 0)
+                        } catch (error: any) {
+                          console.error('Error deleting proposal:', error)
+                          alert(error.message || '제안서 삭제에 실패했습니다.')
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-900"
+                      aria-label="제안서 삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </td>
                 </tr>
               ))

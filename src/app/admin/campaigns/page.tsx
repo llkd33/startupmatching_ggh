@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Search, Eye, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Search, Eye, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { campaignStatusLabel } from '@/lib/i18n/status';
+import { Button } from '@/components/ui/button';
 
 interface Campaign {
   id: string;
@@ -272,12 +273,85 @@ export default function CampaignManagement() {
                     {campaign.proposals.length}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
-                    <button
-                      onClick={() => setSelectedCampaign(campaign)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedCampaign(campaign)}
+                        className="text-blue-600 hover:text-blue-900"
+                        aria-label="캠페인 상세보기"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm(`정말로 "${campaign.title}" 캠페인을 삭제하시겠습니까?${campaign.proposals.length > 0 ? '\n\n관련 제안서가 있지만 삭제는 가능합니다.' : ''}`)) {
+                            return
+                          }
+
+                          try {
+                            const { data: { session } } = await supabase.auth.getSession()
+                            if (!session) return
+
+                            const response = await fetch(`/api/admin/campaigns?id=${campaign.id}`, {
+                              method: 'DELETE',
+                              headers: {
+                                'Authorization': `Bearer ${session.access_token}`,
+                                'Content-Type': 'application/json'
+                              }
+                            })
+
+                            const result = await response.json()
+
+                            if (!response.ok) {
+                              throw new Error(result.error || 'Failed to delete campaign')
+                            }
+
+                            alert(result.message || '캠페인이 삭제되었습니다.')
+
+                            if (result.hasProposals) {
+                              alert('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
+                            }
+
+                            // 데이터 새로고침
+                            const from = (currentPage - 1) * pageSize
+                            const to = from + pageSize - 1
+                            let query = supabase
+                              .from('campaigns')
+                              .select(`
+                                *,
+                                organization_profiles!inner(organization_name, is_verified),
+                                proposals(id)
+                              `, { count: 'exact' })
+                              .order('created_at', { ascending: false })
+
+                            if (filterStatus && filterStatus !== 'all') {
+                              query = query.eq('status', filterStatus)
+                            }
+
+                            const term = debouncedSearch?.trim()
+                            if (term) {
+                              query = query.or(
+                                `title.ilike.%${term}%,category.ilike.%${term}%,organization_profiles.organization_name.ilike.%${term}%`
+                              )
+                            }
+
+                            const { data, count } = await query.range(from, to)
+                            setCampaigns(data || [])
+                            setTotal(count || 0)
+                          } catch (error: any) {
+                            console.error('Error deleting campaign:', error)
+                            alert(error.message || '캠페인 삭제에 실패했습니다.')
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                        aria-label="캠페인 삭제"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))
