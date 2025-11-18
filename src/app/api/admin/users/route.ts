@@ -202,51 +202,98 @@ export async function POST(req: NextRequest) {
 
         const hasRelatedData = (campaigns && campaigns.length > 0) || (proposals && proposals.length > 0)
 
-        // users 테이블에 deleted_at 설정
-        const { error: deleteError } = await adminClient
+        // 사용자 정보 먼저 조회
+        const { data: user, error: userFetchError } = await adminClient
           .from('users')
-          .update({
-            deleted_at: new Date().toISOString(),
-            is_admin: false,
-            status: 'deleted'
-          })
-          .eq('id', userId)
-
-        if (deleteError) throw deleteError
-
-        // 프로필도 소프트 삭제
-        const { data: user } = await adminClient
-          .from('users')
-          .select('role')
+          .select('role, deleted_at')
           .eq('id', userId)
           .single()
 
-        if (user?.role === 'expert') {
-          await adminClient
-            .from('expert_profiles')
-            .update({ deleted_at: new Date().toISOString() })
-            .eq('user_id', userId)
-        } else if (user?.role === 'organization') {
-          await adminClient
-            .from('organization_profiles')
-            .update({ deleted_at: new Date().toISOString() })
-            .eq('user_id', userId)
+        if (userFetchError) {
+          throw new Error(`사용자를 찾을 수 없습니다: ${userFetchError.message}`)
         }
 
-        // 로그 기록
-        await adminClient
-          .from('admin_logs')
-          .insert({
-            admin_user_id: authResult.user.id,
-            action: 'SOFT_DELETE_USER',
-            entity_type: 'user',
-            entity_id: userId,
-            details: {
-              timestamp: new Date().toISOString(),
-              has_related_data: hasRelatedData,
-              warning: hasRelatedData ? 'User has related campaigns or proposals' : null
+        if (user?.deleted_at) {
+          return NextResponse.json({
+            success: false,
+            error: '이미 삭제된 사용자입니다.'
+          }, { status: 400 })
+        }
+
+        // users 테이블 업데이트 (deleted_at만 설정, status는 제거)
+        const updateData: any = {
+          is_admin: false
+        }
+
+        // deleted_at 컬럼이 있는 경우에만 설정
+        try {
+          const { error: deleteError } = await adminClient
+            .from('users')
+            .update({
+              ...updateData,
+              deleted_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+
+          if (deleteError) {
+            // deleted_at 컬럼이 없는 경우, is_admin만 업데이트
+            if (deleteError.message?.includes('deleted_at') || deleteError.code === '42703') {
+              const { error: fallbackError } = await adminClient
+                .from('users')
+                .update({ is_admin: false })
+                .eq('id', userId)
+              
+              if (fallbackError) throw fallbackError
+            } else {
+              throw deleteError
             }
-          })
+          }
+        } catch (updateError: any) {
+          throw new Error(`사용자 삭제 실패: ${updateError.message}`)
+        }
+
+        // 프로필도 소프트 삭제 (에러가 나도 계속 진행)
+        if (user?.role === 'expert') {
+          try {
+            await adminClient
+              .from('expert_profiles')
+              .update({ deleted_at: new Date().toISOString() })
+              .eq('user_id', userId)
+          } catch (profileError) {
+            // 프로필 삭제 실패는 로그만 남기고 계속 진행
+            console.error('Expert profile deletion error:', profileError)
+          }
+        } else if (user?.role === 'organization') {
+          try {
+            await adminClient
+              .from('organization_profiles')
+              .update({ deleted_at: new Date().toISOString() })
+              .eq('user_id', userId)
+          } catch (profileError) {
+            // 프로필 삭제 실패는 로그만 남기고 계속 진행
+            console.error('Organization profile deletion error:', profileError)
+          }
+        }
+
+        // 로그 기록 (실패해도 계속 진행)
+        try {
+          await adminClient
+            .from('admin_logs')
+            .insert({
+              admin_user_id: authResult.user.id,
+              action: 'SOFT_DELETE_USER',
+              entity_type: 'user',
+              entity_id: userId,
+              details: {
+                timestamp: new Date().toISOString(),
+                has_related_data: hasRelatedData,
+                warning: hasRelatedData ? 'User has related campaigns or proposals' : null
+              }
+            })
+        } catch (logError) {
+          // 로그 실패는 무시
+          console.error('Admin log error:', logError)
+        }
 
         return NextResponse.json({
           success: true,

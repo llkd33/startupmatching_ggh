@@ -194,21 +194,26 @@ export default function AdminUsersClient({
         })
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to delete user')
-      }
-
       const result = await response.json()
-      alert(result.message || '사용자가 삭제되었습니다.')
 
-      if (result.hasRelatedData) {
-        alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user')
       }
 
-      await fetchUsers()
-    } catch (error) {
+      if (result.success) {
+        alert(result.message || '사용자가 삭제되었습니다.')
+
+        if (result.hasRelatedData) {
+          alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
+        }
+
+        await fetchUsers()
+      } else {
+        throw new Error(result.error || '사용자 삭제에 실패했습니다.')
+      }
+    } catch (error: any) {
       console.error('Error deleting user:', error)
-      alert('사용자 삭제에 실패했습니다.')
+      alert(error.message || '사용자 삭제에 실패했습니다.')
     }
   }
   
