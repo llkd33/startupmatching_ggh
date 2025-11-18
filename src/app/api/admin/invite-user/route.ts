@@ -242,9 +242,11 @@ export async function POST(request: NextRequest) {
       if (!emailResult.data) {
         console.error('Failed to send invite email:', emailResult.error)
         // 상세한 에러 로깅
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Resend API Error:', JSON.stringify(emailResult.error, null, 2))
-        }
+        console.error('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
+        console.error('Resend API Key configured:', !!resendApiKey)
+        console.error('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>')
+        console.error('To email:', email)
+        
         return NextResponse.json({
           success: true,
           user: {
