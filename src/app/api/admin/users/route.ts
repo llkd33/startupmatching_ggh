@@ -84,9 +84,8 @@ export async function GET(req: NextRequest) {
         organization_profiles(organization_name, is_verified)
       `, { count: 'exact' })
 
-    // 삭제된 사용자 제외 (deleted_at이 NULL인 것만)
-    // deleted_at 컬럼이 있는지 확인하고 필터링
-    query = query.is('deleted_at', null)
+    // 삭제된 사용자는 auth.users에서 삭제되므로 자동으로 제외됨
+    // users 테이블에 있는 사용자만 조회 (CASCADE로 삭제된 사용자는 자동 제외)
 
     // 필터 적용
     if (role && role !== 'all') {
@@ -113,62 +112,6 @@ export async function GET(req: NextRequest) {
     const { data, error, count } = await query
 
     if (error) {
-      // deleted_at 컬럼이 없는 경우 에러가 발생할 수 있으므로, 에러를 무시하고 계속 진행
-      if (error.message?.includes('deleted_at') || error.code === '42703') {
-        // deleted_at 필터 제거하고 다시 시도
-        query = adminClient
-          .from('users')
-          .select(`
-            id, 
-            email, 
-            role, 
-            is_admin, 
-            created_at, 
-            updated_at,
-            expert_profiles(name, is_available),
-            organization_profiles(organization_name, is_verified)
-          `, { count: 'exact' })
-        
-        if (role && role !== 'all') {
-          if (role === 'admin') {
-            query = query.eq('is_admin', true)
-          } else {
-            query = query.eq('role', role)
-          }
-        }
-        
-        if (search) {
-          query = query.or(`email.ilike.%${search}%,expert_profiles.name.ilike.%${search}%,organization_profiles.organization_name.ilike.%${search}%`)
-        }
-        
-        query = query.order(sortBy, { ascending: sortOrder === 'asc' })
-        query = query.range(from, to)
-        
-        const retryResult = await query
-        if (retryResult.error) throw retryResult.error
-        
-        const users = (retryResult.data || []).map((user: any) => ({
-          id: user.id,
-          email: user.email,
-          name: user.expert_profiles?.[0]?.name || user.organization_profiles?.[0]?.organization_name || null,
-          role: user.role,
-          is_admin: user.is_admin,
-          organization_name: user.organization_profiles?.[0]?.organization_name || null,
-          is_verified: user.organization_profiles?.[0]?.is_verified || null,
-          created_at: user.created_at,
-          updated_at: user.updated_at
-        }))
-        
-        return NextResponse.json({
-          users,
-          pagination: {
-            page,
-            limit,
-            total: retryResult.count || 0,
-            totalPages: Math.ceil((retryResult.count || 0) / limit)
-          }
-        })
-      }
       throw error
     }
 
@@ -406,32 +349,19 @@ export async function POST(req: NextRequest) {
         }
 
         // users 테이블에 레코드가 있는 경우 (가입한 사용자)
-        // deleted_at 컬럼 존재 여부와 관계없이 안전하게 업데이트
+        // auth.users에서 직접 삭제하여 목록에서 제거
         try {
-          // 먼저 is_admin만 업데이트 시도 (가장 안전)
-          const { error: adminUpdateError } = await adminClient
-            .from('users')
-            .update({ is_admin: false })
-            .eq('id', userId)
-
-          if (adminUpdateError) {
-            throw adminUpdateError
+          // auth.users에서 사용자 삭제
+          const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId)
+          
+          if (deleteAuthError) {
+            throw new Error(`사용자 삭제 실패: ${deleteAuthError.message}`)
           }
 
-          // deleted_at 컬럼이 있으면 설정 시도 (없어도 에러 무시)
-          try {
-            await adminClient
-              .from('users')
-              .update({ deleted_at: new Date().toISOString() })
-              .eq('id', userId)
-          } catch (deletedAtError: any) {
-            // deleted_at 컬럼이 없거나 다른 에러인 경우 무시
-            if (!deletedAtError.message?.includes('deleted_at') && deletedAtError.code !== '42703') {
-              console.warn('deleted_at 업데이트 실패 (무시됨):', deletedAtError.message)
-            }
-          }
-        } catch (updateError: any) {
-          throw new Error(`사용자 삭제 실패: ${updateError.message}`)
+          // public.users의 레코드는 CASCADE로 자동 삭제되지만, 
+          // 명시적으로 삭제하지 않고 auth.users 삭제만으로 충분
+        } catch (deleteError: any) {
+          throw new Error(`사용자 삭제 실패: ${deleteError.message}`)
         }
 
         // 프로필도 소프트 삭제 (에러가 나도 계속 진행)
