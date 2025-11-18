@@ -123,7 +123,8 @@ export default function OrganizationRegisterPage() {
     setIsLoading(true)
     
     try {
-      const { data: authData, error } = await auth.signUp(
+      // 타임아웃 설정 (30초)
+      const signUpPromise = auth.signUp(
         data.email,
         data.password,
         'organization',
@@ -135,24 +136,35 @@ export default function OrganizationRegisterPage() {
           phone: data.phone
         }
       )
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('회원가입 요청이 시간 초과되었습니다. 다시 시도해주세요.')), 30000)
+      })
+      
+      const { data: authData, error } = await Promise.race([signUpPromise, timeoutPromise]) as any
 
       if (error) {
-        if (error.message.includes('already registered')) {
+        console.error('Signup error:', error)
+        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
           setError('email', {
             message: '이미 등록된 이메일입니다'
           })
-        } else if (error.message.includes('email') || error.message.includes('confirm')) {
+        } else if (error.message?.includes('email') || error.message?.includes('confirm')) {
           setError('root', {
             message: '회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요.'
           })
           // 이메일 확인이 필요한 경우 로그인 페이지로 이동
-          setTimeout(() => router.push('/auth/login'), 3000)
+          setTimeout(() => {
+            setIsLoading(false)
+            router.push('/auth/login')
+          }, 3000)
           return
         } else {
           setError('root', {
             message: error.message || '회원가입 중 오류가 발생했습니다'
           })
         }
+        setIsLoading(false)
         return
       }
 
@@ -160,22 +172,25 @@ export default function OrganizationRegisterPage() {
       if (authData?.user) {
         // 세션이 있으면 바로 프로필 페이지로
         if (authData.session) {
+          setIsLoading(false)
           router.push('/profile/organization/complete')
         } else {
           // 이메일 확인이 필요한 경우
           setError('root', {
             message: '회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요.'
           })
+          setIsLoading(false)
           setTimeout(() => router.push('/auth/login'), 3000)
         }
+      } else {
+        setIsLoading(false)
       }
     } catch (error: any) {
       console.error('Signup error:', error)
-      setError('root', {
-        message: error?.message || '회원가입 중 오류가 발생했습니다'
-      })
-    } finally {
       setIsLoading(false)
+      setError('root', {
+        message: error?.message || '회원가입 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.'
+      })
     }
   }
 
