@@ -235,28 +235,28 @@ export default function ProposalManagement() {
                 <tr key={proposal.id}>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">
-                      {proposal.expert_profiles.name}
+                      {proposal.expert_profiles?.name || '이름 없음'}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {proposal.campaigns.title}
+                        {proposal.campaigns?.title || '제목 없음'}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {proposal.campaigns.type}
+                        {proposal.campaigns?.type || '-'}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {proposal.campaigns.organization_profiles.organization_name}
+                    {proposal.campaigns?.organization_profiles?.organization_name || '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
-                    ₩{proposal.proposed_budget.toLocaleString()}
+                    {proposal.proposed_budget ? `₩${proposal.proposed_budget.toLocaleString()}` : '-'}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(proposal.status)}`}>
-                      {proposalStatusLabel(proposal.status)}
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(proposal.status || 'pending')}`}>
+                      {proposal.status ? proposalStatusLabel(proposal.status) : '-'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">

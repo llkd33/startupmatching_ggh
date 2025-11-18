@@ -240,29 +240,31 @@ export default function CampaignManagement() {
                 <tr key={campaign.id}>
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{campaign.title}</div>
-                      <div className="text-sm text-gray-500">{campaign.category}</div>
+                      <div className="text-sm font-medium text-gray-900">{campaign.title || '제목 없음'}</div>
+                      <div className="text-sm text-gray-500">{campaign.category || '-'}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       <span className="text-sm text-gray-900">
-                        {campaign.organization_profiles.organization_name}
+                        {campaign.organization_profiles?.organization_name || '-'}
                       </span>
-                      {campaign.organization_profiles.is_verified && (
+                      {campaign.organization_profiles?.is_verified && (
                         <CheckCircle className="w-4 h-4 text-green-500 ml-1" />
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{campaign.type}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{campaign.type || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    ₩{campaign.budget_min.toLocaleString()} - ₩{campaign.budget_max.toLocaleString()}
+                    {campaign.budget_min && campaign.budget_max 
+                      ? `₩${campaign.budget_min.toLocaleString()} - ₩${campaign.budget_max.toLocaleString()}`
+                      : '-'}
                   </td>
                   <td className="px-6 py-4">
                     <select
-                      value={campaign.status}
+                      value={campaign.status || 'draft'}
                       onChange={(e) => handleStatusChange(campaign.id, e.target.value)}
-                      className={`text-xs px-2 py-1 rounded-full border-0 ${getStatusColor(campaign.status)}`}
+                      className={`text-xs px-2 py-1 rounded-full border-0 ${getStatusColor(campaign.status || 'draft')}`}
                     >
                       <option value="draft">초안</option>
                       <option value="active">활성</option>
@@ -272,7 +274,7 @@ export default function CampaignManagement() {
                     </select>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {campaign.proposals.length}
+                    {campaign.proposals?.length || 0}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex items-center space-x-2">
@@ -289,7 +291,7 @@ export default function CampaignManagement() {
                         variant="ghost"
                         size="sm"
                         onClick={async () => {
-                          if (!confirm(`정말로 "${campaign.title}" 캠페인을 삭제하시겠습니까?${campaign.proposals.length > 0 ? '\n\n관련 제안서가 있지만 삭제는 가능합니다.' : ''}`)) {
+                          if (!confirm(`정말로 "${campaign.title || '이 캠페인'}" 캠페인을 삭제하시겠습니까?${(campaign.proposals?.length || 0) > 0 ? '\n\n관련 제안서가 있지만 삭제는 가능합니다.' : ''}`)) {
                             return
                           }
 
