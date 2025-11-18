@@ -69,14 +69,23 @@ export async function GET(req: NextRequest) {
   const adminClient = getAdminClient()
 
   try {
+    // user_profiles 뷰는 deleted_at을 포함하지 않으므로 users 테이블을 직접 사용
     // 필요한 컬럼만 선택하여 성능 최적화
-    const selectColumns = 'id, email, name, role, is_admin, organization_name, is_verified, created_at, updated_at'
-    
     let query = adminClient
-      .from('user_profiles')
-      .select(selectColumns, { count: 'exact' })
+      .from('users')
+      .select(`
+        id, 
+        email, 
+        role, 
+        is_admin, 
+        created_at, 
+        updated_at,
+        expert_profiles(name, is_available),
+        organization_profiles(organization_name, is_verified)
+      `, { count: 'exact' })
 
     // 삭제된 사용자 제외 (deleted_at이 NULL인 것만)
+    // deleted_at 컬럼이 있는지 확인하고 필터링
     query = query.is('deleted_at', null)
 
     // 필터 적용
