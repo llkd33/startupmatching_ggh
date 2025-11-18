@@ -267,11 +267,38 @@ export default function AdminUsersClient({
           alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
         }
 
-        // 삭제 후 현재 페이지의 데이터가 없으면 이전 페이지로 이동
-        const shouldGoToPrevPage = filteredUsers.length === 1 && currentPage > 1
-        if (shouldGoToPrevPage) {
-          setCurrentPage(currentPage - 1)
+        // 삭제 후 데이터 다시 가져오기
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: pageSize.toString(),
+          role: filterRole,
+          search: debouncedSearch || '',
+          sortBy: 'created_at',
+          sortOrder: 'desc'
+        })
+        
+        const refreshResponse = await fetch(`/api/admin/users?${params}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          cache: 'no-store'
+        })
+        
+        if (refreshResponse.ok) {
+          const refreshResult = await refreshResponse.json()
+          setUsers(refreshResult.users || [])
+          setTotalPages(refreshResult.pagination?.totalPages || 1)
+          setTotalUsers(refreshResult.pagination?.total || 0)
+          
+          // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
+          if ((!refreshResult.users || refreshResult.users.length === 0) && currentPage > 1) {
+            setCurrentPage(currentPage - 1)
+          }
         } else {
+          // API 호출 실패 시 fetchUsers 사용
           await fetchUsers(currentPage)
         }
       } else {

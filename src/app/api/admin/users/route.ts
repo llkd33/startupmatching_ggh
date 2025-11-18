@@ -76,6 +76,9 @@ export async function GET(req: NextRequest) {
       .from('user_profiles')
       .select(selectColumns, { count: 'exact' })
 
+    // 삭제된 사용자 제외 (deleted_at이 NULL인 것만)
+    query = query.is('deleted_at', null)
+
     // 필터 적용
     if (role && role !== 'all') {
       if (role === 'admin') {
