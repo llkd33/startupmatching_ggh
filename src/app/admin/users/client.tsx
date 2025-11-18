@@ -49,7 +49,7 @@ export default function AdminUsersClient({
   const [filterRole, setFilterRole] = useState<string>(searchParams.get('role') || 'all')
   const [loading, setLoading] = useState(false)
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
-
+  
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
@@ -261,46 +261,44 @@ export default function AdminUsersClient({
       }
 
       if (result.success) {
-        alert(result.message || '사용자가 삭제되었습니다.')
+      alert(result.message || '사용자가 삭제되었습니다.')
 
-        if (result.hasRelatedData) {
-          alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
-        }
+      if (result.hasRelatedData) {
+        alert('주의: 이 사용자와 연관된 캠페인이나 제안서가 있습니다. 데이터는 유지되지만 사용자는 접근할 수 없습니다.')
+      }
 
-        // 삭제 후 데이터 다시 가져오기
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
+        // 삭제 후 데이터 다시 가져오기 - fetchUsers 직접 호출
+        await fetchUsers(currentPage)
         
-        const params = new URLSearchParams({
-          page: currentPage.toString(),
-          limit: pageSize.toString(),
-          role: filterRole,
-          search: debouncedSearch || '',
-          sortBy: 'created_at',
-          sortOrder: 'desc'
-        })
-        
-        const refreshResponse = await fetch(`/api/admin/users?${params}`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          cache: 'no-store'
-        })
-        
-        if (refreshResponse.ok) {
-          const refreshResult = await refreshResponse.json()
-          setUsers(refreshResult.users || [])
-          setTotalPages(refreshResult.pagination?.totalPages || 1)
-          setTotalUsers(refreshResult.pagination?.total || 0)
+        // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
+        setTimeout(async () => {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session) return
           
-          // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
-          if ((!refreshResult.users || refreshResult.users.length === 0) && currentPage > 1) {
-            setCurrentPage(currentPage - 1)
+          const params = new URLSearchParams({
+            page: currentPage.toString(),
+            limit: pageSize.toString(),
+            role: filterRole,
+            search: debouncedSearch || '',
+            sortBy: 'created_at',
+            sortOrder: 'desc'
+          })
+          
+          const checkResponse = await fetch(`/api/admin/users?${params}`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            cache: 'no-store'
+          })
+          
+          if (checkResponse.ok) {
+            const checkResult = await checkResponse.json()
+            if ((!checkResult.users || checkResult.users.length === 0) && currentPage > 1) {
+              setCurrentPage(currentPage - 1)
+              await fetchUsers(currentPage - 1)
+            }
           }
-        } else {
-          // API 호출 실패 시 fetchUsers 사용
-          await fetchUsers(currentPage)
-        }
+        }, 100)
       } else {
         throw new Error(result.error || '사용자 삭제에 실패했습니다.')
       }
@@ -384,71 +382,71 @@ export default function AdminUsersClient({
               <SkeletonTable rows={8} />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      사용자
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      역할
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      상태
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      가입일
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      작업
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    사용자
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    역할
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    상태
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    가입일
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    작업
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-6 text-center text-gray-600">
-                        <div className="space-y-3">
-                          <div>조건에 맞는 사용자가 없습니다.</div>
-                          {(searchTerm || filterRole !== 'all') && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSearchTerm('')
-                                setFilterRole('all')
-                              }}
-                            >
-                              필터 초기화
-                            </Button>
-                          )}
+                  <tr>
+                    <td colSpan={5} className="px-6 py-6 text-center text-gray-600">
+                      <div className="space-y-3">
+                        <div>조건에 맞는 사용자가 없습니다.</div>
+                        {(searchTerm || filterRole !== 'all') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSearchTerm('')
+                              setFilterRole('all')
+                            }}
+                          >
+                            필터 초기화
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {user.name || user.organization_name || '이름 없음'}
+                          </div>
+                            <div className="text-sm text-gray-500">{user.email || ''}</div>
                         </div>
                       </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {user.name || user.organization_name || '이름 없음'}
-                            </div>
-                            <div className="text-sm text-gray-500">{user.email || ''}</div>
-                          </div>
-                        </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           {user.role && (
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
-                              user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {user.role === 'expert' ? '전문가' :
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
+                            user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {user.role === 'expert' ? '전문가' :
                                user.role === 'organization' ? '기관' : 
                                user.role === 'admin' ? '관리자' : '기타'}
-                            </span>
+                          </span>
                           )}
                           {user.is_admin && (
                             <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
@@ -488,11 +486,16 @@ export default function AdminUsersClient({
                         )}
                         {user.role === 'expert' && (
                           <span className={`px-2 py-1 text-xs rounded-full ${
-                            user.is_available
+                            user.is_available === true
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}>
-                            {user.is_available ? '활동중' : '비활동'}
+                            {user.is_available === true ? '활동중' : '비활동'}
+                          </span>
+                        )}
+                        {!user.role && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+                            -
                           </span>
                         )}
                       </td>
@@ -538,7 +541,7 @@ export default function AdminUsersClient({
                 )}
               </tbody>
             </table>
-            </div>
+          </div>
           )}
 
           {/* 페이지네이션 */}
