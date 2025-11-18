@@ -28,11 +28,18 @@ export function createBrowserSupabaseClient() {
           if (decoded.startsWith('{') || decoded.startsWith('[')) {
             return decoded
           }
-          // base64로 시작하는 경우 디코딩 시도
+          // base64로 시작하는 경우 디코딩 시도 (브라우저 환경)
           if (decoded.startsWith('base64-')) {
-            const base64Value = decoded.replace('base64-', '')
-            const jsonValue = Buffer.from(base64Value, 'base64').toString('utf-8')
-            return jsonValue
+            try {
+              const base64Value = decoded.replace('base64-', '')
+              // 브라우저에서는 atob 사용
+              if (typeof window !== 'undefined' && typeof atob !== 'undefined') {
+                const jsonValue = atob(base64Value)
+                return jsonValue
+              }
+            } catch {
+              // base64 디코딩 실패 시 원본 반환
+            }
           }
           return decoded
         } catch {
