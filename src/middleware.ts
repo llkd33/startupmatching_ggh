@@ -38,8 +38,13 @@ export async function middleware(request: NextRequest) {
     await supabase.auth.getUser();
   } catch (error: any) {
     // Ignore cookie parsing errors - they're non-critical
-    if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64')) {
+    if (error?.message?.includes('cookie') || 
+        error?.message?.includes('JSON') || 
+        error?.message?.includes('base64') ||
+        error?.message?.includes('parse') ||
+        error?.message?.includes('Unexpected token')) {
       // Cookie parsing errors are non-critical, continue
+      console.warn('Cookie parsing error (non-critical):', error?.message);
     } else {
       // Re-throw other errors
       throw error;

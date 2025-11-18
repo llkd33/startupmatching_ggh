@@ -15,17 +15,49 @@ export function createBrowserSupabaseClient() {
   const cookieStorage = {
     getItem: (key: string) => {
       if (typeof document === 'undefined') return null
-      const cookies = document.cookie.split('; ')
-      const cookie = cookies.find(c => c.startsWith(`${key}=`))
-      return cookie ? decodeURIComponent(cookie.split('=')[1]) : null
+      try {
+        const cookies = document.cookie.split('; ')
+        const cookie = cookies.find(c => c.startsWith(`${key}=`))
+        if (!cookie) return null
+        
+        const value = cookie.split('=').slice(1).join('=')
+        // base64로 인코딩된 경우 디코딩 시도
+        try {
+          const decoded = decodeURIComponent(value)
+          // JSON 형식인지 확인
+          if (decoded.startsWith('{') || decoded.startsWith('[')) {
+            return decoded
+          }
+          // base64로 시작하는 경우 디코딩 시도
+          if (decoded.startsWith('base64-')) {
+            const base64Value = decoded.replace('base64-', '')
+            const jsonValue = Buffer.from(base64Value, 'base64').toString('utf-8')
+            return jsonValue
+          }
+          return decoded
+        } catch {
+          return decodeURIComponent(value)
+        }
+      } catch (error) {
+        console.warn('Error reading cookie:', error)
+        return null
+      }
     },
     setItem: (key: string, value: string) => {
       if (typeof document === 'undefined') return
-      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+      try {
+        document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+      } catch (error) {
+        console.warn('Error setting cookie:', error)
+      }
     },
     removeItem: (key: string) => {
       if (typeof document === 'undefined') return
-      document.cookie = `${key}=; path=/; max-age=0`
+      try {
+        document.cookie = `${key}=; path=/; max-age=0`
+      } catch (error) {
+        console.warn('Error removing cookie:', error)
+      }
     }
   }
 
