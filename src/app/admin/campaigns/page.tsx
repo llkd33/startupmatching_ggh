@@ -71,6 +71,8 @@ export default function CampaignManagement() {
 
       if (filterStatus && filterStatus !== 'all') {
         query = query.eq('status', filterStatus)
+      } else {
+        // 전체 조회 시에도 삭제된 캠페인(cancelled)은 제외하지 않음 - 필터에서 선택 가능
       }
 
       const term = debouncedSearch?.trim()
@@ -277,11 +279,11 @@ export default function CampaignManagement() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSelectedCampaign(campaign)}
-                        className="text-blue-600 hover:text-blue-900"
+                      onClick={() => setSelectedCampaign(campaign)}
+                      className="text-blue-600 hover:text-blue-900"
                         aria-label="캠페인 상세보기"
-                      >
-                        <Eye className="w-4 h-4" />
+                    >
+                      <Eye className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -306,7 +308,18 @@ export default function CampaignManagement() {
                             const result = await response.json()
 
                             if (!response.ok) {
-                              throw new Error(result.error || 'Failed to delete campaign')
+                              const errorMsg = result.error || `HTTP ${response.status}: Failed to delete campaign`
+                              console.error('Delete campaign API error:', {
+                                status: response.status,
+                                statusText: response.statusText,
+                                error: result.error,
+                                result
+                              })
+                              throw new Error(errorMsg)
+                            }
+
+                            if (!result.success) {
+                              throw new Error(result.error || '캠페인 삭제에 실패했습니다.')
                             }
 
                             alert(result.message || '캠페인이 삭제되었습니다.')
@@ -338,12 +351,49 @@ export default function CampaignManagement() {
                               )
                             }
 
-                            const { data, count } = await query.range(from, to)
+                            const { data, count, error: queryError } = await query.range(from, to)
+                            
+                            if (queryError) {
+                              throw new Error(`데이터 새로고침 실패: ${queryError.message}`)
+                            }
+                            
                             setCampaigns(data || [])
                             setTotal(count || 0)
                           } catch (error: any) {
                             console.error('Error deleting campaign:', error)
-                            alert(error.message || '캠페인 삭제에 실패했습니다.')
+                            const errorMessage = error.message || '캠페인 삭제에 실패했습니다.'
+                            alert(errorMessage)
+                            
+                            // 에러 발생 시에도 목록 새로고침 시도
+                            try {
+                              const from = (currentPage - 1) * pageSize
+                              const to = from + pageSize - 1
+                              let query = supabase
+                                .from('campaigns')
+                                .select(`
+                                  *,
+                                  organization_profiles!inner(organization_name, is_verified),
+                                  proposals(id)
+                                `, { count: 'exact' })
+                                .order('created_at', { ascending: false })
+
+                              if (filterStatus && filterStatus !== 'all') {
+                                query = query.eq('status', filterStatus)
+                              }
+
+                              const term = debouncedSearch?.trim()
+                              if (term) {
+                                query = query.or(
+                                  `title.ilike.%${term}%,category.ilike.%${term}%,organization_profiles.organization_name.ilike.%${term}%`
+                                )
+                              }
+
+                              const { data, count } = await query.range(from, to)
+                              setCampaigns(data || [])
+                              setTotal(count || 0)
+                            } catch (refreshError) {
+                              console.error('Failed to refresh campaigns:', refreshError)
+                            }
                           }
                         }}
                         className="text-red-600 hover:text-red-900"

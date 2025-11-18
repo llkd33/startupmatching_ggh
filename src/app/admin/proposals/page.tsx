@@ -286,7 +286,18 @@ export default function ProposalManagement() {
                           const result = await response.json()
 
                           if (!response.ok) {
-                            throw new Error(result.error || 'Failed to delete proposal')
+                            const errorMsg = result.error || `HTTP ${response.status}: Failed to delete proposal`
+                            console.error('Delete proposal API error:', {
+                              status: response.status,
+                              statusText: response.statusText,
+                              error: result.error,
+                              result
+                            })
+                            throw new Error(errorMsg)
+                          }
+
+                          if (!result.success) {
+                            throw new Error(result.error || '제안서 삭제에 실패했습니다.')
                           }
 
                           alert(result.message || '제안서가 삭제되었습니다.')
@@ -317,12 +328,53 @@ export default function ProposalManagement() {
                             )
                           }
 
-                          const { data, count } = await query.range(from, to)
+                          const { data, count, error: queryError } = await query.range(from, to)
+                          
+                          if (queryError) {
+                            throw new Error(`데이터 새로고침 실패: ${queryError.message}`)
+                          }
+                          
                           setProposals(data || [])
                           setTotal(count || 0)
                         } catch (error: any) {
                           console.error('Error deleting proposal:', error)
-                          alert(error.message || '제안서 삭제에 실패했습니다.')
+                          const errorMessage = error.message || '제안서 삭제에 실패했습니다.'
+                          alert(errorMessage)
+                          
+                          // 에러 발생 시에도 목록 새로고침 시도
+                          try {
+                            const from = (currentPage - 1) * pageSize
+                            const to = from + pageSize - 1
+                            let query = supabase
+                              .from('proposals')
+                              .select(`
+                                *,
+                                campaigns!inner(
+                                  title,
+                                  type,
+                                  organization_profiles!inner(organization_name)
+                                ),
+                                expert_profiles!inner(name, hourly_rate)
+                              `, { count: 'exact' })
+                              .order('created_at', { ascending: false })
+
+                            if (filterStatus && filterStatus !== 'all') {
+                              query = query.eq('status', filterStatus)
+                            }
+
+                            const term = debouncedSearch?.trim()
+                            if (term) {
+                              query = query.or(
+                                `campaigns.title.ilike.%${term}%,expert_profiles.name.ilike.%${term}%,campaigns.organization_profiles.organization_name.ilike.%${term}%`
+                              )
+                            }
+
+                            const { data, count } = await query.range(from, to)
+                            setProposals(data || [])
+                            setTotal(count || 0)
+                          } catch (refreshError) {
+                            console.error('Failed to refresh proposals:', refreshError)
+                          }
                         }
                       }}
                       className="text-red-600 hover:text-red-900"
