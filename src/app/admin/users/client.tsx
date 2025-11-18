@@ -449,7 +449,7 @@ export default function AdminUsersClient({
           )}
 
           {/* 페이지네이션 */}
-          {totalPages > 1 && (
+          {!loading && totalPages > 1 && (
             <div className="px-6 py-4 border-t flex items-center justify-between">
               <div className="text-sm text-gray-600">
                 전체 {totalUsers.toLocaleString()}명 중 {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalUsers)}명 표시
