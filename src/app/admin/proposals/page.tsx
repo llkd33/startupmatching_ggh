@@ -58,10 +58,10 @@ export default function ProposalManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus])
 
-  // Refetch proposals when filters/page change (server-side)
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true)
+  // Refetch function
+  const fetchProposalsData = async (page: number = currentPage) => {
+    setLoading(true)
+    try {
       let query = supabase
         .from('proposals')
         .select(`
@@ -87,14 +87,33 @@ export default function ProposalManagement() {
         )
       }
 
-      const from = (currentPage - 1) * pageSize
+      const from = (page - 1) * pageSize
       const to = from + pageSize - 1
       const { data, count } = await query.range(from, to)
       setProposals(data || [])
       setTotal(count || 0)
+      
+      // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
+      if ((!data || data.length === 0) && page > 1) {
+        const prevPage = page - 1
+        setCurrentPage(prevPage)
+        // 재귀 호출로 이전 페이지 데이터 가져오기
+        const prevFrom = (prevPage - 1) * pageSize
+        const prevTo = prevFrom + pageSize - 1
+        const { data: prevData, count: prevCount } = await query.range(prevFrom, prevTo)
+        setProposals(prevData || [])
+        setTotal(prevCount || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching proposals:', error)
+    } finally {
       setLoading(false)
     }
-    fetch()
+  }
+
+  // Refetch proposals when filters/page change (server-side)
+  useEffect(() => {
+    fetchProposalsData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus, currentPage, pageSize])
 
@@ -302,47 +321,15 @@ export default function ProposalManagement() {
 
                           alert(result.message || '제안서가 삭제되었습니다.')
                           
-                          // 페이지 새로고침으로 데이터 갱신
-                          window.location.reload()
+                          // 데이터 다시 가져오기
+                          await fetchProposalsData(currentPage)
                         } catch (error: any) {
                           console.error('Error deleting proposal:', error)
                           const errorMessage = error.message || '제안서 삭제에 실패했습니다.'
                           alert(errorMessage)
                           
                           // 에러 발생 시에도 목록 새로고침 시도
-                          try {
-                            const from = (currentPage - 1) * pageSize
-                            const to = from + pageSize - 1
-                            let query = supabase
-                              .from('proposals')
-                              .select(`
-                                *,
-                                campaigns!inner(
-                                  title,
-                                  type,
-                                  organization_profiles!inner(organization_name)
-                                ),
-                                expert_profiles!inner(name, hourly_rate)
-                              `, { count: 'exact' })
-                              .order('created_at', { ascending: false })
-
-                            if (filterStatus && filterStatus !== 'all') {
-                              query = query.eq('status', filterStatus)
-                            }
-
-                            const term = debouncedSearch?.trim()
-                            if (term) {
-                              query = query.or(
-                                `campaigns.title.ilike.%${term}%,expert_profiles.name.ilike.%${term}%,campaigns.organization_profiles.organization_name.ilike.%${term}%`
-                              )
-                            }
-
-                            const { data, count } = await query.range(from, to)
-                            setProposals(data || [])
-                            setTotal(count || 0)
-                          } catch (refreshError) {
-                            console.error('Failed to refresh proposals:', refreshError)
-                          }
+                          await fetchProposalsData(currentPage)
                         }
                       }}
                       className="text-red-600 hover:text-red-900"

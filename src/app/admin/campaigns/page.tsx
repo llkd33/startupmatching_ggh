@@ -47,7 +47,7 @@ export default function CampaignManagement() {
   const [total, setTotal] = useState<number>(0)
 
   useEffect(() => {
-    fetchCampaigns();
+    fetchCampaignsData();
   }, []);
 
   // Reset to first page when filters or search change
@@ -56,10 +56,10 @@ export default function CampaignManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus])
 
-  // Refetch when filters or page change (server-side)
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true)
+  // Refetch function
+  const fetchCampaignsData = async (page: number = currentPage) => {
+    setLoading(true)
+    try {
       let query = supabase
         .from('campaigns')
         .select(`
@@ -71,8 +71,6 @@ export default function CampaignManagement() {
 
       if (filterStatus && filterStatus !== 'all') {
         query = query.eq('status', filterStatus)
-      } else {
-        // 전체 조회 시에도 삭제된 캠페인(cancelled)은 제외하지 않음 - 필터에서 선택 가능
       }
 
       const term = debouncedSearch?.trim()
@@ -82,14 +80,33 @@ export default function CampaignManagement() {
         )
       }
 
-      const from = (currentPage - 1) * pageSize
+      const from = (page - 1) * pageSize
       const to = from + pageSize - 1
       const { data, count } = await query.range(from, to)
       setCampaigns(data || [])
       setTotal(count || 0)
+      
+      // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
+      if ((!data || data.length === 0) && page > 1) {
+        const prevPage = page - 1
+        setCurrentPage(prevPage)
+        // 재귀 호출로 이전 페이지 데이터 가져오기
+        const prevFrom = (prevPage - 1) * pageSize
+        const prevTo = prevFrom + pageSize - 1
+        const { data: prevData, count: prevCount } = await query.range(prevFrom, prevTo)
+        setCampaigns(prevData || [])
+        setTotal(prevCount || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching campaigns:', error)
+    } finally {
       setLoading(false)
     }
-    fetch()
+  }
+
+  // Refetch when filters or page change (server-side)
+  useEffect(() => {
+    fetchCampaignsData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus, currentPage, pageSize])
 
@@ -104,23 +121,6 @@ export default function CampaignManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus, currentPage, pageSize]);
 
-  const fetchCampaigns = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('campaigns')
-      .select(`
-        *,
-        organization_profiles!inner(organization_name, is_verified),
-        proposals(id)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setCampaigns(data);
-    }
-    setLoading(false);
-  };
-
   const handleStatusChange = async (campaignId: string, newStatus: string) => {
     const { error } = await supabase
       .from('campaigns')
@@ -128,7 +128,7 @@ export default function CampaignManagement() {
       .eq('id', campaignId);
 
     if (!error) {
-      await fetchCampaigns();
+      await fetchCampaignsData(currentPage);
       // Log admin action here
     }
   };
@@ -330,43 +330,15 @@ export default function CampaignManagement() {
                               alert('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
                             }
 
-                            // 페이지 새로고침으로 데이터 갱신
-                            window.location.reload()
+                            // 데이터 다시 가져오기
+                            await fetchCampaignsData(currentPage)
                           } catch (error: any) {
                             console.error('Error deleting campaign:', error)
                             const errorMessage = error.message || '캠페인 삭제에 실패했습니다.'
                             alert(errorMessage)
                             
                             // 에러 발생 시에도 목록 새로고침 시도
-                            try {
-                              const from = (currentPage - 1) * pageSize
-                              const to = from + pageSize - 1
-                              let query = supabase
-                                .from('campaigns')
-                                .select(`
-                                  *,
-                                  organization_profiles!inner(organization_name, is_verified),
-                                  proposals(id)
-                                `, { count: 'exact' })
-                                .order('created_at', { ascending: false })
-
-                              if (filterStatus && filterStatus !== 'all') {
-                                query = query.eq('status', filterStatus)
-                              }
-
-                              const term = debouncedSearch?.trim()
-                              if (term) {
-                                query = query.or(
-                                  `title.ilike.%${term}%,category.ilike.%${term}%,organization_profiles.organization_name.ilike.%${term}%`
-                                )
-                              }
-
-                              const { data, count } = await query.range(from, to)
-                              setCampaigns(data || [])
-                              setTotal(count || 0)
-                            } catch (refreshError) {
-                              console.error('Failed to refresh campaigns:', refreshError)
-                            }
+                            await fetchCampaignsData(currentPage)
                           }
                         }}
                         className="text-red-600 hover:text-red-900"
