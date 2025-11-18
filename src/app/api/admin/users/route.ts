@@ -364,28 +364,7 @@ export async function POST(req: NextRequest) {
           throw new Error(`사용자 삭제 실패: ${deleteError.message}`)
         }
 
-        // 프로필도 소프트 삭제 (에러가 나도 계속 진행)
-        if (user?.role === 'expert') {
-          try {
-            await adminClient
-              .from('expert_profiles')
-              .update({ deleted_at: new Date().toISOString() })
-              .eq('user_id', userId)
-          } catch (profileError) {
-            // 프로필 삭제 실패는 로그만 남기고 계속 진행
-            console.error('Expert profile deletion error:', profileError)
-          }
-        } else if (user?.role === 'organization') {
-          try {
-            await adminClient
-              .from('organization_profiles')
-              .update({ deleted_at: new Date().toISOString() })
-              .eq('user_id', userId)
-          } catch (profileError) {
-            // 프로필 삭제 실패는 로그만 남기고 계속 진행
-            console.error('Organization profile deletion error:', profileError)
-          }
-        }
+        // 프로필은 CASCADE로 자동 삭제되므로 별도 처리 불필요
 
         // 로그 기록 (실패해도 계속 진행)
         try {
