@@ -202,50 +202,76 @@ export async function POST(req: NextRequest) {
 
         const hasRelatedData = (campaigns && campaigns.length > 0) || (proposals && proposals.length > 0)
 
-        // 사용자 정보 먼저 조회
+        // 사용자 정보 조회 (초대만 된 사용자는 public.users에 없을 수 있음)
         const { data: user, error: userFetchError } = await adminClient
           .from('users')
-          .select('role, deleted_at')
+          .select('role')
           .eq('id', userId)
-          .single()
+          .maybeSingle()
 
-        if (userFetchError) {
-          throw new Error(`사용자를 찾을 수 없습니다: ${userFetchError.message}`)
-        }
+        // 초대만 된 사용자(가입 안 한 사용자)인 경우 auth.users에서 직접 삭제
+        if (userFetchError || !user) {
+          // public.users에 레코드가 없으면 초대만 된 사용자로 간주
+          // auth.users에서 직접 삭제 시도
+          try {
+            // Admin 클라이언트를 사용하여 auth.users에서 삭제
+            const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId)
+            
+            if (deleteAuthError) {
+              throw new Error(`초대된 사용자 삭제 실패: ${deleteAuthError.message}`)
+            }
 
-        if (user?.deleted_at) {
-          return NextResponse.json({
-            success: false,
-            error: '이미 삭제된 사용자입니다.'
-          }, { status: 400 })
-        }
+            // 로그 기록
+            try {
+              await adminClient
+                .from('admin_logs')
+                .insert({
+                  admin_user_id: authResult.user.id,
+                  action: 'DELETE_INVITED_USER',
+                  entity_type: 'user',
+                  entity_id: userId,
+                  details: {
+                    timestamp: new Date().toISOString(),
+                    note: '초대만 된 사용자 (가입 전) 삭제'
+                  }
+                })
+            } catch (logError) {
+              console.error('Admin log error:', logError)
+            }
 
-        // users 테이블 업데이트 (deleted_at만 설정, status는 제거)
-        const updateData: any = {
-          is_admin: false
-        }
-
-        // deleted_at 컬럼이 있는 경우에만 설정
-        try {
-          const { error: deleteError } = await adminClient
-            .from('users')
-            .update({
-              ...updateData,
-              deleted_at: new Date().toISOString()
+            return NextResponse.json({
+              success: true,
+              hasRelatedData: false,
+              message: '초대된 사용자가 삭제되었습니다.'
             })
+          } catch (deleteError: any) {
+            throw new Error(`사용자 삭제 실패: ${deleteError.message}`)
+          }
+        }
+
+        // users 테이블에 레코드가 있는 경우 (가입한 사용자)
+        // deleted_at 컬럼 존재 여부와 관계없이 안전하게 업데이트
+        try {
+          // 먼저 is_admin만 업데이트 시도 (가장 안전)
+          const { error: adminUpdateError } = await adminClient
+            .from('users')
+            .update({ is_admin: false })
             .eq('id', userId)
 
-          if (deleteError) {
-            // deleted_at 컬럼이 없는 경우, is_admin만 업데이트
-            if (deleteError.message?.includes('deleted_at') || deleteError.code === '42703') {
-              const { error: fallbackError } = await adminClient
-                .from('users')
-                .update({ is_admin: false })
-                .eq('id', userId)
-              
-              if (fallbackError) throw fallbackError
-            } else {
-              throw deleteError
+          if (adminUpdateError) {
+            throw adminUpdateError
+          }
+
+          // deleted_at 컬럼이 있으면 설정 시도 (없어도 에러 무시)
+          try {
+            await adminClient
+              .from('users')
+              .update({ deleted_at: new Date().toISOString() })
+              .eq('id', userId)
+          } catch (deletedAtError: any) {
+            // deleted_at 컬럼이 없거나 다른 에러인 경우 무시
+            if (!deletedAtError.message?.includes('deleted_at') && deletedAtError.code !== '42703') {
+              console.warn('deleted_at 업데이트 실패 (무시됨):', deletedAtError.message)
             }
           }
         } catch (updateError: any) {
