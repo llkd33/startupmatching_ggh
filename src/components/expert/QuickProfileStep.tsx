@@ -20,8 +20,8 @@ interface QuickProfileStepProps {
 
 export function QuickProfileStep({ data, onChange, errors = {} }: QuickProfileStepProps) {
   const popularSkills = [
-    'React', 'TypeScript', 'Node.js', 'Python', 'Next.js',
-    'UI/UX 디자인', '마케팅', '비즈니스 컨설팅', '데이터 분석', '프로젝트 관리'
+    '투자', '유통', '마케팅', '비즈니스 개발', '재무',
+    '법무', 'HR', '브랜딩', '영업', '전략', '창업', '스케일링'
   ]
 
   const addSkill = (skill: string) => {
@@ -104,7 +104,7 @@ export function QuickProfileStep({ data, onChange, errors = {} }: QuickProfileSt
             id="bio"
             value={data.bio}
             onChange={(e) => onChange('bio', e.target.value)}
-            placeholder="예: React 전문 개발자로 5년간 경력이 있으며, 스타트업 개발 경험이 풍부합니다."
+            placeholder="예: 스타트업 투자 및 성장 전략 전문가로 10년간 경력이 있으며, 50개 이상의 스타트업 멘토링 경험이 있습니다."
             rows={3}
             maxLength={100}
             className={cn(

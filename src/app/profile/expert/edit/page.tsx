@@ -42,10 +42,10 @@ interface ProfileData {
 }
 
 const AVAILABLE_SKILLS = [
-  'JavaScript', 'TypeScript', 'React', 'Next.js', 'Node.js', 'Python', 'Django',
-  'Java', 'Spring', 'AWS', 'Docker', 'Kubernetes', 'GraphQL', 'REST API',
-  'PostgreSQL', 'MongoDB', 'Redis', 'Machine Learning', 'Data Science',
-  'UI/UX Design', 'Product Management', 'Marketing', 'Sales', 'Business Development'
+  '투자', '유통', '마케팅', '비즈니스 개발', '재무', '법무', 'HR', '브랜딩',
+  '영업', '전략', '창업', '스케일링', '펀딩', 'M&A', 'IPO', '세일즈',
+  '고객 성장', '제품 기획', '데이터 분석', '컨설팅', '경영', '조직 운영',
+  '글로벌 진출', '파트너십', '공급망 관리', '디지털 마케팅', '콘텐츠 마케팅'
 ]
 
 const SERVICE_REGIONS = [

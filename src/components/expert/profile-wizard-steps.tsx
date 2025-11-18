@@ -454,9 +454,9 @@ export function SkillsStep({ data, onChange }: SkillsStepProps) {
   }
 
   const suggestedTags = [
-    'React', 'Vue', 'Angular', 'Node.js', 'Python', 'Java', 
-    'AWS', 'Docker', 'Kubernetes', 'DevOps', 'UI/UX', 
-    '프로젝트 관리', '데이터 분석', '머신러닝', '보안'
+    '투자', '유통', '마케팅', '비즈니스 개발', '재무', '법무', 'HR', '브랜딩',
+    '영업', '전략', '창업', '스케일링', '펀딩', 'M&A', 'IPO', '세일즈',
+    '고객 성장', '제품 기획', '데이터 분석', '컨설팅', '경영', '조직 운영'
   ]
 
   return (
@@ -471,7 +471,7 @@ export function SkillsStep({ data, onChange }: SkillsStepProps) {
             <Input
               value={data.newHashtag}
               onChange={(e) => onChange('newHashtag', e.target.value)}
-              placeholder="태그 입력 (예: React, 프로젝트 관리)"
+              placeholder="태그 입력 (예: 투자, 마케팅, 비즈니스 개발)"
               onKeyPress={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
