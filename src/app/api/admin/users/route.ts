@@ -98,7 +98,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`email.ilike.%${search}%,name.ilike.%${search}%,organization_name.ilike.%${search}%`)
+      // 검색은 email, expert_profiles.name, organization_profiles.organization_name에서 수행
+      query = query.or(`email.ilike.%${search}%,expert_profiles.name.ilike.%${search}%,organization_profiles.organization_name.ilike.%${search}%`)
     }
 
     // 정렬 (인덱스가 있는 컬럼 우선 사용)
@@ -111,10 +112,81 @@ export async function GET(req: NextRequest) {
 
     const { data, error, count } = await query
 
-    if (error) throw error
+    if (error) {
+      // deleted_at 컬럼이 없는 경우 에러가 발생할 수 있으므로, 에러를 무시하고 계속 진행
+      if (error.message?.includes('deleted_at') || error.code === '42703') {
+        // deleted_at 필터 제거하고 다시 시도
+        query = adminClient
+          .from('users')
+          .select(`
+            id, 
+            email, 
+            role, 
+            is_admin, 
+            created_at, 
+            updated_at,
+            expert_profiles(name, is_available),
+            organization_profiles(organization_name, is_verified)
+          `, { count: 'exact' })
+        
+        if (role && role !== 'all') {
+          if (role === 'admin') {
+            query = query.eq('is_admin', true)
+          } else {
+            query = query.eq('role', role)
+          }
+        }
+        
+        if (search) {
+          query = query.or(`email.ilike.%${search}%,expert_profiles.name.ilike.%${search}%,organization_profiles.organization_name.ilike.%${search}%`)
+        }
+        
+        query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+        query = query.range(from, to)
+        
+        const retryResult = await query
+        if (retryResult.error) throw retryResult.error
+        
+        const users = (retryResult.data || []).map((user: any) => ({
+          id: user.id,
+          email: user.email,
+          name: user.expert_profiles?.[0]?.name || user.organization_profiles?.[0]?.organization_name || null,
+          role: user.role,
+          is_admin: user.is_admin,
+          organization_name: user.organization_profiles?.[0]?.organization_name || null,
+          is_verified: user.organization_profiles?.[0]?.is_verified || null,
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }))
+        
+        return NextResponse.json({
+          users,
+          pagination: {
+            page,
+            limit,
+            total: retryResult.count || 0,
+            totalPages: Math.ceil((retryResult.count || 0) / limit)
+          }
+        })
+      }
+      throw error
+    }
+
+    // 데이터 변환 (expert_profiles와 organization_profiles 배열을 평탄화)
+    const users = (data || []).map((user: any) => ({
+      id: user.id,
+      email: user.email,
+      name: user.expert_profiles?.[0]?.name || user.organization_profiles?.[0]?.organization_name || null,
+      role: user.role,
+      is_admin: user.is_admin,
+      organization_name: user.organization_profiles?.[0]?.organization_name || null,
+      is_verified: user.organization_profiles?.[0]?.is_verified || null,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    }))
 
     return NextResponse.json({
-      users: data,
+      users,
       pagination: {
         page,
         limit,
