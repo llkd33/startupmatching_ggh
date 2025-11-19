@@ -6,10 +6,8 @@ const nextConfig = {
   // Note: This reduces build memory usage but requires proper PORT handling
   output: 'standalone',
   
-  // Ensure PORT is properly handled
-  env: {
-    PORT: process.env.PORT || '3000',
-  },
+  // PORT는 Railway에서 자동으로 제공되므로 env에 추가할 필요 없음
+  // standalone 서버가 자동으로 PORT 환경 변수를 읽음
   
   eslint: {
     // Warning: This allows production builds to successfully complete even if

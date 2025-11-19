@@ -11,8 +11,8 @@ cmds = ["NODE_OPTIONS='--max-old-space-size=4096' NODE_ENV=production npm run bu
 
 [start]
 # Standalone output을 사용할 때는 반드시 .next/standalone/server.js를 실행해야 함
-# next start는 standalone 모드에서 작동하지 않음
-cmd = "node .next/standalone/server.js"
+# PORT 환경 변수를 명시적으로 전달
+cmd = "PORT=$PORT node .next/standalone/server.js"
 
 [variables]
 NODE_ENV = "production"
