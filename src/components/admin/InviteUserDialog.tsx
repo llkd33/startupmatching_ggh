@@ -183,19 +183,17 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
             <Label htmlFor="role">
               역할 <span className="text-red-600">*</span>
             </Label>
-            <Select
+            <select
+              id="role"
               value={formData.role}
-              onValueChange={(value: 'expert' | 'organization') => setFormData({ ...formData, role: value })}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as 'expert' | 'organization' })}
               disabled={loading}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+              required
             >
-              <SelectTrigger className="min-h-[44px]">
-                <SelectValue placeholder="역할 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expert">전문가</SelectItem>
-                <SelectItem value="organization">기관</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="expert">전문가</option>
+              <option value="organization">기관</option>
+            </select>
           </div>
 
           {formData.role === 'organization' && (
