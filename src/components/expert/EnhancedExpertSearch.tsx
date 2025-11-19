@@ -69,7 +69,7 @@ interface EnhancedExpertSearchProps {
 
 const POPULAR_SKILLS = [
   '투자', '유통', '마케팅', '비즈니스 개발', '재무', '법무', 'HR', '브랜딩',
-  'UI/UX 디자인', '마케팅', '데이터 분석', 'AI/ML', '블록체인', '모바일 앱'
+  '영업', '전략', '창업', '스케일링', '펀딩', 'M&A', '데이터 분석', '컨설팅'
 ]
 
 const LOCATIONS = [
