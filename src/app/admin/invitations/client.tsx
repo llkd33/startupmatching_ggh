@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -59,9 +59,57 @@ export default function AdminInvitationsClient({
     setCurrentPage(1)
   }, [debouncedSearch, filterStatus])
 
+  const fetchInvitations = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        toast.error('로그인이 필요합니다.')
+        setLoading(false)
+        return
+      }
+
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        status: filterStatus === 'all' ? '' : filterStatus,
+        search: debouncedSearch || ''
+      })
+
+      const response = await fetch(`/api/admin/invitations?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        // 캐싱 비활성화하여 항상 최신 데이터 가져오기
+        cache: 'no-store'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to fetch invitations')
+      }
+
+      const result = await response.json()
+      
+      if (result.invitations) {
+        setInvitations(result.invitations)
+        setTotal(result.pagination?.total || 0)
+      } else {
+        setInvitations([])
+        setTotal(0)
+      }
+    } catch (err: any) {
+      console.error('Error fetching invitations:', err)
+      toast.error(err.message || '초대 목록을 불러오는 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
+
   useEffect(() => {
     fetchInvitations()
-  }, [debouncedSearch, filterStatus, currentPage, pageSize])
+  }, [fetchInvitations])
 
   // 만료된 초대 자동 업데이트 (1분마다 체크)
   useEffect(() => {
