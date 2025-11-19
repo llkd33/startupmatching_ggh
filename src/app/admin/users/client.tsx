@@ -12,7 +12,6 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  UserPlus,
   Mail
 } from 'lucide-react'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
