@@ -110,16 +110,18 @@ export default function AdminInvitationsClient({
     }
   }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
-  // 초기 로드 시에는 initialInvitations를 사용하고, 필터/검색 변경 시에만 API 호출
+  // 초기 로드 완료 후 필터/검색 변경 시에만 API 호출
   useEffect(() => {
-    // 초기 로드가 아니고 (필터나 검색이 변경된 경우) 또는 명시적으로 새로고침하는 경우에만 API 호출
+    // 초기 로드가 완료된 후에만 API 호출 (필터/검색/페이지 변경 시)
     if (!isInitialLoad) {
       fetchInvitations()
-    } else {
-      // 초기 로드 완료 표시
-      setIsInitialLoad(false)
     }
-  }, [debouncedSearch, filterStatus, currentPage, pageSize])
+  }, [debouncedSearch, filterStatus, currentPage, pageSize, isInitialLoad, fetchInvitations])
+
+  // 초기 로드 완료 표시 (마운트 시 한 번만 실행)
+  useEffect(() => {
+    setIsInitialLoad(false)
+  }, [])
 
   // 만료된 초대 자동 업데이트 (1분마다 체크)
   useEffect(() => {
