@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import { Search, FileText, DollarSign, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
@@ -37,7 +38,7 @@ export default function ProposalManagement() {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [filterStatus, setFilterStatus] = useState<string>(searchParams.get('status') || 'all');
   const [loading, setLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  // supabase는 더 이상 사용하지 않음 (API 라우트 사용)
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
   const [currentPage, setCurrentPage] = useState<number>(
     Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
@@ -58,58 +59,69 @@ export default function ProposalManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus])
 
-  // Refetch function
-  const fetchProposalsData = async (page: number = currentPage) => {
+  // Refetch function - API 라우트 사용으로 최적화
+  const fetchProposalsData = useCallback(async (page: number = currentPage) => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('proposals')
-        .select(`
-          *,
-          campaigns!inner(
-            title,
-            type,
-            organization_profiles!inner(organization_name)
-          ),
-          expert_profiles!inner(name, hourly_rate)
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-
-      if (filterStatus && filterStatus !== 'all') {
-        query = query.eq('status', filterStatus)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        setLoading(false)
+        return
       }
 
-      const term = debouncedSearch?.trim()
-      if (term) {
-        // OR across related columns
-        query = query.or(
-          `campaigns.title.ilike.%${term}%,expert_profiles.name.ilike.%${term}%,campaigns.organization_profiles.organization_name.ilike.%${term}%`
-        )
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+        status: filterStatus === 'all' ? '' : filterStatus,
+        search: debouncedSearch || ''
+      })
+
+      const response = await fetch(`/api/admin/proposals?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        // 캐싱 활성화 (10초)
+        next: { revalidate: 10 }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch proposals')
       }
 
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
-      const { data, count } = await query.range(from, to)
-      setProposals(data || [])
-      setTotal(count || 0)
+      const result = await response.json()
+      setProposals(result.proposals || [])
+      setTotal(result.pagination?.total || 0)
       
       // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
-      if ((!data || data.length === 0) && page > 1) {
+      if ((!result.proposals || result.proposals.length === 0) && page > 1) {
         const prevPage = page - 1
         setCurrentPage(prevPage)
         // 재귀 호출로 이전 페이지 데이터 가져오기
-        const prevFrom = (prevPage - 1) * pageSize
-        const prevTo = prevFrom + pageSize - 1
-        const { data: prevData, count: prevCount } = await query.range(prevFrom, prevTo)
-        setProposals(prevData || [])
-        setTotal(prevCount || 0)
+        const prevParams = new URLSearchParams({
+          page: prevPage.toString(),
+          limit: pageSize.toString(),
+          status: filterStatus === 'all' ? '' : filterStatus,
+          search: debouncedSearch || ''
+        })
+        const prevResponse = await fetch(`/api/admin/proposals?${prevParams}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          next: { revalidate: 10 }
+        })
+        if (prevResponse.ok) {
+          const prevResult = await prevResponse.json()
+          setProposals(prevResult.proposals || [])
+          setTotal(prevResult.pagination?.total || 0)
+        }
       }
     } catch (error) {
       console.error('Error fetching proposals:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
   // Refetch proposals when filters/page change (server-side)
   useEffect(() => {

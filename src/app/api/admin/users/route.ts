@@ -128,15 +128,19 @@ export async function GET(req: NextRequest) {
       updated_at: user.updated_at
     }))
 
-    return NextResponse.json({
-      users,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit)
-      }
-    })
+          return NextResponse.json({
+            users,
+            pagination: {
+              page,
+              limit,
+              total: count || 0,
+              totalPages: Math.ceil((count || 0) / limit)
+            }
+          }, {
+            headers: {
+              'Cache-Control': 'private, s-maxage=10, stale-while-revalidate=30'
+            }
+          })
   } catch (error: any) {
     console.error('Admin users GET error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

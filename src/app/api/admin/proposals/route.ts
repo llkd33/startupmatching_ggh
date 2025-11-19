@@ -49,6 +49,111 @@ async function checkAdminAuth(req: NextRequest) {
   return { authorized: true, user }
 }
 
+// GET: 제안서 목록 조회 (페이지네이션 및 최적화)
+export async function GET(req: NextRequest) {
+  const authResult = await checkAdminAuth(req)
+  if (!authResult.authorized) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const searchParams = req.nextUrl.searchParams
+  const page = parseInt(searchParams.get('page') || '1')
+  const limit = parseInt(searchParams.get('limit') || '20')
+  const status = searchParams.get('status')
+  const search = searchParams.get('search')
+
+  const adminClient = getAdminClient()
+
+  try {
+    // 필요한 컬럼만 선택하여 성능 최적화
+    let query = adminClient
+      .from('proposals')
+      .select(`
+        id,
+        cover_letter,
+        proposed_budget,
+        proposed_timeline,
+        status,
+        created_at,
+        campaigns!inner(
+          id,
+          title,
+          type,
+          organization_profiles!inner(
+            organization_name
+          )
+        ),
+        expert_profiles!inner(
+          name,
+          hourly_rate
+        )
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+
+    // 필터 적용
+    if (status && status !== 'all') {
+      query = query.eq('status', status)
+    }
+
+    // 검색 (인덱스 활용)
+    if (search?.trim()) {
+      const searchTerm = `%${search.trim()}%`
+      query = query.or(
+        `campaigns.title.ilike.${searchTerm},expert_profiles.name.ilike.${searchTerm},campaigns.organization_profiles.organization_name.ilike.${searchTerm}`
+      )
+    }
+
+    // 페이지네이션
+    const from = (page - 1) * limit
+    const to = from + limit - 1
+    query = query.range(from, to)
+
+    const { data, error, count } = await query
+
+    if (error) {
+      throw error
+    }
+
+    // 데이터 변환
+    const proposals = (data || []).map((proposal: any) => ({
+      id: proposal.id,
+      cover_letter: proposal.cover_letter,
+      proposed_budget: proposal.proposed_budget,
+      proposed_timeline: proposal.proposed_timeline,
+      status: proposal.status,
+      created_at: proposal.created_at,
+      campaigns: {
+        title: proposal.campaigns?.title || '',
+        type: proposal.campaigns?.type || '',
+        organization_profiles: {
+          organization_name: proposal.campaigns?.organization_profiles?.organization_name || ''
+        }
+      },
+      expert_profiles: {
+        name: proposal.expert_profiles?.name || '',
+        hourly_rate: proposal.expert_profiles?.hourly_rate || null
+      }
+    }))
+
+    return NextResponse.json({
+      proposals,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit)
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'private, s-maxage=10, stale-while-revalidate=30'
+      }
+    })
+  } catch (error: any) {
+    console.error('Admin proposals GET error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
 // DELETE: 제안서 삭제
 export async function DELETE(req: NextRequest) {
   const authResult = await checkAdminAuth(req)
@@ -105,4 +210,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
-

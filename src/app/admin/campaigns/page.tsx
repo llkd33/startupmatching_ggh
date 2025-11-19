@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import { Search, Eye, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -35,7 +36,7 @@ export default function CampaignManagement() {
   const [filterStatus, setFilterStatus] = useState<string>(searchParams.get('status') || 'all');
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const supabase = createClientComponentClient();
+  // supabase는 더 이상 사용하지 않음 (API 라우트 사용)
   const debouncedSearch = useDebouncedValue(searchTerm, 350);
   const [currentPage, setCurrentPage] = useState<number>(
     Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
@@ -56,53 +57,69 @@ export default function CampaignManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterStatus])
 
-  // Refetch function
-  const fetchCampaignsData = async (page: number = currentPage) => {
+  // Refetch function - API 라우트 사용으로 최적화
+  const fetchCampaignsData = useCallback(async (page: number = currentPage) => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('campaigns')
-        .select(`
-          *,
-          organization_profiles!inner(organization_name, is_verified),
-          proposals(id)
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-
-      if (filterStatus && filterStatus !== 'all') {
-        query = query.eq('status', filterStatus)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        setLoading(false)
+        return
       }
 
-      const term = debouncedSearch?.trim()
-      if (term) {
-        query = query.or(
-          `title.ilike.%${term}%,category.ilike.%${term}%,organization_profiles.organization_name.ilike.%${term}%`
-        )
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+        status: filterStatus === 'all' ? '' : filterStatus,
+        search: debouncedSearch || ''
+      })
+
+      const response = await fetch(`/api/admin/campaigns?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        // 캐싱 활성화 (10초)
+        next: { revalidate: 10 }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch campaigns')
       }
 
-      const from = (page - 1) * pageSize
-      const to = from + pageSize - 1
-      const { data, count } = await query.range(from, to)
-      setCampaigns(data || [])
-      setTotal(count || 0)
+      const result = await response.json()
+      setCampaigns(result.campaigns || [])
+      setTotal(result.pagination?.total || 0)
       
       // 현재 페이지에 데이터가 없고 이전 페이지가 있으면 이전 페이지로 이동
-      if ((!data || data.length === 0) && page > 1) {
+      if ((!result.campaigns || result.campaigns.length === 0) && page > 1) {
         const prevPage = page - 1
         setCurrentPage(prevPage)
         // 재귀 호출로 이전 페이지 데이터 가져오기
-        const prevFrom = (prevPage - 1) * pageSize
-        const prevTo = prevFrom + pageSize - 1
-        const { data: prevData, count: prevCount } = await query.range(prevFrom, prevTo)
-        setCampaigns(prevData || [])
-        setTotal(prevCount || 0)
+        const prevParams = new URLSearchParams({
+          page: prevPage.toString(),
+          limit: pageSize.toString(),
+          status: filterStatus === 'all' ? '' : filterStatus,
+          search: debouncedSearch || ''
+        })
+        const prevResponse = await fetch(`/api/admin/campaigns?${prevParams}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          next: { revalidate: 10 }
+        })
+        if (prevResponse.ok) {
+          const prevResult = await prevResponse.json()
+          setCampaigns(prevResult.campaigns || [])
+          setTotal(prevResult.pagination?.total || 0)
+        }
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
   // Refetch when filters or page change (server-side)
   useEffect(() => {
@@ -122,14 +139,24 @@ export default function CampaignManagement() {
   }, [debouncedSearch, filterStatus, currentPage, pageSize]);
 
   const handleStatusChange = async (campaignId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('campaigns')
-      .update({ status: newStatus })
-      .eq('id', campaignId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
 
-    if (!error) {
-      await fetchCampaignsData(currentPage);
-      // Log admin action here
+      const response = await fetch(`/api/admin/campaigns/${campaignId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (response.ok) {
+        await fetchCampaignsData(currentPage)
+      }
+    } catch (error) {
+      console.error('Error updating campaign status:', error)
     }
   };
 

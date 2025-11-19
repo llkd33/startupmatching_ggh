@@ -79,8 +79,8 @@ export default function AdminUsersClient({
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         },
-        // 캐싱 비활성화 (항상 최신 데이터)
-        cache: 'no-store'
+        // 캐싱 활성화 (10초)
+        next: { revalidate: 10 }
       })
 
       if (!response.ok) {
