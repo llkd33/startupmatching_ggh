@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
         expires_at,
         accepted_at,
         created_at,
-        invited_by_user:users!user_invitations_invited_by_fkey(id, email)
+        invited_by
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
 
@@ -107,7 +107,23 @@ export async function GET(req: NextRequest) {
       throw error
     }
 
-    // 데이터 변환
+    // invited_by 정보를 한 번에 가져오기 (N+1 문제 해결)
+    const invitedByIds = [...new Set((data || [])
+      .map((inv: any) => inv.invited_by)
+      .filter(Boolean))]
+
+    let usersMap = new Map()
+    if (invitedByIds.length > 0) {
+      const { data: users } = await adminClient
+        .from('users')
+        .select('id, email')
+        .in('id', invitedByIds)
+
+      if (users) {
+        users.forEach((user: any) => usersMap.set(user.id, user))
+      }
+    }
+
     const invitations = (data || []).map((invitation: any) => ({
       id: invitation.id,
       email: invitation.email,
@@ -121,7 +137,7 @@ export async function GET(req: NextRequest) {
       expires_at: invitation.expires_at,
       accepted_at: invitation.accepted_at,
       created_at: invitation.created_at,
-      invited_by_user: invitation.invited_by_user || null
+      invited_by_user: invitation.invited_by ? usersMap.get(invitation.invited_by) || null : null
     }))
 
     return NextResponse.json({

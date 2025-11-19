@@ -10,15 +10,36 @@ export default async function AdminInvitationsPage() {
   // 초기 로드는 첫 페이지만 (20개)
   const { data: invitations, count } = await supabase
     .from('user_invitations')
-    .select(`
-      *,
-      invited_by_user:users!user_invitations_invited_by_fkey(id, email)
-    `, { count: 'exact' })
+    .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(0, 19) // 첫 페이지만
 
+  // invited_by 정보를 한 번에 가져오기 (N+1 문제 해결)
+  const invitedByIds = invitations
+    ? [...new Set(invitations.map((inv: any) => inv.invited_by).filter(Boolean))]
+    : []
+
+  let usersMap = new Map()
+  if (invitedByIds.length > 0) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', invitedByIds)
+
+    if (users) {
+      users.forEach((user: any) => usersMap.set(user.id, user))
+    }
+  }
+
+  const invitationsWithUser = invitations
+    ? invitations.map((inv: any) => ({
+        ...inv,
+        invited_by_user: inv.invited_by ? usersMap.get(inv.invited_by) || null : null
+      }))
+    : []
+
   return <AdminInvitationsClient
-    initialInvitations={invitations || []}
+    initialInvitations={invitationsWithUser}
     initialTotal={count || 0}
   />
 }

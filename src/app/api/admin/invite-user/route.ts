@@ -204,7 +204,8 @@ export async function POST(request: NextRequest) {
     if (inviteError) {
       // 초대 레코드 생성 실패는 치명적 오류
       console.error('Error creating invitation record:', inviteError)
-      throw new Error(`초대 레코드 생성 실패: ${inviteError.message}`)
+      const errorMessage = inviteError.message || inviteError.details || JSON.stringify(inviteError)
+      throw new Error(`초대 레코드 생성 실패: ${errorMessage}`)
     }
 
     // 9. 초대 이메일 발송
