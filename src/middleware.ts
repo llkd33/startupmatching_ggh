@@ -14,118 +14,116 @@ export async function middleware(request: NextRequest) {
   // pathname을 헤더에 추가하여 layout에서 사용할 수 있도록 함
   response.headers.set('x-pathname', pathname);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  // Admin 경로에서만 인증 및 권한 확인 수행
+  if (pathname.startsWith('/admin') && pathname !== '/admin-login') {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+      }
+    );
 
-  // Refresh session for all routes to ensure cookies are up to date
-  // This is important for server components to read the session correctly
-  try {
-    await supabase.auth.getUser();
-  } catch (error: any) {
-    // Ignore cookie parsing errors - they're non-critical
-    if (error?.message?.includes('cookie') || 
-        error?.message?.includes('JSON') || 
-        error?.message?.includes('base64') ||
-        error?.message?.includes('parse') ||
-        error?.message?.includes('Unexpected token')) {
-      // Cookie parsing errors are non-critical, continue
-      console.warn('Cookie parsing error (non-critical):', error?.message);
-    } else {
-      // Re-throw other errors
-      throw error;
+    // auth.getUser()를 한 번만 호출하여 세션 확인 및 사용자 정보 가져오기
+    let user = null;
+    let authError = null;
+
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      user = data.user;
+      authError = error;
+    } catch (error: any) {
+      // Cookie parsing 에러는 무시 (비중요)
+      if (error?.message?.includes('cookie') || 
+          error?.message?.includes('JSON') || 
+          error?.message?.includes('base64') ||
+          error?.message?.includes('parse') ||
+          error?.message?.includes('Unexpected token')) {
+        console.warn('Cookie parsing error (non-critical):', error?.message);
+      } else {
+        console.error('Middleware admin auth error:', error);
+      }
+    }
+
+    if (!user || authError) {
+      // 인증되지 않은 경우 admin 로그인으로 리다이렉트
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/admin-login';
+      redirectUrl.searchParams.set('redirectedFrom', pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // 관리자 권한 확인 (DB 조회)
+    try {
+      const { data: userData, error: userProfileError } = await supabase
+        .from('users')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single();
+
+      if (userProfileError || !userData?.is_admin) {
+        // 관리자가 아닌 경우 홈으로 리다이렉트
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/';
+        return NextResponse.redirect(redirectUrl);
+      }
+    } catch (error) {
+      console.error('Error checking admin role in middleware:', error);
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/admin-login';
+      redirectUrl.searchParams.set('redirectedFrom', pathname);
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
-  // Check if the route is an admin route (but exclude /admin-login)
-  if (pathname.startsWith('/admin') && pathname !== '/admin-login') {
-    let user = null;
-    let authError = null;
-    
+  // 일반 사용자 인증 확인은 필요한 경로에서만 수행 (예: /auth/login, /auth/signup)
+  if (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup')) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
     try {
-      const result = await supabase.auth.getUser();
-      user = result.data.user;
-      authError = result.error;
+      const { data: { user } } = await supabase.auth.getUser();
+      // 이미 로그인한 사용자는 대시보드로 리다이렉트
+      if (user) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/dashboard';
+        return NextResponse.redirect(redirectUrl);
+      }
     } catch (error: any) {
-      // Ignore cookie parsing errors - they're non-critical
-      if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64')) {
-        // Cookie parsing errors are non-critical, treat as no user
-        authError = { message: 'Cookie parsing error' };
-      } else {
-        // Re-throw other errors
-        throw error;
+      // Cookie parsing 에러는 무시
+      if (!error?.message?.includes('cookie') && 
+          !error?.message?.includes('JSON') && 
+          !error?.message?.includes('base64') &&
+          !error?.message?.includes('parse') &&
+          !error?.message?.includes('Unexpected token')) {
+        console.error('Auth check error:', error);
       }
     }
-
-    // If no user, redirect to admin login page
-    if (authError || !user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Admin middleware: No user found', {
-          authError: authError?.message,
-          pathname
-        })
-      }
-      return NextResponse.redirect(new URL('/admin-login', request.url));
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Admin middleware: User found', {
-        userId: user.id,
-        email: user.email,
-        pathname
-      })
-    }
-
-    // Check if user is admin
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role, is_admin')
-      .eq('id', user.id)
-      .maybeSingle(); // single() 대신 maybeSingle() 사용
-
-    // Always log for debugging (production too)
-    console.log('🔍 Admin middleware check:', {
-      userId: user.id,
-      email: user.email,
-      userError: userError?.message || null,
-      userData: userData || null,
-      is_admin: userData?.is_admin || null,
-      role: userData?.role || null,
-      timestamp: new Date().toISOString()
-    })
-
-    // users 테이블에 레코드가 없거나 관리자가 아닌 경우
-    if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
-      console.log('❌ Admin middleware: Access denied', {
-        reason: userError ? 'database_error' : !userData ? 'user_not_found' : 'not_admin',
-        userError: userError?.message,
-        userData,
-        userId: user.id
-      })
-      return NextResponse.redirect(new URL('/admin-login', request.url));
-    }
-
-    console.log('✅ Admin middleware: Access granted', {
-      userId: user.id,
-      email: user.email,
-      is_admin: userData.is_admin,
-      role: userData.role,
-      timestamp: new Date().toISOString()
-    })
   }
 
   return response;
@@ -134,12 +132,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
+     * Admin 경로와 인증 관련 경로만 매칭하여 성능 최적화
+     * - /admin/*: 관리자 경로 (인증 및 권한 확인)
+     * - /auth/login, /auth/signup: 로그인/회원가입 경로 (이미 로그인한 사용자 리다이렉트)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/admin/:path*',
+    '/auth/login',
+    '/auth/signup',
   ],
 };
