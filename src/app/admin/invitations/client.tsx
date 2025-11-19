@@ -46,15 +46,23 @@ export default function AdminInvitationsClient({
 }: { 
   initialInvitations: Invitation[] 
 }) {
-  const [invitations, setInvitations] = useState<Invitation[]>(initialInvitations)
+  const [invitations, setInvitations] = useState<Invitation[]>(initialInvitations || [])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [total, setTotal] = useState(initialInvitations.length)
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [total, setTotal] = useState(initialInvitations?.length || 0)
+  const [hasSearched, setHasSearched] = useState(false)
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
+
+  // 초기 데이터 설정
+  useEffect(() => {
+    if (initialInvitations && initialInvitations.length > 0) {
+      setInvitations(initialInvitations)
+      setTotal(initialInvitations.length)
+    }
+  }, [initialInvitations])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -68,7 +76,6 @@ export default function AdminInvitationsClient({
         console.error('No session found')
         toast.error('로그인이 필요합니다.')
         setLoading(false)
-        setIsInitialLoad(false)
         return
       }
 
@@ -83,7 +90,6 @@ export default function AdminInvitationsClient({
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         },
-        // 캐싱 비활성화하여 항상 최신 데이터 가져오기
         cache: 'no-store'
       })
 
@@ -106,22 +112,16 @@ export default function AdminInvitationsClient({
       toast.error(err.message || '초대 목록을 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
-      setIsInitialLoad(false)
     }
   }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
-  // 초기 로드 완료 후 필터/검색 변경 시에만 API 호출
+  // 필터나 검색이 변경되었을 때만 API 호출 (초기 로드는 제외)
   useEffect(() => {
-    // 초기 로드가 완료된 후에만 API 호출 (필터/검색/페이지 변경 시)
-    if (!isInitialLoad) {
+    // 검색어나 필터가 변경되었거나, 명시적으로 검색한 경우에만 API 호출
+    if (hasSearched || debouncedSearch || (filterStatus !== 'all')) {
       fetchInvitations()
     }
-  }, [debouncedSearch, filterStatus, currentPage, pageSize, isInitialLoad, fetchInvitations])
-
-  // 초기 로드 완료 표시 (마운트 시 한 번만 실행)
-  useEffect(() => {
-    setIsInitialLoad(false)
-  }, [])
+  }, [debouncedSearch, filterStatus, currentPage, pageSize, hasSearched, fetchInvitations])
 
   // 만료된 초대 자동 업데이트 (1분마다 체크)
   useEffect(() => {
@@ -284,7 +284,7 @@ export default function AdminInvitationsClient({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading && !isInitialLoad ? (
+          {loading ? (
             <div className="text-center py-8 text-gray-500">로딩 중...</div>
           ) : invitations.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
