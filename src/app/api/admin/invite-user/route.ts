@@ -232,19 +232,22 @@ export async function POST(request: NextRequest) {
 
       const emailHtml = generateInviteEmailHTML(inviteUrl, email, phone)
       
-      const emailResult = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>',
-        to: email,
-        subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 가입 초대가 도착했습니다`,
-        html: emailHtml,
-      })
+        // Resend 기본 도메인 사용 (도메인 검증 필요 시 RESEND_FROM_EMAIL 환경 변수 설정)
+        const fromEmail = process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>'
+        
+        const emailResult = await resend.emails.send({
+          from: fromEmail,
+          to: email,
+          subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 가입 초대가 도착했습니다`,
+          html: emailHtml,
+        })
 
       if (!emailResult.data) {
         console.error('Failed to send invite email:', emailResult.error)
         // 상세한 에러 로깅
         console.error('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
         console.error('Resend API Key configured:', !!resendApiKey)
-        console.error('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>')
+          console.error('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>')
         console.error('To email:', email)
         
         return NextResponse.json({

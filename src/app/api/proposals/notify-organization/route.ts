@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
     `
 
     const emailResult = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>',
+      // Resend 기본 도메인 사용 (도메인 검증 필요 시 RESEND_FROM_EMAIL 환경 변수 설정)
+      from: process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>',
       to: organizationEmail,
       subject: `[${process.env.NEXT_PUBLIC_APP_NAME || 'StartupMatching'}] 새로운 제안서가 도착했습니다 - ${campaignTitle}`,
       html: emailHtml,

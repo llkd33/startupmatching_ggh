@@ -25,7 +25,8 @@ export class EmailService {
         return { success: false, error: 'Email service is not configured' }
       }
 
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'StartupMatching <noreply@startupmatching.com>'
+      // Resend 기본 도메인 사용 (도메인 검증 필요 시 RESEND_FROM_EMAIL 환경 변수 설정)
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>'
       
       const result = await this.resend.emails.send({
         from: fromEmail,
