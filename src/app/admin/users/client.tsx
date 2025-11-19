@@ -15,8 +15,6 @@ import {
   UserPlus,
   Mail
 } from 'lucide-react'
-import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
-import { BulkInviteDialog } from '@/components/admin/BulkInviteDialog'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SkeletonTable } from '@/components/ui/skeleton'
@@ -330,10 +328,6 @@ export default function AdminUsersClient({
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">사용자 관리</h1>
           <p className="text-gray-600">전체 사용자를 관리하고 권한을 설정합니다</p>
-        </div>
-        <div className="flex gap-2">
-          <InviteUserDialog onSuccess={fetchUsers} />
-          <BulkInviteDialog onSuccess={fetchUsers} />
         </div>
       </div>
       

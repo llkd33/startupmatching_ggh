@@ -18,6 +18,7 @@ import {
   UserPlus
 } from 'lucide-react'
 import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
+import { BulkInviteDialog } from '@/components/admin/BulkInviteDialog'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { toast } from 'sonner'
 
@@ -208,6 +209,7 @@ export default function AdminInvitationsClient({
         </div>
         <div className="flex gap-2">
           <InviteUserDialog onSuccess={fetchInvitations} />
+          <BulkInviteDialog onSuccess={fetchInvitations} />
           <Button
             variant="outline"
             onClick={fetchInvitations}
