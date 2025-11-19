@@ -27,30 +27,25 @@ const nextConfig = {
       '@': path.resolve(__dirname, './src'),
     };
     
-    // Optimize memory usage during build
+    // Optimize memory usage during build - 더 보수적인 설정
     if (!isServer) {
       config.optimization = {
         ...config.optimization,
         splitChunks: {
           chunks: 'all',
+          maxInitialRequests: 25,
+          minSize: 20000,
           cacheGroups: {
-            default: false,
-            vendors: false,
-            // Vendor chunk
-            vendor: {
-              name: 'vendor',
-              chunks: 'all',
-              test: /node_modules/,
-              priority: 20,
-            },
-            // Common chunk
-            common: {
-              name: 'common',
+            default: {
               minChunks: 2,
-              chunks: 'all',
-              priority: 10,
+              priority: -20,
               reuseExistingChunk: true,
-              enforce: true,
+            },
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendors',
+              priority: -10,
+              chunks: 'all',
             },
           },
         },
