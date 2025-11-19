@@ -41,10 +41,12 @@ interface Invitation {
   }
 }
 
-export default function AdminInvitationsClient({ 
-  initialInvitations 
-}: { 
-  initialInvitations: Invitation[] 
+export default function AdminInvitationsClient({
+  initialInvitations,
+  initialTotal
+}: {
+  initialInvitations: Invitation[]
+  initialTotal: number
 }) {
   const [invitations, setInvitations] = useState<Invitation[]>(initialInvitations || [])
   const [searchTerm, setSearchTerm] = useState('')
@@ -52,16 +54,16 @@ export default function AdminInvitationsClient({
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [total, setTotal] = useState(initialInvitations?.length || 0)
+  const [total, setTotal] = useState(initialTotal || 0)
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
 
   // 초기 데이터 설정 (서버에서 받은 데이터를 그대로 사용)
   useEffect(() => {
     if (initialInvitations) {
       setInvitations(initialInvitations)
-      setTotal(initialInvitations.length)
+      setTotal(initialTotal)
     }
-  }, [initialInvitations])
+  }, [initialInvitations, initialTotal])
 
   useEffect(() => {
     setCurrentPage(1)

@@ -2,9 +2,28 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
+// 간단한 메모리 캐시 (프로덕션에서는 Redis 사용 권장)
+interface CacheEntry {
+  isAdmin: boolean;
+  timestamp: number;
+}
+
+const adminCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 60000; // 1분 캐시
+
+// 주기적으로 만료된 캐시 정리 (메모리 누수 방지)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of adminCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      adminCache.delete(key);
+    }
+  }
+}, CACHE_TTL); // 1분마다 정리
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -63,26 +82,46 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // 관리자 권한 확인 (DB 조회)
-    try {
-      const { data: userData, error: userProfileError } = await supabase
-        .from('users')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single();
+    // 캐시 확인
+    const cachedEntry = adminCache.get(user.id);
+    const now = Date.now();
 
-      if (userProfileError || !userData?.is_admin) {
-        // 관리자가 아닌 경우 홈으로 리다이렉트
+    if (cachedEntry && (now - cachedEntry.timestamp) < CACHE_TTL) {
+      // 캐시가 유효한 경우
+      if (!cachedEntry.isAdmin) {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = '/';
         return NextResponse.redirect(redirectUrl);
       }
-    } catch (error) {
-      console.error('Error checking admin role in middleware:', error);
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/admin-login';
-      redirectUrl.searchParams.set('redirectedFrom', pathname);
-      return NextResponse.redirect(redirectUrl);
+      // 관리자인 경우 통과
+    } else {
+      // 캐시가 없거나 만료된 경우 DB 조회
+      try {
+        const { data: userData, error: userProfileError } = await supabase
+          .from('users')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
+
+        if (userProfileError || !userData?.is_admin) {
+          // 캐시 업데이트 (관리자 아님)
+          adminCache.set(user.id, { isAdmin: false, timestamp: now });
+
+          // 관리자가 아닌 경우 홈으로 리다이렉트
+          const redirectUrl = request.nextUrl.clone();
+          redirectUrl.pathname = '/';
+          return NextResponse.redirect(redirectUrl);
+        }
+
+        // 캐시 업데이트 (관리자)
+        adminCache.set(user.id, { isAdmin: true, timestamp: now });
+      } catch (error) {
+        console.error('Error checking admin role in middleware:', error);
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/admin-login';
+        redirectUrl.searchParams.set('redirectedFrom', pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
     }
   }
 
