@@ -126,54 +126,6 @@ export default function AdminInvitationsClient({
     return () => clearInterval(interval)
   }, [])
 
-  const fetchInvitations = async () => {
-    setLoading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        console.error('No session found')
-        toast.error('로그인이 필요합니다.')
-        setLoading(false)
-        return
-      }
-
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: pageSize.toString(),
-        status: filterStatus === 'all' ? '' : filterStatus,
-        search: debouncedSearch || ''
-      })
-
-      const response = await fetch(`/api/admin/invitations?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        // 캐싱 활성화 (10초)
-        next: { revalidate: 10 }
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(errorData.error || 'Failed to fetch invitations')
-      }
-
-      const result = await response.json()
-      
-      if (result.invitations) {
-        setInvitations(result.invitations)
-        setTotal(result.pagination?.total || 0)
-      } else {
-        setInvitations([])
-        setTotal(0)
-      }
-    } catch (err: any) {
-      console.error('Error fetching invitations:', err)
-      toast.error(err.message || '초대 목록을 불러오는 중 오류가 발생했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const copyInviteLink = (token: string) => {
     const inviteUrl = `${window.location.origin}/auth/invite/accept/${token}`
     navigator.clipboard.writeText(inviteUrl)
