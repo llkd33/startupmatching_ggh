@@ -53,6 +53,7 @@ export default function AdminInvitationsClient({
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(initialInvitations.length)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function AdminInvitationsClient({
         console.error('No session found')
         toast.error('로그인이 필요합니다.')
         setLoading(false)
+        setIsInitialLoad(false)
         return
       }
 
@@ -104,12 +106,20 @@ export default function AdminInvitationsClient({
       toast.error(err.message || '초대 목록을 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      setIsInitialLoad(false)
     }
   }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
+  // 초기 로드 시에는 initialInvitations를 사용하고, 필터/검색 변경 시에만 API 호출
   useEffect(() => {
-    fetchInvitations()
-  }, [fetchInvitations])
+    // 초기 로드가 아니고 (필터나 검색이 변경된 경우) 또는 명시적으로 새로고침하는 경우에만 API 호출
+    if (!isInitialLoad) {
+      fetchInvitations()
+    } else {
+      // 초기 로드 완료 표시
+      setIsInitialLoad(false)
+    }
+  }, [debouncedSearch, filterStatus, currentPage, pageSize])
 
   // 만료된 초대 자동 업데이트 (1분마다 체크)
   useEffect(() => {
