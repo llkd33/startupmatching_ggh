@@ -118,7 +118,8 @@ export default function AdminInvitationsClient({
   // 필터나 검색이 변경되었을 때만 API 호출 (초기 로드는 제외)
   useEffect(() => {
     // 검색어나 필터가 변경되었거나, 명시적으로 검색한 경우에만 API 호출
-    if (hasSearched || debouncedSearch || (filterStatus !== 'all')) {
+    // 초기 로드 시에는 initialInvitations를 사용하므로 API 호출 안 함
+    if (hasSearched || debouncedSearch || (filterStatus !== 'all') || currentPage > 1) {
       fetchInvitations()
     }
   }, [debouncedSearch, filterStatus, currentPage, pageSize, hasSearched, fetchInvitations])
@@ -220,8 +221,14 @@ export default function AdminInvitationsClient({
           <p className="text-gray-600">회원 초대 내역을 확인하고 관리합니다</p>
         </div>
         <div className="flex gap-2">
-          <InviteUserDialog onSuccess={fetchInvitations} />
-          <BulkInviteDialog onSuccess={fetchInvitations} />
+          <InviteUserDialog onSuccess={() => {
+            setHasSearched(true)
+            fetchInvitations()
+          }} />
+          <BulkInviteDialog onSuccess={() => {
+            setHasSearched(true)
+            fetchInvitations()
+          }} />
           <Button
             variant="outline"
             onClick={fetchInvitations}
