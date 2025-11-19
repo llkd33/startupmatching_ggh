@@ -331,7 +331,9 @@ export async function POST(request: NextRequest) {
 function generateInviteEmailHTML(
   inviteUrl: string, 
   email: string, 
-  phone: string
+  phone: string,
+  name: string = '',
+  organizationName: string = ''
 ): string {
   return `
 <!DOCTYPE html>
@@ -349,11 +351,13 @@ function generateInviteEmailHTML(
     
     <div style="padding: 40px 30px;">
       <p style="font-size: 18px; margin-bottom: 20px; color: #333;">
-        안녕하세요!
+        안녕하세요${name ? `, ${name}님` : ''}!
       </p>
       
+      ${organizationName ? `<p style="font-size: 16px; margin-bottom: 20px; color: #666;"><strong>${organizationName}</strong>에서 가입 초대를 보내드립니다.</p>` : ''}
+      
       <p style="font-size: 16px; margin-bottom: 30px; color: #666;">
-        StartupMatching에 가입 초대가 도착했습니다. 아래 버튼을 클릭하여 가입을 완료하고 역할(전문가/기관)을 선택해주세요.
+        StartupMatching에 가입 초대가 도착했습니다. 아래 버튼을 클릭하여 가입을 완료해주세요.
       </p>
       
       <div style="text-align: center; margin: 40px 0;">
