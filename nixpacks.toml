@@ -10,9 +10,8 @@ cmds = ["npm ci || npm install"]
 cmds = ["NODE_OPTIONS='--max-old-space-size=4096' NODE_ENV=production npm run build"]
 
 [start]
-# Standalone output을 사용할 때는 반드시 .next/standalone/server.js를 실행해야 함
-# PORT 환경 변수를 명시적으로 전달
-cmd = "PORT=$PORT node .next/standalone/server.js"
+# 일반 모드로 전환하여 안정성 확보
+cmd = "npm start"
 
 [variables]
 NODE_ENV = "production"

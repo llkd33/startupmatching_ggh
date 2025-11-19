@@ -2,12 +2,9 @@ const path = require('path');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output for better memory efficiency
-  // Note: This reduces build memory usage but requires proper PORT handling
-  output: 'standalone',
-  
-  // PORT는 Railway에서 자동으로 제공되므로 env에 추가할 필요 없음
-  // standalone 서버가 자동으로 PORT 환경 변수를 읽음
+  // Standalone 모드는 Railway에서 502 에러를 발생시킬 수 있으므로 비활성화
+  // 메모리 최적화는 webpack 설정으로 처리
+  // output: 'standalone',
   
   eslint: {
     // Warning: This allows production builds to successfully complete even if
