@@ -282,7 +282,7 @@ export default function AdminInvitationsClient({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading && !isInitialLoad ? (
             <div className="text-center py-8 text-gray-500">로딩 중...</div>
           ) : invitations.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
