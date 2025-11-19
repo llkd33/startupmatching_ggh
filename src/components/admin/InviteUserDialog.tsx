@@ -71,8 +71,23 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
         throw new Error(data.error || '사용자 초대에 실패했습니다.')
       }
 
-      toast.success('사용자 초대가 완료되었습니다. 이메일이 발송되었습니다.')
-      
+      // 성공 메시지 (경고 포함 가능)
+      if (data.warning) {
+        if (data.warning === 'test_account_limit') {
+          toast.warning(
+            `초대가 생성되었습니다.\n\n⚠️ Resend 테스트 계정 제한으로 이메일 발송에 실패했습니다.\n도메인 인증 후 모든 사용자에게 이메일을 보낼 수 있습니다.\n\n초대 링크를 복사하여 수동으로 전달해주세요:\n${data.inviteUrl}`,
+            { duration: 10000 }
+          )
+        } else {
+          toast.warning(
+            `초대가 생성되었습니다.\n\n⚠️ 이메일 발송에 실패했습니다.\n초대 링크를 복사하여 수동으로 전달해주세요:\n${data.inviteUrl}`,
+            { duration: 8000 }
+          )
+        }
+      } else {
+        toast.success('사용자 초대가 완료되었습니다. 이메일이 발송되었습니다.')
+      }
+
       // 폼 초기화
       setFormData({
         email: '',
@@ -82,9 +97,9 @@ export function InviteUserDialog({ onSuccess }: InviteUserDialogProps) {
         organization_name: '',
         position: ''
       })
-      
+
       setOpen(false)
-      
+
       if (onSuccess) {
         onSuccess()
       }

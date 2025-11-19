@@ -244,24 +244,35 @@ export async function POST(request: NextRequest) {
           html: emailHtml,
         })
 
-      if (!emailResult.data) {
+      if (!emailResult.data || emailResult.error) {
         console.error('Failed to send invite email:', emailResult.error)
+
+        // Resend 테스트 계정 제한 확인
+        const isTestAccountLimit = emailResult.error?.name === 'validation_error' &&
+          emailResult.error?.message?.includes('testing emails')
+
         // 상세한 에러 로깅
-        console.error('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
-        console.error('Resend API Key configured:', !!resendApiKey)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
+          console.error('Resend API Key configured:', !!resendApiKey)
           console.error('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>')
-        console.error('To email:', email)
-        
+          console.error('To email:', email)
+        }
+
+        const errorMessage = isTestAccountLimit
+          ? 'Resend 테스트 계정 제한: 도메인 인증 후 모든 사용자에게 이메일을 보낼 수 있습니다.'
+          : '이메일 발송에 실패했습니다. 초대 링크를 수동으로 전달해주세요.'
+
         return NextResponse.json({
           success: true,
           user: {
             id: userId,
             email
           },
-          message: 'User created successfully, but invitation email failed to send. Please send the invite link manually.',
-          warning: 'email_failed',
+          message: `초대가 생성되었습니다. ${errorMessage}`,
+          warning: isTestAccountLimit ? 'test_account_limit' : 'email_failed',
           inviteUrl: inviteUrl,
-          error: emailResult.error ? JSON.stringify(emailResult.error) : 'Unknown error'
+          emailError: isTestAccountLimit ? 'Resend 도메인 인증 필요' : (emailResult.error?.message || 'Unknown error')
         })
       }
 
