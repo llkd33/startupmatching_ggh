@@ -53,7 +53,6 @@ export default function AdminInvitationsClient({
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(initialInvitations?.length || 0)
-  const [hasInteracted, setHasInteracted] = useState(false) // 사용자가 필터/검색을 사용했는지
   const debouncedSearch = useDebouncedValue(searchTerm, 350)
 
   // 초기 데이터 설정 (서버에서 받은 데이터를 그대로 사용)
@@ -115,20 +114,13 @@ export default function AdminInvitationsClient({
     }
   }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
-  // 사용자가 필터/검색을 변경했을 때만 API 호출
+  // 마운트 시 또는 initialInvitations가 비어있으면 즉시 API 호출
   useEffect(() => {
-    // 초기 로드가 아니고 (사용자가 상호작용한 경우) 필터/검색/페이지가 변경된 경우에만 API 호출
-    if (hasInteracted) {
+    // initialInvitations가 비어있거나, 필터/검색/페이지가 변경된 경우 API 호출
+    if (!initialInvitations || initialInvitations.length === 0 || debouncedSearch || filterStatus !== 'all' || currentPage > 1) {
       fetchInvitations()
     }
-  }, [debouncedSearch, filterStatus, currentPage, pageSize, hasInteracted, fetchInvitations])
-
-  // 검색어나 필터 변경 시 hasInteracted 플래그 설정
-  useEffect(() => {
-    if (debouncedSearch || filterStatus !== 'all') {
-      setHasInteracted(true)
-    }
-  }, [debouncedSearch, filterStatus])
+  }, [debouncedSearch, filterStatus, currentPage, pageSize, fetchInvitations, initialInvitations])
 
   // 만료된 초대 자동 업데이트 (1분마다 체크)
   useEffect(() => {
@@ -227,20 +219,11 @@ export default function AdminInvitationsClient({
           <p className="text-gray-600">회원 초대 내역을 확인하고 관리합니다</p>
         </div>
         <div className="flex gap-2">
-          <InviteUserDialog onSuccess={() => {
-            setHasInteracted(true)
-            fetchInvitations()
-          }} />
-          <BulkInviteDialog onSuccess={() => {
-            setHasInteracted(true)
-            fetchInvitations()
-          }} />
+          <InviteUserDialog onSuccess={fetchInvitations} />
+          <BulkInviteDialog onSuccess={fetchInvitations} />
           <Button
             variant="outline"
-            onClick={() => {
-              setHasInteracted(true)
-              fetchInvitations()
-            }}
+            onClick={fetchInvitations}
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
