@@ -3,7 +3,13 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Standalone output for better memory efficiency
+  // Note: This reduces build memory usage but requires proper PORT handling
   output: 'standalone',
+  
+  // Ensure PORT is properly handled
+  env: {
+    PORT: process.env.PORT || '3000',
+  },
   
   eslint: {
     // Warning: This allows production builds to successfully complete even if
