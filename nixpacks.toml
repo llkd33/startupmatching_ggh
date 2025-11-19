@@ -6,10 +6,12 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm ci || npm install"]
 
 [phases.build]
-cmds = ["NODE_ENV=production npm run build"]
+# Increase Node.js memory limit and optimize build
+cmds = ["NODE_OPTIONS='--max-old-space-size=4096' NODE_ENV=production npm run build"]
 
 [start]
 cmd = "npm start"
 
 [variables]
 NODE_ENV = "production"
+NODE_OPTIONS = "--max-old-space-size=2048"

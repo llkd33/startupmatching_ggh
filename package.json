@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev -p 3004",
-    "build": "next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "create-admin": "tsx scripts/createAdminUser.ts",
