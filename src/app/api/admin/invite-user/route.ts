@@ -202,12 +202,9 @@ export async function POST(request: NextRequest) {
       })
 
     if (inviteError) {
-      // 개발 모드에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error creating invitation:', inviteError)
-      }
-      // 초대 토큰 생성 실패는 치명적이지 않지만 로그 기록
-      // 사용자는 생성되었으므로 계속 진행
+      // 초대 레코드 생성 실패는 치명적 오류
+      console.error('Error creating invitation record:', inviteError)
+      throw new Error(`초대 레코드 생성 실패: ${inviteError.message}`)
     }
 
     // 9. 초대 이메일 발송

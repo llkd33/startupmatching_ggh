@@ -80,45 +80,46 @@ export default function AdminInvitationsClient({
   const fetchInvitations = async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('user_invitations')
-        .select(`
-          *,
-          invited_by_user:users!user_invitations_invited_by_fkey(id, email)
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-
-      if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus)
-      }
-
-      if (debouncedSearch.trim()) {
-        query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`)
-      }
-
-      // 페이지네이션 적용
-      const from = (currentPage - 1) * pageSize
-      const to = from + pageSize - 1
-      query = query.range(from, to)
-
-      const { data, error, count } = await query
-
-      if (error) {
-        console.error('Error fetching invitations:', error)
-        toast.error('초대 목록을 불러오는 중 오류가 발생했습니다.')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        console.error('No session found')
+        toast.error('로그인이 필요합니다.')
+        setLoading(false)
         return
       }
 
-      if (data) {
-        setInvitations(data)
-        setTotal(count || 0)
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        status: filterStatus === 'all' ? '' : filterStatus,
+        search: debouncedSearch || ''
+      })
+
+      const response = await fetch(`/api/admin/invitations?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        // 캐싱 활성화 (10초)
+        next: { revalidate: 10 }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || 'Failed to fetch invitations')
+      }
+
+      const result = await response.json()
+      
+      if (result.invitations) {
+        setInvitations(result.invitations)
+        setTotal(result.pagination?.total || 0)
       } else {
         setInvitations([])
         setTotal(0)
       }
-    } catch (err) {
-      console.error('Unexpected error fetching invitations:', err)
-      toast.error('초대 목록을 불러오는 중 예상치 못한 오류가 발생했습니다.')
+    } catch (err: any) {
+      console.error('Error fetching invitations:', err)
+      toast.error(err.message || '초대 목록을 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
