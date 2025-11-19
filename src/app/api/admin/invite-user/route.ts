@@ -62,12 +62,12 @@ export async function POST(request: NextRequest) {
 
     // 2. 요청 데이터 파싱
     const body = await request.json()
-    const { email, phone } = body
+    const { email, phone, name, role, organization_name, position } = body
 
-    // 3. 필수 필드 검증 (이메일, 핸드폰만 필요)
-    if (!email || !phone) {
+    // 3. 필수 필드 검증
+    if (!email || !phone || !name || !role) {
       return NextResponse.json(
-        { error: 'Missing required fields: email, phone' },
+        { error: 'Missing required fields: email, phone, name, role' },
         { status: 400 }
       )
     }
@@ -185,12 +185,16 @@ export async function POST(request: NextRequest) {
 
     // 프로필 테이블은 역할 선택 후 생성하므로 여기서는 생성하지 않음
 
-    // 8. 초대 레코드 저장 (역할 없이)
+    // 8. 초대 레코드 저장
     const { error: inviteError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
-        email,
-        phone,
+        email: email.toLowerCase().trim(),
+        name: name.trim(),
+        phone: phone.replace(/[^0-9]/g, ''),
+        role: role,
+        organization_name: organization_name?.trim() || null,
+        position: position?.trim() || null,
         invited_by: user.id,
         token,
         status: 'pending',
@@ -230,7 +234,7 @@ export async function POST(request: NextRequest) {
       const { Resend } = await import('resend')
       const resend = new Resend(resendApiKey)
 
-      const emailHtml = generateInviteEmailHTML(inviteUrl, email, phone)
+      const emailHtml = generateInviteEmailHTML(inviteUrl, email, phone, name, organization_name || '')
       
         // Resend 기본 도메인 사용 (도메인 검증 필요 시 RESEND_FROM_EMAIL 환경 변수 설정)
         const fromEmail = process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>'

@@ -14,8 +14,10 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  UserPlus
 } from 'lucide-react'
+import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { toast } from 'sonner'
 
@@ -188,14 +190,17 @@ export default function AdminInvitationsClient({
           <h1 className="text-3xl font-bold text-gray-900 mb-2">초대 관리</h1>
           <p className="text-gray-600">회원 초대 내역을 확인하고 관리합니다</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={fetchInvitations}
-          disabled={loading}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          새로고침
-        </Button>
+        <div className="flex gap-2">
+          <InviteUserDialog onSuccess={fetchInvitations} />
+          <Button
+            variant="outline"
+            onClick={fetchInvitations}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            새로고침
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
