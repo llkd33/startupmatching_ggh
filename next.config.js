@@ -23,7 +23,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   // Optimize build performance
-  swcMinify: true,
+  // swcMinify is enabled by default in Next.js 15, no need to specify
   compress: true,
   
   webpack: (config, { isServer }) => {

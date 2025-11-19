@@ -10,9 +10,9 @@ cmds = ["npm ci || npm install"]
 cmds = ["NODE_OPTIONS='--max-old-space-size=4096' NODE_ENV=production npm run build"]
 
 [start]
-# Standalone output을 사용할 때는 .next/standalone/server.js를 실행
-# Railway의 PORT 환경 변수 사용
-cmd = "node .next/standalone/server.js || npm start"
+# Standalone output을 사용할 때는 반드시 .next/standalone/server.js를 실행해야 함
+# next start는 standalone 모드에서 작동하지 않음
+cmd = "node .next/standalone/server.js"
 
 [variables]
 NODE_ENV = "production"
