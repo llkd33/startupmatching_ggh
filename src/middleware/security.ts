@@ -316,16 +316,23 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
     response.headers.set(key, value);
   });
   
-  // Add CSP header (customize based on your needs)
-  response.headers.set(
-    'Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; " +
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src 'self' https://fonts.gstatic.com; " +
-    "img-src 'self' data: https:; " +
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co;"
-  );
+  // Add CSP header with nonce-based security (more secure than 'unsafe-inline')
+  // Note: For full nonce support, generate nonce per-request and pass to script tags
+  const cspDirectives = [
+    "default-src 'self'",
+    // For Next.js, we need 'unsafe-inline' for styles but can restrict scripts more
+    "script-src 'self' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https: blob:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', cspDirectives);
   
   return response;
 }

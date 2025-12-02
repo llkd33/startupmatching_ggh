@@ -8,6 +8,12 @@
 
 import { supabase } from './supabase'
 import { sendSelectionResultEmails } from './campaign-matching'
+import { logger } from './logger'
+
+// Type guard for error handling
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
 
 /**
  * 프로포절 승인 및 나머지 자동 거절
@@ -62,7 +68,7 @@ export async function acceptProposalAndRejectOthers(
         .in('id', rejectedProposalIds)
 
       if (rejectError) {
-        console.error('Error rejecting other proposals:', rejectError)
+        logger.error('Error rejecting other proposals', rejectError)
         // 거절 실패는 로그만 남기고 계속 진행
       }
     }
@@ -77,31 +83,28 @@ export async function acceptProposalAndRejectOthers(
       .eq('id', campaignId)
 
     if (campaignError) {
-      console.error('Error updating campaign status:', campaignError)
+      logger.error('Error updating campaign status', campaignError)
     }
 
     // 6. 선정/탈락 이메일 발송 (비동기, 백그라운드)
-    // await를 사용하여 이메일 발송이 완료될 때까지 대기
     try {
       await sendSelectionResultEmails(
         campaignId,
         selectedProposal.expert_id,
         rejectedProposalIds
       )
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Selection result emails sent successfully')
-      }
+      logger.debug('Selection result emails sent successfully')
     } catch (error) {
-      console.error('Error sending selection emails:', error)
+      logger.error('Error sending selection emails', error)
       // 이메일 발송 실패해도 제안서 승인은 성공으로 처리
     }
 
     return { success: true }
-  } catch (error: any) {
-    console.error('Error in acceptProposalAndRejectOthers:', error)
+  } catch (error: unknown) {
+    logger.error('Error in acceptProposalAndRejectOthers', error)
     return {
       success: false,
-      error: error.message || 'Failed to process proposal',
+      error: getErrorMessage(error) || 'Failed to process proposal',
     }
   }
 }
@@ -148,8 +151,8 @@ export async function rejectProposal(
     if (updateError) throw updateError
 
     // 거절 이메일 발송 (비동기)
-    const expert = proposal.expert_profiles as any
-    const campaign = proposal.campaigns as any
+    const expert = proposal.expert_profiles as { name: string; users: { email: string } }
+    const campaign = proposal.campaigns as { title: string }
 
     // Send rejection email via API route
     fetch('/api/send-email', {
@@ -170,15 +173,15 @@ export async function rejectProposal(
         `,
       }),
     }).catch((error) => {
-      console.error('Failed to send rejection email:', error)
+      logger.error('Failed to send rejection email', error)
     })
 
     return { success: true }
-  } catch (error: any) {
-    console.error('Error in rejectProposal:', error)
+  } catch (error: unknown) {
+    logger.error('Error in rejectProposal', error)
     return {
       success: false,
-      error: error.message || 'Failed to reject proposal',
+      error: getErrorMessage(error) || 'Failed to reject proposal',
     }
   }
 }
@@ -207,12 +210,12 @@ export async function bulkRejectProposals(
       success: true,
       rejectedCount: proposalIds.length,
     }
-  } catch (error: any) {
-    console.error('Error in bulkRejectProposals:', error)
+  } catch (error: unknown) {
+    logger.error('Error in bulkRejectProposals', error)
     return {
       success: false,
       rejectedCount: 0,
-      error: error.message || 'Failed to reject proposals',
+      error: getErrorMessage(error) || 'Failed to reject proposals',
     }
   }
 }

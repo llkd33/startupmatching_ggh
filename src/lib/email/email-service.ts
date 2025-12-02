@@ -1,11 +1,12 @@
 import { Resend } from 'resend'
 import { EmailTemplate, EmailOptions } from './email-templates'
+import { logger } from '../logger'
 
 // Initialize Resend client
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
-    console.warn('RESEND_API_KEY is not set. Email sending will be disabled.')
+    logger.warn('RESEND_API_KEY is not set. Email sending will be disabled.')
     return null
   }
   return new Resend(apiKey)
@@ -21,7 +22,7 @@ export class EmailService {
   async sendEmail(options: EmailOptions) {
     try {
       if (!this.resend) {
-        console.warn('Resend is not configured. Email sending skipped.')
+        logger.warn('Resend is not configured. Email sending skipped.')
         return { success: false, error: 'Email service is not configured' }
       }
 
@@ -37,15 +38,16 @@ export class EmailService {
       })
 
       if (!result.data) {
-        console.error('Failed to send email:', result.error)
+        logger.error('Failed to send email', result.error)
         return { success: false, error: result.error ? JSON.stringify(result.error) : 'Unknown error' }
       }
 
-      console.log('Email sent:', result.data.id)
+      logger.debug('Email sent', { messageId: result.data.id })
       return { success: true, messageId: result.data.id }
-    } catch (error: any) {
-      console.error('Email sending failed:', error)
-      return { success: false, error: error?.message || 'Unknown error' }
+    } catch (error: unknown) {
+      logger.error('Email sending failed', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: errorMessage }
     }
   }
 
@@ -147,7 +149,7 @@ export class EmailService {
 
   // Batch email sending with rate limiting (for Gmail's 100/day limit)
   async sendBatchEmails(
-    emails: { to: string; template: any }[],
+    emails: { to: string; template: Omit<EmailOptions, 'to'> }[],
     delayMs: number = 1000
   ) {
     const results = []

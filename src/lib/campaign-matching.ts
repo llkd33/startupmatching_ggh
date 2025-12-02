@@ -23,10 +23,6 @@ const sendEmail = async (emailData: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Add internal secret if configured
-        ...(process.env.NEXT_PUBLIC_INTERNAL_API_SECRET && {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_INTERNAL_API_SECRET}`,
-        }),
       },
       body: JSON.stringify(emailData),
     })

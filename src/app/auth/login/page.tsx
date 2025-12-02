@@ -1,11 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
-
-// 개발 모드 컴포넌트 동적 임포트
-const DevModeLogin = dynamic(() => import('./dev-mode'), { ssr: false })
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { browserSupabase } from '@/lib/supabase-client'
@@ -798,16 +794,6 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  // 개발 모드 체크 (환경 변수 또는 쿼리 파라미터)
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const showDevMode = typeof window !== 'undefined' && 
-    (new URLSearchParams(window.location.search).get('dev') === 'true' || 
-     localStorage.getItem('enable_dev_mode') === 'true')
-  
-  if (isDevelopment && showDevMode) {
-    return <DevModeLogin />
-  }
-
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">

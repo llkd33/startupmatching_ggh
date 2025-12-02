@@ -133,7 +133,7 @@ if (typeof window !== 'undefined') {
     }
   }
   client = globalForSupabase.__browserSupabase
-  ;(window as any).browserSupabase = client
+  // Note: Removed window.browserSupabase exposure for security
 } else {
   // Server-side: placeholder 클라이언트
   client = createClient<Database>(buildUrl, buildKey, {

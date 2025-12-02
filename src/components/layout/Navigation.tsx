@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Menu, X } from 'lucide-react'
 import { useAuth } from '@/components/auth/AuthContext'
+import { ThemeToggleSimple } from '@/components/ui/theme-toggle'
 
 export default function Navigation() {
   const router = useRouter()
@@ -36,7 +37,7 @@ export default function Navigation() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-white border-b">
+    <nav className="sticky top-0 z-50 bg-background border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -95,7 +96,8 @@ export default function Navigation() {
               <>
                 {user ? (
                   <div className="hidden md:flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">
+                    <ThemeToggleSimple />
+                    <span className="text-sm text-muted-foreground">
                       {user.email}
                     </span>
                     <Button onClick={handleLogout} variant="outline" size="sm">
@@ -104,6 +106,7 @@ export default function Navigation() {
                   </div>
                 ) : (
                   <div className="hidden md:flex items-center space-x-2">
+                    <ThemeToggleSimple />
                     <Button asChild variant="ghost" size="sm">
                       <Link href="/auth/login">로그인</Link>
                     </Button>

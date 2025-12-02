@@ -9,30 +9,30 @@ export interface Task {
   description?: string
   status: TaskStatus
   priority: TaskPriority
-  
+
   // User relationships
   creator_id: string
   assignee_id?: string
   updated_by?: string
-  
+
   // Organization/Campaign relationships
   organization_id?: string
   campaign_id?: string
   expert_id?: string
-  
+
   // Dates
   due_date?: string
   completed_at?: string
   created_at: string
   updated_at: string
-  
+
   // Additional fields
   estimated_hours?: number
   actual_hours?: number
   order_index: number
   is_archived: boolean
-  metadata?: Record<string, any>
-  
+  metadata?: Record<string, unknown>
+
   // Relations (when fetched with joins)
   creator?: {
     id: string
@@ -79,8 +79,8 @@ export interface TaskActivityLog {
   task_id: string
   user_id: string
   action: string
-  old_value?: any
-  new_value?: any
+  old_value?: unknown
+  new_value?: unknown
   description?: string
   created_at: string
   user?: {
@@ -158,7 +158,7 @@ export interface CreateTaskInput {
   due_date?: string
   estimated_hours?: number
   category_ids?: string[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface UpdateTaskInput {
@@ -171,7 +171,7 @@ export interface UpdateTaskInput {
   estimated_hours?: number
   actual_hours?: number
   category_ids?: string[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // UI Helper Types

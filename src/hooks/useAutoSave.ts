@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { toast } from '@/components/ui/toast-custom'
+import { logger } from '@/lib/logger'
 
 interface AutoSaveOptions {
   key: string // LocalStorage 키
@@ -58,7 +59,7 @@ export function useAutoSave<T = any>({
         const parsed = JSON.parse(stored)
         setState(prev => ({ ...prev, hasDraft: true }))
       } catch (error) {
-        console.error('Failed to parse stored data:', error)
+        logger.error('Failed to parse stored data', error)
         localStorage.removeItem(key)
       }
     }
@@ -99,7 +100,7 @@ export function useAutoSave<T = any>({
 
         onSave?.(data)
       } catch (error) {
-        console.error('Failed to save draft:', error)
+        logger.error('Failed to save draft', error)
         setState(prev => ({ ...prev, isSaving: false }))
 
         // LocalStorage 용량 초과 에러 처리
@@ -125,7 +126,7 @@ export function useAutoSave<T = any>({
 
       return data
     } catch (error) {
-      console.error('Failed to restore draft:', error)
+      logger.error('Failed to restore draft', error)
       return null
     }
   }, [key, onRestore])
@@ -148,7 +149,7 @@ export function useAutoSave<T = any>({
         timeoutRef.current = null
       }
     } catch (error) {
-      console.error('Failed to clear draft:', error)
+      logger.error('Failed to clear draft', error)
     }
   }, [key])
 
@@ -180,7 +181,7 @@ export function useAutoSave<T = any>({
 
       onSave?.(dataRef.current)
     } catch (error) {
-      console.error('Failed to save draft immediately:', error)
+      logger.error('Failed to save draft immediately', error)
     }
   }, [key, onSave])
 

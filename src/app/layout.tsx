@@ -13,12 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className="antialiased">
+    <html lang="ko" suppressHydrationWarning>
+      <body className="antialiased bg-background text-foreground">
         <ClientProviders>
-          <div style={{ backgroundColor: '#10b981', padding: '8px', color: 'white', textAlign: 'center', fontSize: '14px' }}>
-            ✅ Working Version - No JavaScript Dependencies
-          </div>
           {children}
         </ClientProviders>
       </body>

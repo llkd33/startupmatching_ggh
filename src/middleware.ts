@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
+// Production-safe logging (only logs in development)
+const isDev = process.env.NODE_ENV === 'development';
+const log = {
+  warn: (msg: string, ctx?: unknown) => isDev && console.warn(`[middleware] ${msg}`, ctx || ''),
+  error: (msg: string, ctx?: unknown) => isDev && console.error(`[middleware] ${msg}`, ctx || ''),
+};
+
 // 간단한 메모리 캐시 (프로덕션에서는 Redis 사용 권장)
 interface CacheEntry {
   isAdmin: boolean;
@@ -44,7 +51,7 @@ export async function middleware(request: NextRequest) {
             return request.cookies.getAll();
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
             cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options)
             );
@@ -61,16 +68,17 @@ export async function middleware(request: NextRequest) {
       const { data, error } = await supabase.auth.getUser();
       user = data.user;
       authError = error;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Cookie parsing 에러는 무시 (비중요)
-      if (error?.message?.includes('cookie') || 
-          error?.message?.includes('JSON') || 
-          error?.message?.includes('base64') ||
-          error?.message?.includes('parse') ||
-          error?.message?.includes('Unexpected token')) {
-        console.warn('Cookie parsing error (non-critical):', error?.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('cookie') ||
+        errorMessage.includes('JSON') ||
+        errorMessage.includes('base64') ||
+        errorMessage.includes('parse') ||
+        errorMessage.includes('Unexpected token')) {
+        log.warn('Cookie parsing error (non-critical)', errorMessage);
       } else {
-        console.error('Middleware admin auth error:', error);
+        log.error('Admin auth error', error);
       }
     }
 
@@ -116,7 +124,7 @@ export async function middleware(request: NextRequest) {
         // 캐시 업데이트 (관리자)
         adminCache.set(user.id, { isAdmin: true, timestamp: now });
       } catch (error) {
-        console.error('Error checking admin role in middleware:', error);
+        log.error('Error checking admin role', error);
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = '/admin-login';
         redirectUrl.searchParams.set('redirectedFrom', pathname);
@@ -136,7 +144,7 @@ export async function middleware(request: NextRequest) {
             return request.cookies.getAll();
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
             cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options)
             );
@@ -153,14 +161,15 @@ export async function middleware(request: NextRequest) {
         redirectUrl.pathname = '/dashboard';
         return NextResponse.redirect(redirectUrl);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Cookie parsing 에러는 무시
-      if (!error?.message?.includes('cookie') && 
-          !error?.message?.includes('JSON') && 
-          !error?.message?.includes('base64') &&
-          !error?.message?.includes('parse') &&
-          !error?.message?.includes('Unexpected token')) {
-        console.error('Auth check error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('cookie') &&
+        !errorMessage.includes('JSON') &&
+        !errorMessage.includes('base64') &&
+        !errorMessage.includes('parse') &&
+        !errorMessage.includes('Unexpected token')) {
+        log.error('Auth check error', error);
       }
     }
   }
