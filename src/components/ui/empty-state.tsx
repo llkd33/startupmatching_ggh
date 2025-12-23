@@ -56,24 +56,28 @@ export function EmptyState({
   const IconComponent = iconMap[type]
   
   return (
-    <div className={`flex flex-col items-center justify-center py-12 px-4 ${className}`}>
+    <div
+      className={`flex flex-col items-center justify-center py-12 px-4 ${className}`}
+      role="status"
+      aria-label={title}
+    >
       <div className="relative mb-4">
         {icon || (
           <div className="relative">
-            <div className="absolute inset-0 bg-gray-100 rounded-full blur-xl opacity-60" />
-            <div className="relative bg-white rounded-full p-4 shadow-sm">
-              <IconComponent className="h-12 w-12 text-gray-400" />
+            <div className="absolute inset-0 bg-muted rounded-full blur-xl opacity-60" />
+            <div className="relative bg-background rounded-full p-4 shadow-sm border border-border">
+              <IconComponent className="h-12 w-12 text-muted-foreground" />
             </div>
           </div>
         )}
       </div>
-      
-      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">
+
+      <h3 className="text-lg font-semibold text-foreground mb-2 text-center">
         {title}
       </h3>
-      
+
       {description && (
-        <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
+        <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
           {description}
         </p>
       )}

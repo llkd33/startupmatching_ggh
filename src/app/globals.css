@@ -277,3 +277,33 @@ body {
   );
   background-size: 200% 100%;
 }
+
+/* Reduced motion support for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob,
+  .animate-float,
+  .animate-glow,
+  .animate-gradient,
+  .animate-pulse-glow,
+  .animate-text-glow,
+  .animate-shimmer,
+  .animate-spin {
+    animation: none;
+  }
+
+  .transition-smooth,
+  .transition-all,
+  .transition-colors,
+  .transition-transform {
+    transition: none;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+
+  .fade-in-up {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -40,11 +40,11 @@ export function MobileBottomNav({ role }: MobileBottomNavProps) {
       href: '/dashboard/proposals',
       ariaLabel: '내 제안서 관리'
     },
-    { 
-      icon: CheckSquare, 
-      label: '태스크', 
+    {
+      icon: CheckSquare,
+      label: '업무관리',
       href: '/dashboard/tasks',
-      ariaLabel: '태스크 관리'
+      ariaLabel: '업무관리'
     },
     { 
       icon: UserCircle, 

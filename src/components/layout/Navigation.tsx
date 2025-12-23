@@ -79,9 +79,9 @@ export default function Navigation() {
                     >
                       내 캠페인
                     </Link>
-                    <Link 
-                      href="/campaigns/create" 
-                      className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    <Link
+                      href="/dashboard/campaigns/create"
+                      className="text-muted-foreground hover:text-foreground px-3 py-2 rounded-md text-sm font-medium"
                     >
                       캠페인 생성
                     </Link>

@@ -1,9 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { LogOut } from 'lucide-react';
-import AdminNav from '@/components/admin/AdminNav'
+import AdminLayoutClient from '@/components/admin/AdminLayoutClient';
 
 export default async function AdminLayout({
   children,
@@ -11,21 +9,16 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // /admin/login 페이지는 인증 체크를 건너뛰기
-  // Next.js App Router에서는 pathname을 직접 가져올 수 없으므로
-  // children의 타입을 확인하거나, 클라이언트 컴포넌트로 위임
-  // 대신 middleware에서 이미 처리했으므로, 여기서는 간단히 체크
   const headersList = headers();
   const pathnameHeader = headersList.get('x-pathname') || '';
-  
-  // pathname에서 /admin/login 확인 (정확히 일치)
+
   if (pathnameHeader === '/admin/login') {
-    // 로그인 페이지는 레이아웃 없이 렌더링
     return <>{children}</>;
   }
 
   let user = null;
   let supabase: any = null;
-  
+
   try {
     const cookieStore = cookies();
     supabase = createServerClient(
@@ -47,19 +40,17 @@ export default async function AdminLayout({
                 cookieStore.set(name, value, options)
               );
             } catch (error) {
-              // Ignore cookie setting errors in server components
               console.warn('Error setting cookies:', error);
             }
           },
         },
       }
     );
-    
+
     try {
       const result = await supabase.auth.getUser();
       user = result.data?.user || null;
     } catch (error: any) {
-      // Ignore cookie parsing errors - they're non-critical
       if (error?.message?.includes('cookie') || error?.message?.includes('JSON') || error?.message?.includes('base64') || error?.message?.includes('parse')) {
         console.warn('Cookie parsing error (non-critical):', error.message);
         user = null;
@@ -70,7 +61,6 @@ export default async function AdminLayout({
     }
   } catch (error: any) {
     console.error('Error initializing Supabase client:', error);
-    // If we can't initialize Supabase, redirect to login
     redirect('/admin-login');
   }
 
@@ -81,14 +71,14 @@ export default async function AdminLayout({
   // Check if user is admin
   let userData = null;
   let userError = null;
-  
+
   try {
     const result = await supabase
       .from('users')
       .select('role, is_admin')
       .eq('id', user.id)
       .maybeSingle();
-    
+
     userData = result.data;
     userError = result.error;
   } catch (error: any) {
@@ -96,7 +86,6 @@ export default async function AdminLayout({
     userError = error;
   }
 
-  // 허용 기준: users.is_admin = true 또는 role === 'admin'
   if (userError || !userData || (!userData.is_admin && userData.role !== 'admin')) {
     console.log('Admin layout check failed:', {
       userError: userError?.message,
@@ -113,41 +102,14 @@ export default async function AdminLayout({
     { href: '/admin/invitations', label: '초대 관리', icon: 'Mail' as const },
     { href: '/admin/campaigns', label: '캠페인', icon: 'Briefcase' as const },
     { href: '/admin/proposals', label: '제안서', icon: 'FileText' as const },
+    { href: '/admin/logs', label: '활동 로그', icon: 'ClipboardList' as const },
     { href: '/admin/analytics', label: '분석', icon: 'BarChart3' as const },
     { href: '/admin/settings', label: '설정', icon: 'Settings' as const },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white shadow-md min-h-screen flex flex-col">
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-800">관리자 패널</h1>
-          </div>
-
-          <AdminNav items={navigationItems} />
-
-          <div className="mt-auto p-6">
-            <form action="/api/auth/signout" method="POST">
-              <button
-                type="submit"
-                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                로그아웃
-              </button>
-            </form>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
+    <AdminLayoutClient navigationItems={navigationItems}>
+      {children}
+    </AdminLayoutClient>
   );
 }

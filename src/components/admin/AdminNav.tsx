@@ -10,9 +10,11 @@ import {
   Settings,
   Home,
   Mail,
+  ClipboardList,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-type IconName = 'Home' | 'Users' | 'Mail' | 'Briefcase' | 'FileText' | 'BarChart3' | 'Settings'
+type IconName = 'Home' | 'Users' | 'Mail' | 'Briefcase' | 'FileText' | 'BarChart3' | 'Settings' | 'ClipboardList'
 
 type Item = {
   href: string
@@ -28,36 +30,53 @@ const iconMap: Record<IconName, React.ComponentType<{ className?: string }>> = {
   FileText,
   BarChart3,
   Settings,
+  ClipboardList,
 }
 
-export default function AdminNav({ items }: { items: Item[] }) {
+interface AdminNavProps {
+  items: Item[]
+  isCollapsed?: boolean
+  onItemClick?: () => void
+}
+
+export default function AdminNav({ items, isCollapsed = false, onItemClick }: AdminNavProps) {
   const pathname = usePathname()
 
   return (
-    <nav className="mt-2">
-      {items.map((item) => {
-        const Icon = iconMap[item.icon]
-        const isActive = pathname === item.href || (
-          item.href !== '/admin' && pathname.startsWith(item.href)
-        )
+    <nav className="mt-2 px-2">
+      <ul className="space-y-1">
+        {items.map((item) => {
+          const Icon = iconMap[item.icon]
+          const isActive = pathname === item.href || (
+            item.href !== '/admin' && pathname.startsWith(item.href)
+          )
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={
-              `flex items-center px-6 py-3 transition-colors ` +
-              (isActive
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
-            }
-            aria-current={isActive ? 'page' : undefined}
-          >
-            <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-blue-700' : 'text-gray-500'}`} />
-            <span className="font-medium">{item.label}</span>
-          </Link>
-        )
-      })}
+          return (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                onClick={onItemClick}
+                className={cn(
+                  'flex items-center px-4 py-3 rounded-lg transition-colors min-h-[44px]',
+                  isActive
+                    ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+                aria-current={isActive ? 'page' : undefined}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <Icon className={cn(
+                  'w-5 h-5 flex-shrink-0',
+                  isActive ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground'
+                )} aria-hidden="true" />
+                {!isCollapsed && (
+                  <span className="ml-3 font-medium">{item.label}</span>
+                )}
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
     </nav>
   )
 }

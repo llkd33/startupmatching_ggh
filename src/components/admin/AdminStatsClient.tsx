@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Users, Briefcase, FileText, Activity, CheckCircle } from 'lucide-react'
+import { Users, Briefcase, FileText, Activity, CheckCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { campaignStatusLabel, proposalStatusLabel } from '@/lib/i18n/status'
 import { SkeletonCard } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface AdminStats {
   userCount: number
@@ -21,16 +22,17 @@ interface AdminStats {
   error?: string
 }
 
+type RealtimeStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
+
 export default function AdminStatsClient() {
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
-  useEffect(() => {
-    fetchStats()
-  }, [])
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -51,6 +53,7 @@ export default function AdminStatsClient() {
 
       const data = await response.json()
       setStats(data)
+      setLastUpdated(new Date())
       if (data.error) {
         setError(data.error)
       }
@@ -60,7 +63,58 @@ export default function AdminStatsClient() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  // Setup realtime subscriptions
+  useEffect(() => {
+    fetchStats()
+
+    // Create a single channel for all admin stats updates
+    const channel = supabase
+      .channel('admin-stats-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        () => {
+          console.log('Users table changed, refreshing stats...')
+          fetchStats()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campaigns' },
+        () => {
+          console.log('Campaigns table changed, refreshing stats...')
+          fetchStats()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'proposals' },
+        () => {
+          console.log('Proposals table changed, refreshing stats...')
+          fetchStats()
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected')
+        } else if (status === 'CLOSED') {
+          setRealtimeStatus('disconnected')
+        } else if (status === 'CHANNEL_ERROR') {
+          setRealtimeStatus('error')
+        }
+      })
+
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [fetchStats])
 
   if (loading) {
     return (
@@ -80,18 +134,52 @@ export default function AdminStatsClient() {
 
   if (error && !stats) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-red-900 mb-2">오류 발생</h3>
-        <p className="text-red-700">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-red-900 dark:text-red-400 mb-2">오류 발생</h3>
+        <p className="text-red-700 dark:text-red-300">{error}</p>
         <button
           onClick={fetchStats}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 min-h-[44px] min-w-[44px]"
         >
           다시 시도
         </button>
       </div>
     )
   }
+
+  // Realtime status indicator
+  const RealtimeIndicator = () => (
+    <div className="flex items-center gap-2 text-sm">
+      {realtimeStatus === 'connected' ? (
+        <>
+          <Wifi className="w-4 h-4 text-green-500" />
+          <span className="text-muted-foreground">실시간 연결됨</span>
+        </>
+      ) : realtimeStatus === 'connecting' ? (
+        <>
+          <RefreshCw className="w-4 h-4 text-yellow-500 animate-spin" />
+          <span className="text-muted-foreground">연결 중...</span>
+        </>
+      ) : (
+        <>
+          <WifiOff className="w-4 h-4 text-red-500" />
+          <span className="text-muted-foreground">연결 끊김</span>
+        </>
+      )}
+      {lastUpdated && (
+        <span className="text-xs text-muted-foreground ml-2">
+          마지막 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')}
+        </span>
+      )}
+      <button
+        onClick={fetchStats}
+        className="p-1.5 hover:bg-muted rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+        title="새로고침"
+      >
+        <RefreshCw className={cn("w-4 h-4 text-muted-foreground", loading && "animate-spin")} />
+      </button>
+    </div>
+  )
 
   if (!stats) return null
 
@@ -107,9 +195,15 @@ export default function AdminStatsClient() {
 
   return (
     <div>
+      {/* Header with realtime status */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-foreground">대시보드</h1>
+        <RealtimeIndicator />
+      </div>
+
       {error && (
-        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 text-sm">⚠️ {error}</p>
+        <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <p className="text-yellow-800 dark:text-yellow-300 text-sm">⚠️ {error}</p>
         </div>
       )}
 
@@ -121,7 +215,7 @@ export default function AdminStatsClient() {
             <Link key={stat.label} href={stat.href}>
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
                     {stat.label}
                   </CardTitle>
                   <div className={`${stat.color} p-2 rounded-lg`}>
@@ -129,7 +223,7 @@ export default function AdminStatsClient() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stat.value.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-foreground">{stat.value.toLocaleString()}</div>
                 </CardContent>
               </Card>
             </Link>
@@ -151,18 +245,18 @@ export default function AdminStatsClient() {
                 {stats.recentCampaigns.map((campaign: any) => (
                   <div key={campaign.id} className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-800">{campaign.title}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium text-foreground">{campaign.title}</p>
+                      <p className="text-sm text-muted-foreground">
                         by {campaign.organization_profiles?.organization_name || 'Unknown'}
                       </p>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      campaign.status === 'active' ? 'bg-green-100 text-green-800' :
-                      campaign.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                      campaign.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                      campaign.status === 'completed' ? 'bg-purple-100 text-purple-800' :
-                      campaign.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                      campaign.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                      campaign.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' :
+                      campaign.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                      campaign.status === 'completed' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                      campaign.status === 'cancelled' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                     }`}>
                       {campaignStatusLabel(campaign.status)}
                     </span>
@@ -170,7 +264,7 @@ export default function AdminStatsClient() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500">캠페인이 없습니다</p>
+              <p className="text-muted-foreground">캠페인이 없습니다</p>
             )}
           </CardContent>
         </Card>
@@ -187,19 +281,19 @@ export default function AdminStatsClient() {
                 {stats.recentProposals.map((proposal: any) => (
                   <div key={proposal.id} className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-800">
+                      <p className="font-medium text-foreground">
                         {proposal.expert_profiles?.name || 'Unknown Expert'}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-muted-foreground">
                         for {proposal.campaigns?.title}
                       </p>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      proposal.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      proposal.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                      proposal.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      proposal.status === 'withdrawn' ? 'bg-gray-100 text-gray-800' :
-                      'bg-gray-100 text-gray-800'
+                      proposal.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      proposal.status === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                      proposal.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                      proposal.status === 'withdrawn' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                     }`}>
                       {proposalStatusLabel(proposal.status)}
                     </span>
@@ -207,7 +301,7 @@ export default function AdminStatsClient() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500">제안서가 없습니다</p>
+              <p className="text-muted-foreground">제안서가 없습니다</p>
             )}
           </CardContent>
         </Card>

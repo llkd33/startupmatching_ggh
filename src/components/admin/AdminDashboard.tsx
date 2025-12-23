@@ -29,6 +29,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
+import { UserGrowthChart } from './UserGrowthChart';
 
 interface DashboardStats {
   totalUsers: number;
@@ -145,7 +146,7 @@ export default function AdminDashboard({
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
             <Shield className="w-8 h-8 text-red-500" />
             관리자 대시보드
           </h1>
@@ -252,9 +253,7 @@ export default function AdminDashboard({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-gray-500">차트 컴포넌트 (recharts 등으로 구현 예정)</p>
-          </div>
+          <UserGrowthChart days={30} />
         </CardContent>
       </Card>
 
@@ -280,7 +279,7 @@ export default function AdminDashboard({
                     {getActivityIcon(activity.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 truncate">{activity.description}</p>
+                    <p className="text-sm text-foreground truncate">{activity.description}</p>
                     <p className="text-xs text-gray-500">
                       {activity.user && <span>{activity.user} · </span>}
                       {new Date(activity.timestamp).toLocaleTimeString('ko-KR')}
@@ -315,7 +314,7 @@ export default function AdminDashboard({
               {recentCampaigns.map((campaign) => (
                 <div key={campaign.id} className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{campaign.title}</p>
+                    <p className="font-medium text-foreground truncate">{campaign.title}</p>
                     <p className="text-sm text-gray-500">
                       {campaign.profiles?.organization_name || 'Unknown'}
                     </p>
@@ -356,7 +355,7 @@ export default function AdminDashboard({
               {recentProposals.map((proposal) => (
                 <div key={proposal.id} className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
+                    <p className="font-medium text-foreground truncate">
                       {proposal.profiles?.name || 'Unknown Expert'}
                     </p>
                     <p className="text-sm text-gray-500 truncate">
