@@ -9,6 +9,10 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { campaignStatusLabel } from '@/lib/i18n/status';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { getErrorMessage, ERROR_MESSAGES, SUCCESS_MESSAGES } from '@/lib/error-messages';
 
 interface Campaign {
   id: string;
@@ -63,7 +67,7 @@ export default function CampaignManagement() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        console.error('No session found')
+        toast.error(ERROR_MESSAGES.UNAUTHORIZED)
         setLoading(false)
         return
       }
@@ -84,7 +88,8 @@ export default function CampaignManagement() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch campaigns')
+        const errorData = await response.json().catch(() => ({ error: ERROR_MESSAGES.NETWORK_ERROR }))
+        throw new Error(errorData.error || ERROR_MESSAGES.NETWORK_ERROR)
       }
 
       const result = await response.json()
@@ -115,7 +120,8 @@ export default function CampaignManagement() {
         }
       }
     } catch (error) {
-      console.error('Error fetching campaigns:', error)
+      const errorMessage = getErrorMessage(error, ERROR_MESSAGES.NETWORK_ERROR)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -181,26 +187,32 @@ export default function CampaignManagement() {
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">캠페인 검색</label>
+            <label htmlFor="campaign-search" className="block text-sm font-medium text-gray-700 mb-2">캠페인 검색</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" aria-hidden="true" />
               <input
+                id="campaign-search"
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="제목, 기관명 또는 카테고리로 검색..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+                aria-describedby="campaign-search-description"
               />
+              <span id="campaign-search-description" className="sr-only">캠페인 제목, 기관명, 카테고리로 검색할 수 있습니다</span>
             </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">상태 필터</label>
+            <label htmlFor="campaign-status-filter" className="block text-sm font-medium text-gray-700 mb-2">상태 필터</label>
             <select
+              id="campaign-status-filter"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+              aria-describedby="campaign-status-filter-description"
             >
+              <span id="campaign-status-filter-description" className="sr-only">초안, 활성, 진행중, 완료, 취소 중에서 선택할 수 있습니다</span>
               <option value="all">전체</option>
               <option value="draft">초안</option>
               <option value="active">활성</option>
@@ -215,11 +227,13 @@ export default function CampaignManagement() {
       {/* Campaigns Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading && (
-          <div className="p-4">
+          <div className="p-4" role="status" aria-live="polite" aria-label="캠페인 목록을 불러오는 중">
             <SkeletonTable rows={8} />
           </div>
         )}
-        <table className="w-full">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -248,18 +262,28 @@ export default function CampaignManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {!loading && filteredCampaigns.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-6 text-center text-gray-600">
-                  <div className="space-y-3">
-                    <div>조건에 맞는 캠페인이 없습니다.</div>
-                    {(searchTerm || filterStatus !== 'all') && (
-                      <button
-                        onClick={() => { setSearchTerm(''); setFilterStatus('all'); }}
-                        className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50"
-                      >
-                        필터 초기화
-                      </button>
-                    )}
-                  </div>
+                <td colSpan={7} className="px-6 py-6">
+                  <EmptyState
+                    type="campaigns"
+                    title="캠페인을 찾을 수 없습니다"
+                    description={
+                      searchTerm || filterStatus !== 'all'
+                        ? "검색 조건에 맞는 캠페인이 없습니다. 필터를 조정해보세요."
+                        : "아직 등록된 캠페인이 없습니다."
+                    }
+                    action={
+                      searchTerm || filterStatus !== 'all'
+                        ? {
+                            label: "필터 초기화",
+                            onClick: () => {
+                              setSearchTerm('')
+                              setFilterStatus('all')
+                            },
+                            variant: "outline"
+                          }
+                        : undefined
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -337,32 +361,25 @@ export default function CampaignManagement() {
                             const result = await response.json()
 
                             if (!response.ok) {
-                              const errorMsg = result.error || `HTTP ${response.status}: Failed to delete campaign`
-                              console.error('Delete campaign API error:', {
-                                status: response.status,
-                                statusText: response.statusText,
-                                error: result.error,
-                                result
-                              })
+                              const errorMsg = result.error || ERROR_MESSAGES.DELETE_FAILED
                               throw new Error(errorMsg)
                             }
 
                             if (!result.success) {
-                              throw new Error(result.error || '캠페인 삭제에 실패했습니다.')
+                              throw new Error(result.error || ERROR_MESSAGES.DELETE_FAILED)
                             }
 
-                            alert(result.message || '캠페인이 삭제되었습니다.')
+                            toast.success(result.message || SUCCESS_MESSAGES.DELETED)
 
                             if (result.hasProposals) {
-                              alert('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
+                              toast.warning('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
                             }
 
                             // 데이터 다시 가져오기
                             await fetchCampaignsData(currentPage)
                           } catch (error: any) {
-                            console.error('Error deleting campaign:', error)
-                            const errorMessage = error.message || '캠페인 삭제에 실패했습니다.'
-                            alert(errorMessage)
+                            const errorMessage = getErrorMessage(error, ERROR_MESSAGES.DELETE_FAILED)
+                            toast.error(errorMessage)
                             
                             // 에러 발생 시에도 목록 새로고침 시도
                             await fetchCampaignsData(currentPage)
@@ -380,6 +397,147 @@ export default function CampaignManagement() {
             )}
           </tbody>
         </table>
+        </div>
+
+        {/* Mobile Card View */}
+        {!loading && filteredCampaigns.length > 0 && (
+          <div className="md:hidden space-y-3 p-4">
+            {filteredCampaigns.map((campaign) => (
+              <Card key={campaign.id} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">
+                        {campaign.title || '제목 없음'}
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {campaign.category || '-'}
+                      </div>
+                      <div className="flex items-center mt-1">
+                        <span className="text-xs text-gray-400">
+                          {campaign.organization_profiles?.organization_name || '-'}
+                        </span>
+                        {campaign.organization_profiles?.is_verified && (
+                          <CheckCircle className="w-3 h-3 text-green-500 ml-1" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedCampaign(campaign)}
+                        className="text-blue-600 hover:text-blue-900"
+                        aria-label={`${campaign.title || '캠페인'} 상세보기`}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm(`정말로 "${campaign.title || '이 캠페인'}" 캠페인을 삭제하시겠습니까?${(campaign.proposals?.length || 0) > 0 ? '\n\n관련 제안서가 있지만 삭제는 가능합니다.' : ''}`)) {
+                            return
+                          }
+
+                          try {
+                            const { data: { session } } = await supabase.auth.getSession()
+                            if (!session) return
+
+                            const response = await fetch(`/api/admin/campaigns?id=${campaign.id}`, {
+                              method: 'DELETE',
+                              headers: {
+                                'Authorization': `Bearer ${session.access_token}`,
+                                'Content-Type': 'application/json'
+                              }
+                            })
+
+                            const result = await response.json()
+
+                            if (!response.ok) {
+                              const errorMsg = result.error || ERROR_MESSAGES.DELETE_FAILED
+                              throw new Error(errorMsg)
+                            }
+
+                            if (!result.success) {
+                              throw new Error(result.error || ERROR_MESSAGES.DELETE_FAILED)
+                            }
+
+                            toast.success(result.message || SUCCESS_MESSAGES.DELETED)
+
+                            if (result.hasProposals) {
+                              toast.warning('주의: 이 캠페인과 연관된 제안서가 있습니다. 데이터는 유지되지만 캠페인은 삭제되었습니다.')
+                            }
+
+                            // 데이터 다시 가져오기
+                            await fetchCampaignsData(currentPage)
+                          } catch (error: any) {
+                            const errorMessage = getErrorMessage(error, ERROR_MESSAGES.DELETE_FAILED)
+                            toast.error(errorMessage)
+                            
+                            // 에러 발생 시에도 목록 새로고침 시도
+                            await fetchCampaignsData(currentPage)
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                        aria-label={`${campaign.title || '캠페인'} 삭제`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select
+                      value={campaign.status || 'draft'}
+                      onChange={(e) => handleStatusChange(campaign.id, e.target.value)}
+                      className={`text-xs px-2 py-1 rounded-full border-0 ${getStatusColor(campaign.status || 'draft')}`}
+                    >
+                      <option value="draft">초안</option>
+                      <option value="active">활성</option>
+                      <option value="in_progress">진행중</option>
+                      <option value="completed">완료</option>
+                      <option value="cancelled">취소</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div>유형: {campaign.type || '-'}</div>
+                    <div>예산: {campaign.budget_min && campaign.budget_max 
+                      ? `₩${campaign.budget_min.toLocaleString()} - ₩${campaign.budget_max.toLocaleString()}`
+                      : '-'}</div>
+                    <div>제안서 수: {campaign.proposals?.length || 0}</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty State for Mobile */}
+        {!loading && filteredCampaigns.length === 0 && (
+          <div className="md:hidden p-4">
+            <EmptyState
+              type="campaigns"
+              title="캠페인을 찾을 수 없습니다"
+              description={
+                searchTerm || filterStatus !== 'all'
+                  ? "검색 조건에 맞는 캠페인이 없습니다. 필터를 조정해보세요."
+                  : "아직 등록된 캠페인이 없습니다."
+              }
+              action={
+                searchTerm || filterStatus !== 'all'
+                  ? {
+                      label: "필터 초기화",
+                      onClick: () => {
+                        setSearchTerm('')
+                        setFilterStatus('all')
+                      },
+                      variant: "outline"
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
       </div>
 
       {/* Pagination */}

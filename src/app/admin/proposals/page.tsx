@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '@/lib/supabase';
 import { Search, FileText, DollarSign, Trash2 } from 'lucide-react';
@@ -9,6 +9,10 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { proposalStatusLabel } from '@/lib/i18n/status';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { getErrorMessage, ERROR_MESSAGES, SUCCESS_MESSAGES } from '@/lib/error-messages';
 
 interface Proposal {
   id: string;
@@ -65,7 +69,7 @@ export default function ProposalManagement() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        console.error('No session found')
+        toast.error(ERROR_MESSAGES.UNAUTHORIZED)
         setLoading(false)
         return
       }
@@ -86,7 +90,8 @@ export default function ProposalManagement() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch proposals')
+        const errorData = await response.json().catch(() => ({ error: ERROR_MESSAGES.NETWORK_ERROR }))
+        throw new Error(errorData.error || ERROR_MESSAGES.NETWORK_ERROR)
       }
 
       const result = await response.json()
@@ -117,7 +122,8 @@ export default function ProposalManagement() {
         }
       }
     } catch (error) {
-      console.error('Error fetching proposals:', error)
+      const errorMessage = getErrorMessage(error, ERROR_MESSAGES.NETWORK_ERROR)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -181,26 +187,32 @@ export default function ProposalManagement() {
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">제안서 검색</label>
+            <label htmlFor="proposal-search" className="block text-sm font-medium text-gray-700 mb-2">제안서 검색</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" aria-hidden="true" />
               <input
+                id="proposal-search"
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="캠페인/전문가/기관으로 검색..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+                aria-describedby="proposal-search-description"
               />
+              <span id="proposal-search-description" className="sr-only">캠페인 제목, 전문가 이름, 기관명으로 검색할 수 있습니다</span>
             </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">상태 필터</label>
+            <label htmlFor="proposal-status-filter" className="block text-sm font-medium text-gray-700 mb-2">상태 필터</label>
             <select
+              id="proposal-status-filter"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+              aria-describedby="proposal-status-filter-description"
             >
+              <span id="proposal-status-filter-description" className="sr-only">대기중, 승인됨, 거절됨, 철회됨 중에서 선택할 수 있습니다</span>
               <option value="all">전체</option>
               <option value="pending">대기중</option>
               <option value="accepted">승인됨</option>
@@ -214,11 +226,13 @@ export default function ProposalManagement() {
       {/* Proposals Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading && (
-          <div className="p-4">
+          <div className="p-4" role="status" aria-live="polite" aria-label="제안서 목록을 불러오는 중">
             <SkeletonTable rows={8} />
           </div>
         )}
-        <table className="w-full">
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -247,18 +261,28 @@ export default function ProposalManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {!loading && filteredProposals.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-6 text-center text-gray-600">
-                  <div className="space-y-3">
-                    <div>조건에 맞는 제안서가 없습니다.</div>
-                    {(searchTerm || filterStatus !== 'all') && (
-                      <button
-                        onClick={() => { setSearchTerm(''); setFilterStatus('all'); }}
-                        className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50"
-                      >
-                        필터 초기화
-                      </button>
-                    )}
-                  </div>
+                <td colSpan={7} className="px-6 py-6">
+                  <EmptyState
+                    type="proposals"
+                    title="제안서를 찾을 수 없습니다"
+                    description={
+                      searchTerm || filterStatus !== 'all'
+                        ? "검색 조건에 맞는 제안서가 없습니다. 필터를 조정해보세요."
+                        : "아직 제출된 제안서가 없습니다."
+                    }
+                    action={
+                      searchTerm || filterStatus !== 'all'
+                        ? {
+                            label: "필터 초기화",
+                            onClick: () => {
+                              setSearchTerm('')
+                              setFilterStatus('all')
+                            },
+                            variant: "outline"
+                          }
+                        : undefined
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -317,28 +341,21 @@ export default function ProposalManagement() {
                           const result = await response.json()
 
                           if (!response.ok) {
-                            const errorMsg = result.error || `HTTP ${response.status}: Failed to delete proposal`
-                            console.error('Delete proposal API error:', {
-                              status: response.status,
-                              statusText: response.statusText,
-                              error: result.error,
-                              result
-                            })
+                            const errorMsg = result.error || ERROR_MESSAGES.DELETE_FAILED
                             throw new Error(errorMsg)
                           }
 
                           if (!result.success) {
-                            throw new Error(result.error || '제안서 삭제에 실패했습니다.')
+                            throw new Error(result.error || ERROR_MESSAGES.DELETE_FAILED)
                           }
 
-                          alert(result.message || '제안서가 삭제되었습니다.')
+                          toast.success(result.message || SUCCESS_MESSAGES.DELETED)
                           
                           // 데이터 다시 가져오기
                           await fetchProposalsData(currentPage)
                         } catch (error: any) {
-                          console.error('Error deleting proposal:', error)
-                          const errorMessage = error.message || '제안서 삭제에 실패했습니다.'
-                          alert(errorMessage)
+                          const errorMessage = getErrorMessage(error, ERROR_MESSAGES.DELETE_FAILED)
+                          toast.error(errorMessage)
                           
                           // 에러 발생 시에도 목록 새로고침 시도
                           await fetchProposalsData(currentPage)
@@ -355,6 +372,117 @@ export default function ProposalManagement() {
             )}
           </tbody>
         </table>
+        </div>
+
+        {/* Mobile Card View */}
+        {!loading && filteredProposals.length > 0 && (
+          <div className="md:hidden space-y-3 p-4">
+            {filteredProposals.map((proposal) => (
+              <Card key={proposal.id} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">
+                        {proposal.expert_profiles?.name || '이름 없음'}
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {proposal.campaigns?.title || '제목 없음'}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {proposal.campaigns?.type || '-'}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm(`정말로 이 제안서를 삭제하시겠습니까?`)) {
+                          return
+                        }
+
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession()
+                          if (!session) return
+
+                          const response = await fetch(`/api/admin/proposals?id=${proposal.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                              'Authorization': `Bearer ${session.access_token}`,
+                              'Content-Type': 'application/json'
+                            }
+                          })
+
+                          const result = await response.json()
+
+                          if (!response.ok) {
+                            const errorMsg = result.error || ERROR_MESSAGES.DELETE_FAILED
+                            throw new Error(errorMsg)
+                          }
+
+                          if (!result.success) {
+                            throw new Error(result.error || ERROR_MESSAGES.DELETE_FAILED)
+                          }
+
+                          toast.success(result.message || SUCCESS_MESSAGES.DELETED)
+                          
+                          // 데이터 다시 가져오기
+                          await fetchProposalsData(currentPage)
+                        } catch (error: any) {
+                          const errorMessage = getErrorMessage(error, ERROR_MESSAGES.DELETE_FAILED)
+                          toast.error(errorMessage)
+                          
+                          // 에러 발생 시에도 목록 새로고침 시도
+                          await fetchProposalsData(currentPage)
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-900"
+                      aria-label={`${proposal.expert_profiles?.name || '제안서'} 삭제`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(proposal.status || 'pending')}`}>
+                      {proposal.status ? proposalStatusLabel(proposal.status) : '-'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <div>기관: {proposal.campaigns?.organization_profiles?.organization_name || '-'}</div>
+                    <div>예산: {proposal.proposed_budget ? `₩${proposal.proposed_budget.toLocaleString()}` : '-'}</div>
+                    <div>제출일: {proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('ko-KR') : '-'}</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty State for Mobile */}
+        {!loading && filteredProposals.length === 0 && (
+          <div className="md:hidden p-4">
+            <EmptyState
+              type="proposals"
+              title="제안서를 찾을 수 없습니다"
+              description={
+                searchTerm || filterStatus !== 'all'
+                  ? "검색 조건에 맞는 제안서가 없습니다. 필터를 조정해보세요."
+                  : "아직 제출된 제안서가 없습니다."
+              }
+              action={
+                searchTerm || filterStatus !== 'all'
+                  ? {
+                      label: "필터 초기화",
+                      onClick: () => {
+                        setSearchTerm('')
+                        setFilterStatus('all')
+                      },
+                      variant: "outline"
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
       </div>
 
       {/* Pagination */}
@@ -368,26 +496,29 @@ export default function ProposalManagement() {
           <select
             value={pageSize}
             onChange={(e) => { setCurrentPage(1); setPageSize(parseInt(e.target.value, 10)); }}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border rounded-md text-sm min-h-[44px]"
+            aria-label="페이지당 항목 수"
           >
             <option value={10}>10개</option>
             <option value={20}>20개</option>
             <option value={50}>50개</option>
           </select>
           <button
-            className="px-3 py-2 border rounded-md text-sm disabled:opacity-50"
+            className="px-3 py-2 border rounded-md text-sm disabled:opacity-50 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
+            aria-label="이전 페이지"
           >
             이전
           </button>
           <button
-            className="px-3 py-2 border rounded-md text-sm disabled:opacity-50"
+            className="px-3 py-2 border rounded-md text-sm disabled:opacity-50 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             onClick={() => {
               const totalPages = Math.max(1, Math.ceil(total / pageSize))
               setCurrentPage(Math.min(totalPages, currentPage + 1))
             }}
             disabled={currentPage >= Math.max(1, Math.ceil(total / pageSize))}
+            aria-label="다음 페이지"
           >
             다음
           </button>

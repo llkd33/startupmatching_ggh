@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 
 const getAdminClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -15,38 +17,6 @@ const getAdminClient = () => {
       persistSession: false
     }
   })
-}
-
-async function checkAdminAuth(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get('Authorization') || ''
-        }
-      }
-    }
-  )
-
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    return { authorized: false, user: null }
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData?.is_admin) {
-    return { authorized: false, user: null }
-  }
-
-  return { authorized: true, user }
 }
 
 // PATCH: 캠페인 상태 업데이트
@@ -97,7 +67,7 @@ export async function PATCH(
           }
         })
     } catch (logError) {
-      console.error('Admin log error:', logError)
+      logger.error('Admin log error:', logError)
     }
 
     return NextResponse.json({
@@ -105,8 +75,9 @@ export async function PATCH(
       message: '캠페인 상태가 업데이트되었습니다.'
     })
   } catch (error: any) {
-    console.error('Admin campaign update error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin campaign update error:', error)
+    const errorMessage = error.message || '캠페인 상태 업데이트 중 오류가 발생했습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 

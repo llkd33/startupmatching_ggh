@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 
 // Supabase Admin Client 생성 (환경 변수 검증 포함)
@@ -31,34 +32,19 @@ export async function POST(request: NextRequest) {
     try {
       supabaseAdmin = createSupabaseAdmin()
     } catch (envError: any) {
-      // 개발 모드에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Environment variable error:', envError)
-      }
+      logger.error('Environment variable error:', envError)
       return NextResponse.json(
         { error: 'Server configuration error. Please contact administrator.' },
         { status: 500 }
       )
     }
 
-    // 1. 관리자 인증 확인
-    const supabase = createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // 1. 관리자 인증 확인 (공통 함수 사용)
+    const authResult = await checkAdminAuth(request)
+    if (!authResult.authorized || !authResult.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    // 관리자 권한 확인
-    const { data: userData } = await supabase
-      .from('users')
-      .select('is_admin, role')
-      .eq('id', user.id)
-      .single()
-
-    if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
+    const user = authResult.user
 
     // 2. 요청 데이터 파싱
     const body = await request.json()
@@ -152,10 +138,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (createError || !authData.user) {
-      // 개발 모드에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error creating user:', createError)
-      }
+      logger.error('Error creating user:', createError)
       return NextResponse.json(
         { error: createError?.message || 'Failed to create user' },
         { status: 500 }
@@ -176,10 +159,7 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'id' })
 
     if (userError) {
-      // 개발 모드에서만 로그 출력
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error creating user record:', userError)
-      }
+      logger.error('Error creating user record:', userError)
       // 사용자는 생성되었으므로 계속 진행
     }
 
@@ -203,7 +183,7 @@ export async function POST(request: NextRequest) {
 
     if (inviteError) {
       // 초대 레코드 생성 실패는 치명적 오류
-      console.error('Error creating invitation record:', inviteError)
+      logger.error('Error creating invitation record:', inviteError)
       const errorMessage = inviteError.message || inviteError.details || JSON.stringify(inviteError)
       throw new Error(`초대 레코드 생성 실패: ${errorMessage}`)
     }
@@ -216,7 +196,7 @@ export async function POST(request: NextRequest) {
       // Resend API 직접 호출 (서버 사이드에서)
       const resendApiKey = process.env.RESEND_API_KEY
       if (!resendApiKey) {
-        console.warn('RESEND_API_KEY is not set. Email sending skipped.')
+        logger.warn('RESEND_API_KEY is not set. Email sending skipped.')
         return NextResponse.json({
           success: true,
           user: {
@@ -245,19 +225,17 @@ export async function POST(request: NextRequest) {
         })
 
       if (!emailResult.data || emailResult.error) {
-        console.error('Failed to send invite email:', emailResult.error)
+        logger.error('Failed to send invite email:', emailResult.error)
 
         // Resend 테스트 계정 제한 확인
         const isTestAccountLimit = emailResult.error?.name === 'validation_error' &&
           emailResult.error?.message?.includes('testing emails')
 
         // 상세한 에러 로깅
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
-          console.error('Resend API Key configured:', !!resendApiKey)
-          console.error('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>')
-          console.error('To email:', email)
-        }
+        logger.debug('Resend API Error Details:', JSON.stringify(emailResult.error, null, 2))
+        logger.debug('Resend API Key configured:', !!resendApiKey)
+        logger.debug('From email:', process.env.RESEND_FROM_EMAIL || 'StartupMatching <onboarding@resend.dev>')
+        logger.debug('To email:', email)
 
         const errorMessage = isTestAccountLimit
           ? 'Resend 테스트 계정 제한: 도메인 인증 후 모든 사용자에게 이메일을 보낼 수 있습니다.'
@@ -276,10 +254,9 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      console.log('✅ Invitation email sent successfully:', emailResult.data.id)
+      logger.info('Invitation email sent successfully:', emailResult.data.id)
     } catch (emailError: any) {
-      // 개발 모드에서만 로그 출력
-      console.error('Error sending invite email:', emailError)
+      logger.error('Error sending invite email:', emailError)
       // 이메일 실패해도 사용자는 생성되었으므로 계속 진행
       // 하지만 성공 응답에 경고 포함
       return NextResponse.json({
@@ -308,24 +285,15 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    // 개발 모드에서만 로그 출력
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error in invite-user API:', error)
-    }
+    logger.error('Error in invite-user API:', error)
 
     // 부분 실패 시 롤백: 사용자가 생성되었지만 다른 단계에서 실패한 경우
     if (createdUserId && supabaseAdmin) {
       try {
         await supabaseAdmin.auth.admin.deleteUser(createdUserId)
-        // 개발 모드에서만 로그 출력
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Rolled back user creation due to error')
-        }
+        logger.info('Rolled back user creation due to error')
       } catch (rollbackError) {
-        // 개발 모드에서만 로그 출력
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error during rollback:', rollbackError)
-        }
+        logger.error('Error during rollback:', rollbackError)
         // 롤백 실패는 로그만 남기고 계속 진행
       }
     }

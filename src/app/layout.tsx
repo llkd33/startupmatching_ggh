@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ClientProviders from '@/components/providers/ClientProviders';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 
 export const metadata: Metadata = {
   title: "전문가 매칭 플랫폼",
@@ -14,6 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        <GoogleAnalytics />
+      </head>
       <body className="antialiased bg-background text-foreground">
         <ClientProviders>
           {children}

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { toast } from '@/components/ui/toast-custom'
+import { BookmarkButton } from '@/components/ui/bookmark-button'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -419,6 +420,17 @@ export default function CampaignDetailPage() {
               </div>
               
               <div className="flex gap-2">
+                {/* Bookmark button for experts */}
+                {userId && userRole === 'expert' && (
+                  <BookmarkButton
+                    userId={userId}
+                    targetId={campaign.id}
+                    targetType="campaign"
+                    variant="outline"
+                    showLabel
+                  />
+                )}
+
                 {canSubmitProposal() && (
                   <Button asChild>
                     <Link href={`/dashboard/campaigns/${campaign.id}/propose`}>
@@ -427,7 +439,7 @@ export default function CampaignDetailPage() {
                     </Link>
                   </Button>
                 )}
-                
+
                 {existingProposal && (
                   <Button variant="outline" asChild>
                     <Link href={`/dashboard/proposals/${existingProposal.id}`}>
@@ -436,7 +448,7 @@ export default function CampaignDetailPage() {
                     </Link>
                   </Button>
                 )}
-                
+
                 {canManageCampaign() && (
                   <>
                     {campaign.status === 'active' && (

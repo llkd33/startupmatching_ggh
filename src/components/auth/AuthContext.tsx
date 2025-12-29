@@ -5,6 +5,8 @@ import { User, Session } from '@supabase/supabase-js'
 import { browserSupabase } from '@/lib/supabase-client'
 import { UserRole } from '@/types/supabase'
 import { handleSupabaseError } from '@/lib/error-handler'
+import { setUserId as setGAUserId, setUserProperties, analytics } from '@/components/analytics/GoogleAnalytics'
+import { setSentryUser, clearSentryUser } from '@/lib/error-reporting'
 
 interface AuthContextType {
   user: User | null
@@ -224,6 +226,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role,
             phone: metadata?.phone ?? null,
           }, { onConflict: 'id' })
+
+        // Track signup event
+        analytics.signup('email')
+        setUserProperties({ role })
       }
 
       return { data, error }
@@ -242,6 +248,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         handleSupabaseError(error, true, { context: 'sign_in' })
+      } else if (data?.user) {
+        // Set user context for analytics and error tracking
+        setGAUserId(data.user.id)
+        setUserProperties({
+          role: data.user.user_metadata?.role || 'unknown',
+          email_verified: data.user.email_confirmed_at ? 'true' : 'false',
+        })
+        setSentryUser(data.user.id, data.user.email || undefined)
+        analytics.login('email')
       }
 
       return { data, error }
@@ -261,13 +276,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Track logout event before clearing user context
+      analytics.logout()
+
       // Supabase 로그아웃
       const { error } = await browserSupabase.auth.signOut()
-      
+
       if (error) {
         handleSupabaseError(error as Error, true, { context: 'sign_out' })
         throw error
       }
+
+      // Clear user context from analytics and error tracking
+      clearSentryUser()
 
       // 상태 초기화
       setUser(null)

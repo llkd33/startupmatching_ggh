@@ -131,6 +131,11 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(redirectUrl);
       }
     }
+    
+    // API 라우트에서 재사용할 수 있도록 헤더에 사용자 정보 추가
+    response.headers.set('x-user-id', user.id);
+    response.headers.set('x-user-email', user.email || '');
+    response.headers.set('x-is-admin', 'true');
   }
 
   // 일반 사용자 인증 확인은 필요한 경로에서만 수행 (예: /auth/login, /auth/signup)

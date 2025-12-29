@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 
 // Service role 키로 Supabase 클라이언트 생성 (RLS 우회 가능)
 const getAdminClient = () => {
@@ -16,39 +18,6 @@ const getAdminClient = () => {
       persistSession: false
     }
   })
-}
-
-// 관리자 권한 확인
-async function checkAdminAuth(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get('Authorization') || ''
-        }
-      }
-    }
-  )
-
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    return { authorized: false, user: null }
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData?.is_admin) {
-    return { authorized: false, user: null }
-  }
-
-  return { authorized: true, user }
 }
 
 // GET: 사용자 목록 조회 (페이지네이션)
@@ -142,8 +111,9 @@ export async function GET(req: NextRequest) {
             }
           })
   } catch (error: any) {
-    console.error('Admin users GET error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin users GET error:', error)
+    const errorMessage = error.message || '사용자 목록을 불러오는 중 오류가 발생했습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
@@ -280,7 +250,7 @@ export async function POST(req: NextRequest) {
               }
             })
         } catch (logError) {
-          console.error('Admin log error:', logError)
+          logger.error('Admin log error:', logError)
         }
 
         return NextResponse.json({ 
@@ -403,7 +373,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
   } catch (error: any) {
-    console.error('Admin action error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin action error:', error)
+    const errorMessage = error.message || '작업을 완료할 수 없습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

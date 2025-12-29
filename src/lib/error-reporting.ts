@@ -3,6 +3,7 @@
  * Sentry 통합 및 자체 로깅 API 지원
  */
 
+import * as Sentry from '@sentry/nextjs'
 import { AppError, ErrorSeverity, ErrorCategory } from './error-handler'
 import { supabase } from './supabase'
 
@@ -22,52 +23,32 @@ interface ErrorReport {
 }
 
 /**
- * Sentry 통합 (선택적)
+ * Sentry 초기화 확인
+ * (sentry.client.config.ts에서 자동으로 초기화됨)
  */
-let Sentry: any = null
-let SentryInitialized = false
+export function isSentryEnabled(): boolean {
+  return !!process.env.NEXT_PUBLIC_SENTRY_DSN
+}
 
-export async function initSentry() {
-  if (SentryInitialized) return
-  
-  // Sentry는 선택적 의존성으로 처리
-  if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
-    try {
-      // 동적 import로 Sentry 로드 (빌드 시 에러 방지)
-      // @ts-ignore - 선택적 의존성
-      const SentryModule = await import('@sentry/nextjs').catch(() => null)
-      if (!SentryModule) {
-        if (process.env.NODE_ENV === 'development') {
-          console.info('Sentry not installed. Using fallback error reporting.')
-        }
-        SentryInitialized = true
-        return
-      }
-      Sentry = SentryModule
-      
-      if (Sentry.init) {
-        Sentry.init({
-          dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-          environment: process.env.NODE_ENV || 'development',
-          tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-          beforeSend(event: any, hint: any) {
-            // 민감한 정보 필터링
-            if (event.request) {
-              delete event.request.cookies
-              delete event.request.headers?.authorization
-            }
-            return event
-          },
-        })
-        SentryInitialized = true
-      }
-    } catch (error) {
-      // Sentry 패키지가 설치되지 않은 경우 무시
-      if (process.env.NODE_ENV === 'development') {
-        console.info('Sentry not installed. Using fallback error reporting.')
-      }
-    }
-  }
+/**
+ * Sentry 사용자 컨텍스트 설정
+ */
+export function setSentryUser(userId: string, email?: string) {
+  if (!isSentryEnabled()) return
+
+  Sentry.setUser({
+    id: userId,
+    email: email,
+  })
+}
+
+/**
+ * Sentry 사용자 컨텍스트 초기화
+ */
+export function clearSentryUser() {
+  if (!isSentryEnabled()) return
+
+  Sentry.setUser(null)
 }
 
 /**
@@ -160,7 +141,7 @@ export async function reportError(
   }
 
   // Sentry로 전송 (가능한 경우)
-  if (Sentry && typeof window !== 'undefined') {
+  if (isSentryEnabled() && typeof window !== 'undefined') {
     try {
       Sentry.captureException(error, {
         tags: {
@@ -169,7 +150,9 @@ export async function reportError(
           code: appError.code,
           status: appError.status?.toString(),
         },
-        extra: errorReport.context,
+        contexts: {
+          custom: errorReport.context,
+        },
         user: userId ? { id: userId } : undefined,
         level: appError.severity === ErrorSeverity.CRITICAL ? 'fatal' :
               appError.severity === ErrorSeverity.HIGH ? 'error' :
@@ -221,7 +204,7 @@ export function reportPerformanceMetric(
   duration: number,
   context?: Record<string, any>
 ): void {
-  if (Sentry && typeof window !== 'undefined') {
+  if (isSentryEnabled() && typeof window !== 'undefined') {
     try {
       Sentry.addBreadcrumb({
         category: 'performance',
@@ -240,5 +223,40 @@ export function reportPerformanceMetric(
   if (process.env.NODE_ENV === 'development') {
     console.log(`[Performance] ${name}: ${duration}ms`, context)
   }
+}
+
+/**
+ * Sentry 커스텀 이벤트 전송
+ */
+export function captureMessage(
+  message: string,
+  level: 'info' | 'warning' | 'error' = 'info',
+  context?: Record<string, any>
+): void {
+  if (!isSentryEnabled()) return
+
+  Sentry.captureMessage(message, {
+    level,
+    contexts: context ? { custom: context } : undefined,
+  })
+}
+
+/**
+ * Sentry 브레드크럼 추가
+ */
+export function addBreadcrumb(
+  message: string,
+  category: string,
+  data?: Record<string, any>,
+  level: 'debug' | 'info' | 'warning' | 'error' = 'info'
+): void {
+  if (!isSentryEnabled()) return
+
+  Sentry.addBreadcrumb({
+    category,
+    message,
+    data,
+    level,
+  })
 }
 

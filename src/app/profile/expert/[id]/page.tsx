@@ -6,17 +6,19 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
-  User, 
-  Briefcase, 
-  GraduationCap, 
-  MapPin, 
-  Hash, 
+import {
+  User,
+  Briefcase,
+  GraduationCap,
+  MapPin,
+  Hash,
   Clock,
   DollarSign,
   ExternalLink,
-  Star
+  Star,
+  Calendar
 } from 'lucide-react'
+import { AvailabilityCalendar, AvailabilitySchedule } from '@/components/calendar/AvailabilityCalendar'
 
 interface ExpertProfile {
   id: string
@@ -31,6 +33,7 @@ interface ExpertProfile {
   rating: number
   total_projects: number
   is_available: boolean
+  availability_schedule: AvailabilitySchedule | null
 }
 
 export default function ExpertProfilePage() {
@@ -274,6 +277,28 @@ export default function ExpertProfilePage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Availability Schedule */}
+        {profile.availability_schedule && Object.keys(profile.availability_schedule).length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                가용 시간
+              </CardTitle>
+              <CardDescription>
+                전문가가 프로젝트 수행 가능한 시간대입니다
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AvailabilityCalendar
+                value={profile.availability_schedule}
+                onChange={() => {}}
+                readOnly
+              />
             </CardContent>
           </Card>
         )}

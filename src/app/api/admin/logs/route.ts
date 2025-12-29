@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 
 // Service role 키로 Supabase 클라이언트 생성
 const getAdminClient = () => {
@@ -16,39 +18,6 @@ const getAdminClient = () => {
       persistSession: false
     }
   })
-}
-
-// 관리자 권한 확인
-async function checkAdminAuth(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get('Authorization') || ''
-        }
-      }
-    }
-  )
-
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    return { authorized: false }
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData?.is_admin) {
-    return { authorized: false }
-  }
-
-  return { authorized: true }
 }
 
 // GET: 감사 로그 조회 (필터, 페이지네이션, 검색 지원)
@@ -135,8 +104,9 @@ export async function GET(req: NextRequest) {
       }
     })
   } catch (error: any) {
-    console.error('Admin logs GET error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin logs GET error:', error)
+    const errorMessage = error.message || '로그를 불러오는 중 오류가 발생했습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
@@ -199,7 +169,8 @@ export async function POST(req: NextRequest) {
       }
     })
   } catch (error: any) {
-    console.error('Admin logs export error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin logs export error:', error)
+    const errorMessage = error.message || '로그 내보내기 중 오류가 발생했습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 
 const getAdminClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -15,38 +17,6 @@ const getAdminClient = () => {
       persistSession: false
     }
   })
-}
-
-async function checkAdminAuth(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get('Authorization') || ''
-        }
-      }
-    }
-  )
-
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    return { authorized: false, user: null }
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData?.is_admin) {
-    return { authorized: false, user: null }
-  }
-
-  return { authorized: true, user }
 }
 
 // GET: 초대 목록 조회 (페이지네이션 및 최적화)
@@ -154,8 +124,9 @@ export async function GET(req: NextRequest) {
       }
     })
   } catch (error: any) {
-    console.error('Admin invitations GET error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('Admin invitations GET error:', error)
+    const errorMessage = error.message || '초대 목록을 불러오는 중 오류가 발생했습니다.'
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 

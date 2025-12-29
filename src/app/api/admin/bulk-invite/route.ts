@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { checkAdminAuth } from '@/lib/admin-auth'
+import { logger } from '@/lib/logger'
 import crypto from 'crypto'
 
 function createSupabaseAdmin() {
@@ -36,33 +37,19 @@ export async function POST(request: NextRequest) {
     try {
       supabaseAdmin = createSupabaseAdmin()
     } catch (envError: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Environment variable error:', envError)
-      }
+      logger.error('Environment variable error:', envError)
       return NextResponse.json(
         { error: 'Server configuration error. Please contact administrator.' },
         { status: 500 }
       )
     }
 
-    // 1. 관리자 인증 확인
-    const supabase = createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // 1. 관리자 인증 확인 (공통 함수 사용)
+    const authResult = await checkAdminAuth(request)
+    if (!authResult.authorized || !authResult.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    // 관리자 권한 확인
-    const { data: userData } = await supabase
-      .from('users')
-      .select('is_admin, role')
-      .eq('id', user.id)
-      .single()
-
-    if (!userData || (!userData.is_admin && userData.role !== 'admin')) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
+    const user = authResult.user
 
     // 2. 요청 데이터 파싱
     const body = await request.json()
@@ -216,9 +203,7 @@ export async function POST(request: NextRequest) {
 
         if (inviteError) {
           // 초대 레코드 생성 실패는 치명적이지 않지만 로그 기록
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(`Failed to create invitation record for ${email}:`, inviteError)
-          }
+          logger.warn(`Failed to create invitation record for ${email}:`, inviteError)
         }
 
         // 초대 이메일 발송 (재시도 로직 포함)
@@ -249,9 +234,7 @@ export async function POST(request: NextRequest) {
               }
             } catch (emailError) {
               if (i === retries - 1) {
-                if (process.env.NODE_ENV === 'development') {
-                  console.warn(`Error sending invite email to ${email} after ${retries} retries:`, emailError)
-                }
+                logger.warn(`Error sending invite email to ${email} after ${retries} retries:`, emailError)
                 return false
               }
               await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
@@ -262,15 +245,13 @@ export async function POST(request: NextRequest) {
 
         try {
           const emailSent = await sendEmailWithRetry()
-          if (!emailSent && process.env.NODE_ENV === 'development') {
-            console.warn(`Failed to send invite email to ${email} after retries`)
+          if (!emailSent) {
+            logger.warn(`Failed to send invite email to ${email} after retries`)
           }
           // 이메일 실패해도 초대는 생성되었으므로 성공으로 처리
         } catch (emailError) {
           // 이메일 실패해도 초대는 생성되었으므로 성공으로 처리
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(`Error sending invite email to ${email}:`, emailError)
-          }
+          logger.warn(`Error sending invite email to ${email}:`, emailError)
         }
 
         results.success++
@@ -310,9 +291,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error in bulk-invite API:', error)
-    }
+    logger.error('Error in bulk-invite API:', error)
 
     return NextResponse.json(
       { error: error.message || 'Internal server error' },

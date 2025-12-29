@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,8 @@ import { InviteUserDialog } from '@/components/admin/InviteUserDialog'
 import { BulkInviteDialog } from '@/components/admin/BulkInviteDialog'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { toast } from 'sonner'
+import { SkeletonTable } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Invitation {
   id: string
@@ -52,6 +54,7 @@ export default function AdminInvitationsClient({
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [loading, setLoading] = useState(false)
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(initialTotal || 0)
@@ -91,7 +94,7 @@ export default function AdminInvitationsClient({
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         },
-        cache: 'no-store'
+        next: { revalidate: 10 }
       })
 
       if (!response.ok) {
@@ -116,10 +119,14 @@ export default function AdminInvitationsClient({
     }
   }, [currentPage, pageSize, filterStatus, debouncedSearch, supabase])
 
-  // 마운트 시 또는 initialInvitations가 비어있으면 즉시 API 호출
+  // 마운트 시 또는 필터/검색/페이지 변경 시 API 호출
   useEffect(() => {
-    // initialInvitations가 비어있거나, 필터/검색/페이지가 변경된 경우 API 호출
-    if (!initialInvitations || initialInvitations.length === 0 || debouncedSearch || filterStatus !== 'all' || currentPage > 1) {
+    // 초기 데이터가 있고 필터가 기본값이면 API 호출 건너뛰기
+    const hasInitialData = initialInvitations && initialInvitations.length > 0
+    const isDefaultFilters = !debouncedSearch && filterStatus === 'all' && currentPage === 1
+    
+    // 초기 데이터가 없거나 필터/검색/페이지가 변경된 경우에만 API 호출
+    if (!hasInitialData || !isDefaultFilters) {
       fetchInvitations()
     }
   }, [debouncedSearch, filterStatus, currentPage, pageSize, fetchInvitations, initialInvitations])
@@ -146,6 +153,7 @@ export default function AdminInvitationsClient({
   }
 
   const resendInvite = async (invitation: Invitation) => {
+    setResendingInviteId(invitation.id)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
     const inviteUrl = `${appUrl}/auth/invite/accept/${invitation.token}`
 
@@ -193,15 +201,19 @@ export default function AdminInvitationsClient({
       const success = await sendEmailWithRetry()
       if (success) {
         toast.success(`${invitation.email}로 초대장을 다시 보냈습니다.`)
+        // 재전송 성공 후 목록 갱신
+        fetchInvitations()
       } else {
         throw new Error('Failed to send email after retries')
       }
     } catch (error) {
       toast.error('초대장 재발송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setResendingInviteId(null)
     }
   }
 
-  const getStatusBadge = (status: string, expiresAt: string) => {
+  const getStatusBadge = useCallback((status: string, expiresAt: string) => {
     const isExpired = new Date(expiresAt) < new Date()
     
     if (status === 'accepted') {
@@ -211,7 +223,10 @@ export default function AdminInvitationsClient({
       return <Badge className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />만료됨</Badge>
     }
     return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />대기중</Badge>
-  }
+  }, [])
+
+  // 초대 목록 메모이제이션
+  const memoizedInvitations = useMemo(() => invitations, [invitations])
 
   return (
     <div>
@@ -265,6 +280,7 @@ export default function AdminInvitationsClient({
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 min-h-[44px]"
+                aria-label="초대 상태 필터"
               >
                 <option value="all">전체</option>
                 <option value="pending">대기중</option>
@@ -286,14 +302,35 @@ export default function AdminInvitationsClient({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-gray-500">로딩 중...</div>
-          ) : invitations.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              조건에 맞는 초대가 없습니다.
+            <div className="p-4" role="status" aria-live="polite" aria-label="초대 목록을 불러오는 중">
+              <SkeletonTable rows={5} />
             </div>
+          ) : invitations.length === 0 ? (
+            <EmptyState
+              type="custom"
+              title="초대 내역이 없습니다"
+              description={
+                searchTerm || filterStatus !== 'all'
+                  ? "검색 조건에 맞는 초대가 없습니다. 필터를 조정해보세요."
+                  : "아직 초대한 사용자가 없습니다. 첫 번째 초대를 만들어보세요."
+              }
+              action={
+                searchTerm || filterStatus !== 'all'
+                  ? {
+                      label: "필터 초기화",
+                      onClick: () => {
+                        setSearchTerm('')
+                        setFilterStatus('all')
+                      },
+                      variant: "outline"
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
@@ -307,38 +344,38 @@ export default function AdminInvitationsClient({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {invitations.map((invitation) => (
-                    <tr key={invitation.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {invitation.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {invitation.name}
-                        {invitation.organization_name && (
-                          <div className="text-xs text-gray-400">{invitation.organization_name}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant="outline">
-                          {invitation.role === 'expert' ? '전문가' : '기관'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(invitation.status, invitation.expires_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(invitation.expires_at).toLocaleDateString('ko-KR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {invitation.invited_by_user?.email || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {memoizedInvitations.map((invitation) => (
+                    <InvitationRow 
+                      key={invitation.id}
+                      invitation={invitation}
+                      getStatusBadge={getStatusBadge}
+                      copyInviteLink={copyInviteLink}
+                      resendInvite={resendInvite}
+                    />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {memoizedInvitations.map((invitation) => (
+                  <Card key={invitation.id} className="p-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{invitation.name}</div>
+                          <div className="text-sm text-gray-500 mt-1">{invitation.email}</div>
+                          {invitation.organization_name && (
+                            <div className="text-xs text-gray-400 mt-1">{invitation.organization_name}</div>
+                          )}
+                        </div>
                         <div className="flex gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyInviteLink(invitation.token)}
-                            title="초대장 링크 복사"
+                            aria-label={`${invitation.email}의 초대장 링크 복사`}
                           >
                             <Copy className="w-4 h-4" />
                           </Button>
@@ -347,28 +384,28 @@ export default function AdminInvitationsClient({
                               variant="ghost"
                               size="sm"
                               onClick={() => resendInvite(invitation)}
-                              title="초대장 재발송"
+                              aria-label={`${invitation.email}로 초대장 재발송`}
                             >
                               <Mail className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const inviteUrl = `${window.location.origin}/auth/invite/accept/${invitation.token}`
-                              window.open(inviteUrl, '_blank')
-                            }}
-                            title="초대장 링크 열기"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
                         </div>
-                      </td>
-                    </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </div>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <Badge variant="outline">
+                          {invitation.role === 'expert' ? '전문가' : '기관'}
+                        </Badge>
+                        {getStatusBadge(invitation.status, invitation.expires_at)}
+                      </div>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>만료일: {new Date(invitation.expires_at).toLocaleDateString('ko-KR')}</div>
+                        {invitation.invited_by_user?.email && (
+                          <div>초대한 사람: {invitation.invited_by_user.email}</div>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
 
               {/* Pagination */}
@@ -496,4 +533,83 @@ function generateInviteEmailHTML(name: string, email: string, inviteUrl: string,
 </html>
   `
 }
+
+// 초대 목록 행 컴포넌트 (메모이제이션)
+const InvitationRow = memo(({ 
+  invitation, 
+  getStatusBadge, 
+  copyInviteLink, 
+  resendInvite 
+}: { 
+  invitation: Invitation
+  getStatusBadge: (status: string, expiresAt: string) => React.ReactElement
+  copyInviteLink: (token: string) => void
+  resendInvite: (invitation: Invitation) => void
+}) => {
+  return (
+    <tr>
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+        {invitation.email}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {invitation.name}
+        {invitation.organization_name && (
+          <div className="text-xs text-gray-400">{invitation.organization_name}</div>
+        )}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <Badge variant="outline">
+          {invitation.role === 'expert' ? '전문가' : '기관'}
+        </Badge>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        {getStatusBadge(invitation.status, invitation.expires_at)}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {new Date(invitation.expires_at).toLocaleDateString('ko-KR')}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {invitation.invited_by_user?.email || '-'}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => copyInviteLink(invitation.token)}
+            title="초대장 링크 복사"
+            aria-label={`${invitation.email}의 초대장 링크 복사`}
+          >
+            <Copy className="w-4 h-4" />
+          </Button>
+          {invitation.status === 'pending' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => resendInvite(invitation)}
+              title="초대장 재발송"
+              aria-label={`${invitation.email}로 초대장 재발송`}
+            >
+              <Mail className="w-4 h-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const inviteUrl = `${window.location.origin}/auth/invite/accept/${invitation.token}`
+              window.open(inviteUrl, '_blank')
+            }}
+            title="초대장 링크 열기"
+            aria-label={`${invitation.email}의 초대장 링크 새 창에서 열기`}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+})
+
+InvitationRow.displayName = 'InvitationRow'
 

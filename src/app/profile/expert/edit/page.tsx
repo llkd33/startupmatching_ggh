@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
-import { Plus, X, Briefcase, GraduationCap, MapPin, Hash, User, Check } from 'lucide-react'
+import { Plus, X, Briefcase, GraduationCap, MapPin, Hash, User, Check, Clock } from 'lucide-react'
+import { AvailabilityCalendar, AvailabilitySchedule } from '@/components/calendar/AvailabilityCalendar'
 
 interface CareerItem {
   id: string
@@ -39,6 +40,7 @@ interface ProfileData {
   careerHistory: CareerItem[]
   education: EducationItem[]
   isAvailable: boolean
+  availabilitySchedule: AvailabilitySchedule
 }
 
 const AVAILABLE_SKILLS = [
@@ -71,7 +73,8 @@ export default function ExpertProfileEditPage() {
     portfolioUrl: '',
     careerHistory: [],
     education: [],
-    isAvailable: true
+    isAvailable: true,
+    availabilitySchedule: {}
   })
 
   useEffect(() => {
@@ -111,7 +114,8 @@ export default function ExpertProfileEditPage() {
         portfolioUrl: profile.portfolio_url || '',
         careerHistory: profile.career_history || [],
         education: profile.education || [],
-        isAvailable: profile.is_available ?? true
+        isAvailable: profile.is_available ?? true,
+        availabilitySchedule: profile.availability_schedule || {}
       })
     }
 
@@ -265,6 +269,7 @@ export default function ExpertProfileEditPage() {
           career_history: profileData.careerHistory,
           education: profileData.education,
           is_available: profileData.isAvailable,
+          availability_schedule: profileData.availabilitySchedule,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' })
 
@@ -365,12 +370,19 @@ export default function ExpertProfileEditPage() {
                 <GraduationCap className="inline-block w-4 h-4 mr-2" />
                 학력
               </TabsTrigger>
-              <TabsTrigger 
+              <TabsTrigger
                 value="skills"
                 className="flex-1 py-3 px-4 text-center border-b-2 border-transparent data-[state=active]:border-blue-600"
               >
                 <Hash className="inline-block w-4 h-4 mr-2" />
                 스킬 & 지역
+              </TabsTrigger>
+              <TabsTrigger
+                value="availability"
+                className="flex-1 py-3 px-4 text-center border-b-2 border-transparent data-[state=active]:border-blue-600"
+              >
+                <Clock className="inline-block w-4 h-4 mr-2" />
+                가용 시간
               </TabsTrigger>
             </TabsList>
 
@@ -657,6 +669,25 @@ export default function ExpertProfileEditPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* Availability Schedule Tab */}
+            <TabsContent value="availability" className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium mb-2">가용 시간 설정</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    프로젝트 수행이 가능한 시간대를 선택해주세요. 기관에서 전문가를 검색할 때 이 정보가 활용됩니다.
+                  </p>
+                </div>
+                <AvailabilityCalendar
+                  value={profileData.availabilitySchedule}
+                  onChange={(schedule) => setProfileData(prev => ({
+                    ...prev,
+                    availabilitySchedule: schedule
+                  }))}
+                />
               </div>
             </TabsContent>
           </Tabs>

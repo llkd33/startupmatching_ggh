@@ -9,14 +9,35 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Mail, Bell, CheckCircle2 } from 'lucide-react'
+import { Loader2, Mail, Bell, CheckCircle2, MessageSquare, FileText, Calendar, ListTodo } from 'lucide-react'
 import { useAuth } from '@/components/auth/AuthContext'
 
 interface NotificationSettings {
+  // Master toggle
   email_notifications: boolean
+
+  // Activity notifications
   connection_request_email: boolean
   request_approved_email: boolean
   request_rejected_email: boolean
+
+  // Proposal notifications
+  new_proposal_email: boolean
+  proposal_accepted_email: boolean
+  proposal_rejected_email: boolean
+
+  // Message notifications
+  new_message_email: boolean
+
+  // Campaign notifications
+  campaign_deadline_email: boolean
+  campaign_status_email: boolean
+
+  // Task notifications
+  task_assigned_email: boolean
+  task_deadline_email: boolean
+
+  // Marketing
   marketing_email: boolean
 }
 
@@ -30,6 +51,14 @@ export default function NotificationSettingsPage() {
     connection_request_email: true,
     request_approved_email: true,
     request_rejected_email: true,
+    new_proposal_email: true,
+    proposal_accepted_email: true,
+    proposal_rejected_email: true,
+    new_message_email: true,
+    campaign_deadline_email: true,
+    campaign_status_email: true,
+    task_assigned_email: true,
+    task_deadline_email: true,
     marketing_email: false
   })
   const [originalSettings, setOriginalSettings] = useState<NotificationSettings | null>(null)
@@ -60,6 +89,14 @@ export default function NotificationSettingsPage() {
           connection_request_email: data.connection_request_email ?? true,
           request_approved_email: data.request_approved_email ?? true,
           request_rejected_email: data.request_rejected_email ?? true,
+          new_proposal_email: data.new_proposal_email ?? true,
+          proposal_accepted_email: data.proposal_accepted_email ?? true,
+          proposal_rejected_email: data.proposal_rejected_email ?? true,
+          new_message_email: data.new_message_email ?? true,
+          campaign_deadline_email: data.campaign_deadline_email ?? true,
+          campaign_status_email: data.campaign_status_email ?? true,
+          task_assigned_email: data.task_assigned_email ?? true,
+          task_deadline_email: data.task_deadline_email ?? true,
           marketing_email: data.marketing_email ?? false
         }
         setSettings(loadedSettings)
@@ -109,14 +146,22 @@ export default function NotificationSettingsPage() {
 
   const handleToggle = (key: keyof NotificationSettings) => {
     if (key === 'email_notifications') {
-      // 마스터 토글: 모든 이메일 알림 on/off
+      // 마스터 토글: 모든 이메일 알림 on/off (마케팅 제외)
       const newValue = !settings.email_notifications
       setSettings({
         ...settings,
         email_notifications: newValue,
         connection_request_email: newValue,
         request_approved_email: newValue,
-        request_rejected_email: newValue
+        request_rejected_email: newValue,
+        new_proposal_email: newValue,
+        proposal_accepted_email: newValue,
+        proposal_rejected_email: newValue,
+        new_message_email: newValue,
+        campaign_deadline_email: newValue,
+        campaign_status_email: newValue,
+        task_assigned_email: newValue,
+        task_deadline_email: newValue
       })
     } else {
       setSettings({
@@ -241,6 +286,195 @@ export default function NotificationSettingsPage() {
                   disabled={!settings.email_notifications}
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Proposal Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              제안서 알림
+            </CardTitle>
+            <CardDescription>
+              제안서 관련 이메일 알림을 설정하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="new-proposal" className="text-base">
+                  새 제안서 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  새로운 제안서가 접수되었을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="new-proposal"
+                checked={settings.new_proposal_email}
+                onCheckedChange={() => handleToggle('new_proposal_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="proposal-accepted" className="text-base">
+                  제안서 수락 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  제안서가 수락되었을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="proposal-accepted"
+                checked={settings.proposal_accepted_email}
+                onCheckedChange={() => handleToggle('proposal_accepted_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="proposal-rejected" className="text-base">
+                  제안서 거절 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  제안서가 거절되었을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="proposal-rejected"
+                checked={settings.proposal_rejected_email}
+                onCheckedChange={() => handleToggle('proposal_rejected_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Message Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              메시지 알림
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="new-message" className="text-base">
+                  새 메시지 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  새로운 메시지를 받았을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="new-message"
+                checked={settings.new_message_email}
+                onCheckedChange={() => handleToggle('new_message_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Campaign Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              캠페인 알림
+            </CardTitle>
+            <CardDescription>
+              캠페인 관련 이메일 알림을 설정하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="campaign-deadline" className="text-base">
+                  마감일 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  캠페인 마감일이 다가올 때 알림
+                </p>
+              </div>
+              <Switch
+                id="campaign-deadline"
+                checked={settings.campaign_deadline_email}
+                onCheckedChange={() => handleToggle('campaign_deadline_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="campaign-status" className="text-base">
+                  상태 변경 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  캠페인 상태가 변경되었을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="campaign-status"
+                checked={settings.campaign_status_email}
+                onCheckedChange={() => handleToggle('campaign_status_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Task Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListTodo className="w-5 h-5" />
+              태스크 알림
+            </CardTitle>
+            <CardDescription>
+              태스크 관련 이메일 알림을 설정하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="task-assigned" className="text-base">
+                  태스크 할당 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  새로운 태스크가 할당되었을 때 알림
+                </p>
+              </div>
+              <Switch
+                id="task-assigned"
+                checked={settings.task_assigned_email}
+                onCheckedChange={() => handleToggle('task_assigned_email')}
+                disabled={!settings.email_notifications}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="task-deadline" className="text-base">
+                  마감일 알림
+                </Label>
+                <p className="text-sm text-gray-500">
+                  태스크 마감일이 다가올 때 알림
+                </p>
+              </div>
+              <Switch
+                id="task-deadline"
+                checked={settings.task_deadline_email}
+                onCheckedChange={() => handleToggle('task_deadline_email')}
+                disabled={!settings.email_notifications}
+              />
             </div>
           </CardContent>
         </Card>

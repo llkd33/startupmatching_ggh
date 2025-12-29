@@ -22,6 +22,7 @@ import {
   GraduationCap,
   User
 } from 'lucide-react'
+import { BookmarkButton } from '@/components/ui/bookmark-button'
 import Link from 'next/link'
 
 interface ExpertProfile {
@@ -64,6 +65,7 @@ export default function ExpertDetailPage() {
   const [expert, setExpert] = useState<ExpertProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (params.id) {
@@ -81,6 +83,8 @@ export default function ExpertDetailPage() {
         router.push('/auth/login')
         return
       }
+
+      setUserId(user.id)
 
       // Get user role
       const { data: userData } = await supabase
@@ -218,10 +222,16 @@ export default function ExpertDetailPage() {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
-                        <Heart className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
+                      {/* Bookmark button for organizations */}
+                      {userId && userRole === 'organization' && (
+                        <BookmarkButton
+                          userId={userId}
+                          targetId={expert.id}
+                          targetType="expert"
+                          variant="ghost"
+                        />
+                      )}
+                      <Button variant="ghost" size="sm" className="min-h-[44px] min-w-[44px]">
                         <Share className="h-4 w-4" />
                       </Button>
                     </div>

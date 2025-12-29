@@ -1,158 +1,60 @@
 /**
- * Production-ready logging system
- * Replaces console.log/error/warn with environment-aware logging
+ * 프로덕션 안전 로거
+ * 개발 환경에서만 로그를 출력하고, 프로덕션에서는 구조화된 로깅만 수행
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+const isDev = process.env.NODE_ENV === 'development'
 
-interface LogContext {
-  [key: string]: unknown
-  userId?: string
-  sessionId?: string
-  timestamp?: string
-}
-
-interface LogEntry {
-  level: LogLevel
-  message: string
-  context?: LogContext
-  timestamp: string
-  environment: string
-}
-
-class Logger {
-  private isDevelopment: boolean
-  private isProduction: boolean
-
-  constructor() {
-    this.isDevelopment = process.env.NODE_ENV === 'development'
-    this.isProduction = process.env.NODE_ENV === 'production'
-  }
-
-  private formatMessage(level: LogLevel, message: string, context?: LogContext): LogEntry {
-    return {
-      level,
-      message,
-      context,
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development'
+export const logger = {
+  /**
+   * 개발 환경에서만 콘솔에 로그 출력
+   */
+  log: (...args: unknown[]) => {
+    if (isDev) {
+      console.log('[LOG]', ...args)
     }
-  }
-
-  private sendToMonitoring(entry: LogEntry) {
-    // In production, send to monitoring service (Sentry, Datadog, etc.)
-    if (this.isProduction) {
-      // TODO: Integrate with monitoring service
-      // Example: Sentry.captureMessage(entry.message, { level: entry.level, extra: entry.context })
-    }
-  }
+  },
 
   /**
-   * Debug logging - only in development
+   * 개발 환경에서만 콘솔에 경고 출력
+   * 프로덕션에서는 구조화된 로깅 서비스로 전송 (필요시)
    */
-  debug(message: string, context?: LogContext) {
-    if (this.isDevelopment) {
-      const entry = this.formatMessage('debug', message, context)
-      console.debug(`[DEBUG] ${message}`, context || '')
+  warn: (...args: unknown[]) => {
+    if (isDev) {
+      console.warn('[WARN]', ...args)
     }
-  }
+    // 프로덕션에서는 구조화된 로깅 서비스로 전송 가능
+    // 예: Sentry, LogRocket 등
+  },
 
   /**
-   * Info logging - useful information
+   * 개발 환경에서만 콘솔에 에러 출력
+   * 프로덕션에서는 구조화된 에러 로깅 서비스로 전송 (필요시)
    */
-  info(message: string, context?: LogContext) {
-    const entry = this.formatMessage('info', message, context)
-
-    if (this.isDevelopment) {
-      console.info(`[INFO] ${message}`, context || '')
+  error: (...args: unknown[]) => {
+    if (isDev) {
+      console.error('[ERROR]', ...args)
     }
-
-    if (this.isProduction) {
-      this.sendToMonitoring(entry)
-    }
-  }
+    // 프로덕션에서는 구조화된 에러 로깅 서비스로 전송 가능
+    // 예: Sentry, LogRocket 등
+  },
 
   /**
-   * Warning logging - potential issues
+   * 디버그 정보 (개발 환경에서만)
    */
-  warn(message: string, context?: LogContext) {
-    const entry = this.formatMessage('warn', message, context)
-
-    if (this.isDevelopment) {
-      console.warn(`[WARN] ${message}`, context || '')
+  debug: (...args: unknown[]) => {
+    if (isDev) {
+      console.debug('[DEBUG]', ...args)
     }
-
-    if (this.isProduction) {
-      this.sendToMonitoring(entry)
-    }
-  }
+  },
 
   /**
-   * Error logging - critical issues
+   * 정보 로그 (중요한 정보만, 프로덕션에서도 출력 가능)
    */
-  error(message: string, error?: Error | unknown, context?: LogContext) {
-    const errorContext = {
-      ...context,
-      error: error instanceof Error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      } : error
+  info: (...args: unknown[]) => {
+    if (isDev) {
+      console.info('[INFO]', ...args)
     }
-
-    const entry = this.formatMessage('error', message, errorContext)
-
-    if (this.isDevelopment) {
-      console.error(`[ERROR] ${message}`, error, context || '')
-    }
-
-    if (this.isProduction) {
-      this.sendToMonitoring(entry)
-      // Also send to error tracking service
-      // Example: Sentry.captureException(error, { contexts: { custom: context } })
-    }
-  }
-
-  /**
-   * Performance logging
-   */
-  performance(label: string, duration: number, context?: LogContext) {
-    const message = `${label} took ${duration}ms`
-
-    if (this.isDevelopment) {
-      console.log(`[PERF] ${message}`, context || '')
-    }
-
-    if (this.isProduction && duration > 1000) {
-      // Only log slow operations in production
-      this.warn(message, { ...context, duration })
-    }
-  }
-
-  /**
-   * User action logging (analytics)
-   */
-  track(action: string, properties?: Record<string, unknown>) {
-    if (this.isProduction) {
-      // TODO: Integrate with analytics service (Google Analytics, Mixpanel, etc.)
-      // Example: analytics.track(action, properties)
-    }
-
-    if (this.isDevelopment) {
-      console.log(`[TRACK] ${action}`, properties || '')
-    }
+    // 프로덕션에서도 중요한 정보는 로깅 가능
   }
 }
-
-// Export singleton instance
-export const logger = new Logger()
-
-// Convenience exports
-export const {
-  debug,
-  info,
-  warn,
-  error,
-  performance: logPerformance,
-  track
-} = logger

@@ -82,16 +82,22 @@ export function GlobalErrorProvider({
 
     recovery.handleError(error)
 
-    // Log to error reporting service
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Send to Sentry or other error reporting service
-      console.error('Global error reported:', {
-        error: error.message,
-        stack: error.stack,
-        context,
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-        url: window.location.href
+    // Log to Sentry error reporting service
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      import('@sentry/nextjs').then((Sentry) => {
+        Sentry.captureException(error, {
+          contexts: context ? { custom: context } : undefined,
+        })
+      }).catch(() => {
+        // Sentry not available
+        console.error('Global error reported:', {
+          error: error.message,
+          stack: error.stack,
+          context,
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          url: window.location.href
+        })
       })
     }
   }

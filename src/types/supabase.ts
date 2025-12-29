@@ -48,6 +48,7 @@ export interface Database {
           bio: string | null
           hourly_rate: number | null
           is_available: boolean
+          availability_schedule: Json | null
           rating: number
           total_projects: number
           created_at: string
@@ -66,6 +67,7 @@ export interface Database {
           bio?: string | null
           hourly_rate?: number | null
           is_available?: boolean
+          availability_schedule?: Json | null
           rating?: number
           total_projects?: number
           created_at?: string
@@ -84,6 +86,7 @@ export interface Database {
           bio?: string | null
           hourly_rate?: number | null
           is_available?: boolean
+          availability_schedule?: Json | null
           rating?: number
           total_projects?: number
           created_at?: string
@@ -259,6 +262,10 @@ export interface Database {
           content: string
           is_read: boolean
           created_at: string
+          message_type?: 'text' | 'image' | 'file'
+          file_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
         }
         Insert: {
           id?: string
@@ -268,6 +275,10 @@ export interface Database {
           content: string
           is_read?: boolean
           created_at?: string
+          message_type?: 'text' | 'image' | 'file'
+          file_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
         }
         Update: {
           id?: string
@@ -277,6 +288,10 @@ export interface Database {
           content?: string
           is_read?: boolean
           created_at?: string
+          message_type?: 'text' | 'image' | 'file'
+          file_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
         }
       }
       notifications: {
@@ -308,6 +323,29 @@ export interface Database {
           content?: string
           is_read?: boolean
           data?: Json | null
+          created_at?: string
+        }
+      }
+      bookmarks: {
+        Row: {
+          id: string
+          user_id: string
+          target_type: 'campaign' | 'expert' | 'organization'
+          target_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          target_type: 'campaign' | 'expert' | 'organization'
+          target_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          target_type?: 'campaign' | 'expert' | 'organization'
+          target_id?: string
           created_at?: string
         }
       }

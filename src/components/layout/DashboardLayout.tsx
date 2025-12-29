@@ -7,12 +7,12 @@ import { useAuth } from '@/components/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import NotificationBadge from '@/components/notifications/NotificationBadge'
 import { MobileBottomNav } from './MobileBottomNav'
-import { 
-  LayoutDashboard, 
-  Search, 
-  UserCircle, 
-  MessageSquare, 
-  FileText, 
+import {
+  LayoutDashboard,
+  Search,
+  UserCircle,
+  MessageSquare,
+  FileText,
   Settings,
   LogOut,
   Menu,
@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Calendar,
   FolderOpen,
-  CheckSquare
+  CheckSquare,
+  Bookmark
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -68,6 +69,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { icon: LayoutDashboard, label: '대시보드', href: '/dashboard' },
     { icon: Search, label: '캠페인 찾기', href: '/dashboard/campaigns/search' },
     { icon: FolderOpen, label: '내 제안서', href: '/dashboard/proposals' },
+    { icon: Bookmark, label: '북마크', href: '/dashboard/bookmarks' },
     { icon: CheckSquare, label: '업무관리', href: '/dashboard/tasks' },
     { icon: MessageSquare, label: '메시지', href: '/dashboard/messages' },
     { icon: UserCircle, label: '내 프로필', href: '/profile/expert/edit' },
@@ -80,6 +82,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { icon: PlusCircle, label: '캠페인 생성', href: '/dashboard/campaigns/create' },
     { icon: Users, label: '전문가 찾기', href: '/dashboard/experts' },
     { icon: FileText, label: '제안서 관리', href: '/dashboard/proposals' },
+    { icon: Bookmark, label: '북마크', href: '/dashboard/bookmarks' },
     { icon: CheckSquare, label: '업무관리', href: '/dashboard/tasks' },
     { icon: MessageSquare, label: '메시지', href: '/dashboard/messages' },
     { icon: TrendingUp, label: '분석', href: '/dashboard/analytics' },
