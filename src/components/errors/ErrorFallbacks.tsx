@@ -127,7 +127,7 @@ export function DatabaseErrorFallback({ error, resetErrorBoundary }: ErrorFallba
           </div>
           <CardTitle>Database Error</CardTitle>
           <CardDescription className="mt-2">
-            We're experiencing temporary database issues. Our team has been notified and is working on a fix.
+            We&apos;re experiencing temporary database issues. Our team has been notified and is working on a fix.
           </CardDescription>
         </CardHeader>
         
@@ -189,7 +189,7 @@ export function AuthErrorFallback({ error, resetErrorBoundary }: ErrorFallbackPr
         
         <CardContent>
           <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>You'll be redirected to the login page in a few seconds...</p>
+            <p>You&apos;ll be redirected to the login page in a few seconds...</p>
           </div>
         </CardContent>
         
@@ -285,7 +285,7 @@ export function NotFoundErrorFallback({ error, resetErrorBoundary }: ErrorFallba
           </div>
           <CardTitle>Content Not Found</CardTitle>
           <CardDescription className="mt-2">
-            The content you're looking for doesn't exist or has been moved.
+            The content you&apos;re looking for doesn&apos;t exist or has been moved.
           </CardDescription>
         </CardHeader>
         

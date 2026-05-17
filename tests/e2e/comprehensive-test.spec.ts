@@ -312,15 +312,11 @@ test.describe('Comprehensive Application Testing', () => {
           if (await link.isVisible()) {
             const href = await link.getAttribute('href')
             if (href && href.startsWith('/')) {
-              // Open in new tab to avoid navigation issues
-              const [newPage] = await Promise.all([
-                page.context().waitForEvent('page'),
-                link.click({ modifiers: ['Meta'] }) // Cmd+click
-              ])
-              
-              await newPage.waitForLoadState('networkidle')
-              expect(newPage.url()).toContain(href)
-              await newPage.close()
+              const response = await page.goto(href)
+              expect(response?.status()).toBeLessThan(400)
+              expect(page.url()).toContain(href)
+              await page.goto('/')
+              await page.waitForLoadState('networkidle')
             }
           }
         }

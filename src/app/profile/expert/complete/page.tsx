@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, db } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MultiStepWizard } from '@/components/ui/multi-step-wizard'
@@ -36,11 +36,34 @@ interface DetailedProfileData {
   introduction: string
 }
 
+interface ExpertProfileResponse {
+  user: {
+    id: string
+    email: string
+    role: string
+    phone: string | null
+  }
+  profile: {
+    id: string
+    user_id: string
+    name?: string | null
+    bio?: string | null
+    career_history?: DetailedProfileData['career'] | null
+    education?: DetailedProfileData['education'] | null
+    skills?: string[] | null
+    hashtags?: string[] | null
+    portfolio_url?: string | null
+    is_profile_complete?: boolean | null
+  }
+  fallbackName?: string
+}
+
 export default function SimplifiedExpertProfilePage() {
   const router = useRouter()
   const { success, error: showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [expertId, setExpertId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [savedStep, setSavedStep] = useState(0)
   
   const [quickProfileData, setQuickProfileData] = useState<QuickProfileData>({
@@ -63,76 +86,76 @@ export default function SimplifiedExpertProfilePage() {
     checkAuthAndLoadProfile()
   }, [])
 
-  const checkAuthAndLoadProfile = async () => {
+  const requestExpertProfile = async (
+    method: 'GET' | 'PATCH',
+    body?: Record<string, unknown>
+  ): Promise<ExpertProfileResponse> => {
     const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-
-    if (!user) {
+    if (!session) {
       router.push('/auth/login')
-      return
+      throw new Error('로그인이 필요합니다.')
     }
 
-    // Get or create expert profile
-    const { data: profile, error } = await supabase
-      .from('expert_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-    
-    if (error && error.code === 'PGRST116') {
-      // No profile found - create one
-      const { data: newProfile, error: createError } = await supabase
-        .from('expert_profiles')
-        .insert({
-          user_id: user.id,
-          name: user.email?.split('@')[0] || 'Expert',
-          is_profile_complete: false,
-        })
-        .select()
-        .single()
-      
-      if (createError) {
-        showError('프로필 생성 중 오류가 발생했습니다.')
+    const response = await fetch('/api/profile/expert', {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+
+    if (response.status === 401) {
+      router.push('/auth/login')
+      throw new Error('로그인이 필요합니다.')
+    }
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null)
+      throw new Error(errorBody?.error || '전문가 프로필을 불러오지 못했습니다.')
+    }
+
+    return response.json()
+  }
+
+  const checkAuthAndLoadProfile = async () => {
+    try {
+      const { user, profile, fallbackName } = await requestExpertProfile('GET')
+
+      if (profile?.is_profile_complete) {
+        router.push('/dashboard')
         return
       }
-      
-      setExpertId(newProfile?.id || null)
-      // 이름 자동 채움
-      setQuickProfileData(prev => ({
-        ...prev,
-        name: user.email?.split('@')[0] || ''
-      }))
-      return
-    }
 
-    if (profile?.is_profile_complete) {
-      router.push('/dashboard')
-      return
-    }
-
-    setExpertId(profile?.id || null)
+      setExpertId(profile?.id || null)
+      setUserId(user.id)
     
-    // Load existing profile data if available
-    if (profile) {
-      setQuickProfileData({
-        name: profile.name || user.email?.split('@')[0] || '',
-        phone: profile.phone || '',
-        bio: profile.introduction || profile.bio || '',
-        skills: profile.hashtags?.slice(0, 3) || []
-      })
+      // Load existing profile data if available
+      if (profile) {
+        const skills = profile.skills?.length ? profile.skills : profile.hashtags || []
 
-      setDetailedProfileData({
-        career: profile.career_history || [],
-        education: profile.education || [],
-        portfolio: profile.portfolio || '',
-        introduction: profile.introduction || ''
-      })
+        setQuickProfileData({
+          name: profile.name || fallbackName || user.email?.split('@')[0] || '',
+          phone: user.phone || '',
+          bio: profile.bio || '',
+          skills: skills.slice(0, 3)
+        })
+
+        setDetailedProfileData({
+          career: profile.career_history || [],
+          education: profile.education || [],
+          portfolio: profile.portfolio_url || '',
+          introduction: profile.bio || ''
+        })
       
-      // Load saved step from localStorage
-      const saved = localStorage.getItem(`expert-profile-step-${user.id}`)
-      if (saved) {
-        setSavedStep(parseInt(saved))
+        // Load saved step from localStorage
+        const saved = localStorage.getItem(`expert-profile-step-${user.id}`)
+        if (saved) {
+          setSavedStep(parseInt(saved))
+        }
       }
+    } catch (error: any) {
+      showError(error.message || '프로필을 불러오는 중 오류가 발생했습니다.')
     }
   }
 
@@ -147,27 +170,22 @@ export default function SimplifiedExpertProfilePage() {
   const saveProgress = async (currentStep: number) => {
     if (!expertId) return
     
-    const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
-    if (user) {
-      localStorage.setItem(`expert-profile-step-${user.id}`, currentStep.toString())
+    if (userId) {
+      localStorage.setItem(`expert-profile-step-${userId}`, currentStep.toString())
     }
     
     try {
-      const { error: updateError } = await supabase
-        .from('expert_profiles')
-        .update({
-          name: quickProfileData.name,
-          phone: quickProfileData.phone,
-          introduction: quickProfileData.bio,
-          hashtags: quickProfileData.skills,
-          career_history: detailedProfileData.career,
-          education: detailedProfileData.education,
-          portfolio: detailedProfileData.portfolio
-        })
-        .eq('id', expertId)
-
-      if (updateError) throw updateError
+      await requestExpertProfile('PATCH', {
+        name: quickProfileData.name,
+        phone: quickProfileData.phone,
+        bio: quickProfileData.bio,
+        skills: quickProfileData.skills,
+        career: detailedProfileData.career,
+        education: detailedProfileData.education,
+        portfolio: detailedProfileData.portfolio,
+        introduction: detailedProfileData.introduction,
+        complete: false
+      })
       success('진행상황이 저장되었습니다.')
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -185,42 +203,34 @@ export default function SimplifiedExpertProfilePage() {
     setLoading(true)
 
     try {
-      const updateData: any = {
+      const profilePayload: Record<string, unknown> = {
         name: quickProfileData.name,
         phone: quickProfileData.phone,
-        introduction: quickProfileData.bio,
-        hashtags: quickProfileData.skills,
-        is_profile_complete: skipDetails // 상세 정보를 건너뛰면 완성 처리
+        bio: quickProfileData.bio,
+        skills: quickProfileData.skills,
+        career: [],
+        education: [],
+        portfolio: '',
+        introduction: '',
+        complete: true
       }
 
       // 상세 정보 추가 (있는 경우)
       if (!skipDetails) {
-        updateData.career_history = detailedProfileData.career
-        updateData.education = detailedProfileData.education
-        updateData.portfolio = detailedProfileData.portfolio
-        if (detailedProfileData.introduction && detailedProfileData.introduction.length > quickProfileData.bio.length) {
-          updateData.introduction = detailedProfileData.introduction
-        }
-        updateData.is_profile_complete = true
+        profilePayload.career = detailedProfileData.career
+        profilePayload.education = detailedProfileData.education
+        profilePayload.portfolio = detailedProfileData.portfolio
+        profilePayload.introduction = detailedProfileData.introduction
       }
 
-      const { error: updateError } = await supabase
-        .from('expert_profiles')
-        .update(updateData)
-        .eq('id', expertId)
-
-      if (updateError) {
-        throw updateError
-      }
+      await requestExpertProfile('PATCH', profilePayload)
 
       // Generate auto hashtags (optional - can be done later)
       // 해시태그는 자동 생성되거나 수동으로 추가 가능
 
       // Clear saved step
-      const { data: { session } } = await supabase.auth.getSession()
-      const user = session?.user
-      if (user) {
-        localStorage.removeItem(`expert-profile-step-${user.id}`)
+      if (userId) {
+        localStorage.removeItem(`expert-profile-step-${userId}`)
       }
 
       success(skipDetails 
@@ -334,4 +344,3 @@ export default function SimplifiedExpertProfilePage() {
     </div>
   )
 }
-

@@ -36,7 +36,8 @@ export function FormField({
   ...inputProps
 }: FormFieldProps) {
   // Generate unique IDs for accessibility
-  const fieldId = id || React.useId()
+  const generatedId = React.useId()
+  const fieldId = id || generatedId
   const errorId = `${fieldId}-error`
   const successId = `${fieldId}-success`
   const descriptionId = `${fieldId}-description`
@@ -136,7 +137,8 @@ export function FormFieldTextarea({
   maxLength,
   ...textareaProps
 }: FormFieldTextareaProps) {
-  const fieldId = id || React.useId()
+  const generatedId = React.useId()
+  const fieldId = id || generatedId
   const errorId = `${fieldId}-error`
   const descriptionId = `${fieldId}-description`
 
@@ -228,7 +230,8 @@ export function FormFieldSelect({
   className,
   ...selectProps
 }: FormFieldSelectProps) {
-  const fieldId = id || React.useId()
+  const generatedId = React.useId()
+  const fieldId = id || generatedId
   const errorId = `${fieldId}-error`
   const descriptionId = `${fieldId}-description`
 

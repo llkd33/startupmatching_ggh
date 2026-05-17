@@ -25,6 +25,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useInputDialog } from '@/components/ui/input-dialog'
+import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from 'sonner'
 import { getErrorMessage, ERROR_MESSAGES, SUCCESS_MESSAGES } from '@/lib/error-messages'
 import { Pagination } from '@/components/ui/pagination'
@@ -717,138 +718,117 @@ const UserRow = memo(({
 }: UserRowProps) => {
   return (
     <tr className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {user.name || user.organization_name || '이름 없음'}
-                          </div>
-                            <div className="text-sm text-muted-foreground">{user.email || ''}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          {user.role && (
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
-                            user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.role === 'expert' ? '전문가' :
-                               user.role === 'organization' ? '기관' : 
-                               user.role === 'admin' ? '관리자' : '기타'}
-                          </span>
-                          )}
-                          {user.is_admin && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
-                              <Shield className="w-3 h-3 mr-1" />
-                              관리자
-                            </span>
-                          )}
-                          {!user.role && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                              미가입
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {user.role === 'organization' && (
-                          <button
-                            onClick={() => handleToggleVerified(user.id, user.is_verified || false, user.role)}
-                            className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
-                              user.is_verified
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {user.is_verified ? (
-                              <>
-                                <UserCheck className="w-3 h-3" />
-                                인증됨
-                              </>
-                            ) : (
-                              <>
-                                <UserX className="w-3 h-3" />
-                                미인증
-                              </>
-                            )}
-                          </button>
-                        )}
-                        {user.role === 'expert' && (
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            user.is_available === true
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.is_available === true ? '활동중' : '비활동'}
-                          </span>
-                        )}
-                        {!user.role && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {user.created_at ? new Date(user.created_at).toLocaleDateString('ko-KR') : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleUpdateEmail(user.id, user.email)}
-                            className="text-blue-600 hover:text-blue-900"
-                            aria-label="이메일 수정"
-                            title="이메일 수정"
-                          >
-                            <Mail className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleAdmin(user.id, user.is_admin)}
-                            className="text-gray-600 hover:text-gray-900"
-                            aria-label={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
-                            title={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
-                          >
-                            <Shield className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id, user.name || user.organization_name || user.email)}
-                            className="text-red-600 hover:text-red-900"
-                            aria-label="사용자 삭제"
-                            title="사용자 삭제"
-                          >
-                            <Trash2 className="w-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div>
+          <div className="text-sm font-medium text-gray-900">
+            {user.name || user.organization_name || '이름 없음'}
           </div>
+          <div className="text-sm text-muted-foreground">{user.email || ''}</div>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="flex items-center space-x-2">
+          {user.role && (
+            <span className={`px-2 py-1 text-xs rounded-full ${
+              user.role === 'expert' ? 'bg-blue-100 text-blue-800' :
+              user.role === 'organization' ? 'bg-purple-100 text-purple-800' :
+              'bg-gray-100 text-gray-800'
+            }`}>
+              {user.role === 'expert' ? '전문가' :
+                user.role === 'organization' ? '기관' :
+                user.role === 'admin' ? '관리자' : '기타'}
+            </span>
           )}
-
-          {/* 페이지네이션 */}
-          {!loading && totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-border">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={totalUsers}
-                pageSize={pageSize}
-                onPageChange={fetchUsers}
-                disabled={loading}
-              />
-            </div>
+          {user.is_admin && (
+            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 flex items-center">
+              <Shield className="w-3 h-3 mr-1" />
+              관리자
+            </span>
           )}
-        </CardContent>
-      </Card>
-    </div>
+          {!user.role && (
+            <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+              미가입
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        {user.role === 'organization' && (
+          <button
+            onClick={() => onToggleVerified(user.id, user.is_verified || false, user.role || '')}
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
+              user.is_verified
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {user.is_verified ? (
+              <>
+                <UserCheck className="w-3 h-3" />
+                인증됨
+              </>
+            ) : (
+              <>
+                <UserX className="w-3 h-3" />
+                미인증
+              </>
+            )}
+          </button>
+        )}
+        {user.role === 'expert' && (
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            user.is_available === true
+              ? 'bg-green-100 text-green-800'
+              : 'bg-gray-100 text-gray-800'
+          }`}>
+            {user.is_available === true ? '활동중' : '비활동'}
+          </span>
+        )}
+        {!user.role && (
+          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+            -
+          </span>
+        )}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+        {user.created_at ? new Date(user.created_at).toLocaleDateString('ko-KR') : '-'}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onUpdateEmail(user.id, user.email)}
+            className="text-blue-600 hover:text-blue-900"
+            aria-label="이메일 수정"
+            title="이메일 수정"
+          >
+            <Mail className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onToggleAdmin(user.id, user.is_admin)}
+            className="text-gray-600 hover:text-gray-900"
+            aria-label={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
+            title={user.is_admin ? '관리자 권한 해제' : '관리자 권한 부여'}
+          >
+            <Shield className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(user.id, user.name || user.organization_name || user.email)}
+            className="text-red-600 hover:text-red-900"
+            aria-label="사용자 삭제"
+            title="사용자 삭제"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </td>
+    </tr>
   )
-}
+})
+
+UserRow.displayName = 'UserRow'

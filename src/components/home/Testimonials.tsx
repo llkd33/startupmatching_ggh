@@ -35,7 +35,7 @@ export default function Testimonials() {
             ))}
           </div>
           <p className="text-lg text-center mb-6 italic">
-            "{testimonials[activeTestimonial].content}"
+            &quot;{testimonials[activeTestimonial].content}&quot;
           </p>
           <div className="text-center">
             <p className="font-semibold">{testimonials[activeTestimonial].name}</p>
@@ -56,4 +56,3 @@ export default function Testimonials() {
     </section>
   )
 }
-

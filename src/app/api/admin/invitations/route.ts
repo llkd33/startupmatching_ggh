@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       .map((inv: any) => inv.invited_by)
       .filter(Boolean))]
 
-    let usersMap = new Map()
+    const usersMap = new Map()
     if (invitedByIds.length > 0) {
       const { data: users } = await adminClient
         .from('users')
@@ -129,4 +129,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
-

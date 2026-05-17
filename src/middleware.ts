@@ -138,6 +138,57 @@ export async function middleware(request: NextRequest) {
     response.headers.set('x-is-admin', 'true');
   }
 
+  const isProtectedUserPath =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/settings') ||
+    pathname === '/profile/expert/complete' ||
+    pathname === '/profile/expert/edit' ||
+    pathname === '/profile/organization/complete';
+
+  if (isProtectedUserPath) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (!user || error) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/auth/login';
+        redirectUrl.searchParams.set('redirectedFrom', pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('cookie') &&
+        !errorMessage.includes('JSON') &&
+        !errorMessage.includes('base64') &&
+        !errorMessage.includes('parse') &&
+        !errorMessage.includes('Unexpected token')) {
+        log.error('User auth check error', error);
+      }
+
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/auth/login';
+      redirectUrl.searchParams.set('redirectedFrom', pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   // 일반 사용자 인증 확인은 필요한 경로에서만 수행 (예: /auth/login, /auth/signup)
   if (pathname.startsWith('/auth/login') || pathname.startsWith('/auth/signup')) {
     const supabase = createServerClient(
@@ -190,6 +241,11 @@ export const config = {
      * - /auth/login, /auth/signup: 로그인/회원가입 경로 (이미 로그인한 사용자 리다이렉트)
      */
     '/admin/:path*',
+    '/dashboard/:path*',
+    '/settings/:path*',
+    '/profile/expert/complete',
+    '/profile/expert/edit',
+    '/profile/organization/complete',
     '/auth/login',
     '/auth/signup',
   ],

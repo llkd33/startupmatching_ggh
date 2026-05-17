@@ -17,7 +17,7 @@ test.describe('Main Page Health Check', () => {
 
     // Check for the main heading
     const heading = page.locator('h1');
-    await expect(heading).toContainText('창업 성공을 위한');
+    await expect(heading).toContainText('필요한 전문가를');
 
     // Take a screenshot for visual verification
     await page.screenshot({ path: 'tests/e2e/screenshots/main-page.png' });

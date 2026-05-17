@@ -180,7 +180,7 @@ export default function CampaignCreate() {
                         전문가의 강의나 멘토링이 필요한 경우
                       </span>
                       <div className="mt-2 text-xs text-gray-400">
-                        예: "조달 영업 관련 전문가를 찾고 있어요"
+                        예: &quot;조달 영업 관련 전문가를 찾고 있어요&quot;
                       </div>
                     </div>
                     {formData.type === 'mentoring' && (
@@ -214,7 +214,7 @@ export default function CampaignCreate() {
                         스타트업과 투자자를 연결하고 싶은 경우
                       </span>
                       <div className="mt-2 text-xs text-gray-400">
-                        예: "보육중인 10개 기업의 투자자 매칭 요청"
+                        예: &quot;보육중인 10개 기업의 투자자 매칭 요청&quot;
                       </div>
                     </div>
                     {formData.type === 'investment' && (
@@ -248,7 +248,7 @@ export default function CampaignCreate() {
                         특정 서비스나 업무를 대행할 업체가 필요한 경우
                       </span>
                       <div className="mt-2 text-xs text-gray-400">
-                        예: "케이터링 및 영상 촬영 가능한 업체 찾아요"
+                        예: &quot;케이터링 및 영상 촬영 가능한 업체 찾아요&quot;
                       </div>
                     </div>
                     {formData.type === 'service' && (

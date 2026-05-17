@@ -19,7 +19,7 @@ export default async function AdminInvitationsPage() {
     ? [...new Set(invitations.map((inv: any) => inv.invited_by).filter(Boolean))]
     : []
 
-  let usersMap = new Map()
+  const usersMap = new Map()
   if (invitedByIds.length > 0) {
     const { data: users } = await supabase
       .from('users')
@@ -43,4 +43,3 @@ export default async function AdminInvitationsPage() {
     initialTotal={count || 0}
   />
 }
-

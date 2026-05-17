@@ -78,6 +78,7 @@
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "playwright": "^1.54.2",
+    "speckit-status": "^1.2.0",
     "tsx": "^4.20.3",
     "typescript": "^5"
   }

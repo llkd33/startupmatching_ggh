@@ -559,7 +559,7 @@ export default function EnhancedExpertSearch({
           총 <span className="font-semibold text-blue-600">{filteredExperts.length}명</span>의 전문가
           {filters.keywords && (
             <span className="ml-2">
-              '<span className="font-medium">{filters.keywords}</span>' 검색 결과
+              &apos;<span className="font-medium">{filters.keywords}</span>&apos; 검색 결과
             </span>
           )}
         </div>

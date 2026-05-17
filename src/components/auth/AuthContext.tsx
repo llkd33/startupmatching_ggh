@@ -216,16 +216,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data, error }
       }
 
-      // Ensure users table record exists
+      // Keep protected table writes on the server to avoid client-side RLS failures.
       if (data?.user) {
-        await browserSupabase
-          .from('users')
-          .upsert({
-            id: data.user.id,
-            email: data.user.email,
-            role,
-            phone: metadata?.phone ?? null,
-          }, { onConflict: 'id' })
+        if (data.session?.access_token) {
+          const response = await fetch('/api/auth/backfill-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({
+              role,
+              phone: metadata?.phone ?? null,
+            }),
+          })
+
+          if (!response.ok) {
+            const body = await response.json().catch(() => null)
+            handleSupabaseError(
+              new Error(body?.error || 'Failed to sync user record after sign up'),
+              false,
+              { context: 'sign_up_user_record_sync' }
+            )
+          }
+        }
 
         // Track signup event
         analytics.signup('email')

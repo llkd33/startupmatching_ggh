@@ -369,7 +369,7 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="text-gray-700 mb-6 leading-relaxed italic">
-                    "{testimonial.content}"
+                    &quot;{testimonial.content}&quot;
                   </p>
                   <div className="flex items-center">
                     <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-2xl mr-4">
@@ -474,20 +474,20 @@ export default function Home() {
             {/* Quick Links */}
             <div>
               <h4 className="font-bold text-white mb-6">서비스</h4>
-              <ul className="space-y-3 text-gray-300">
-                <li><Link href="/experts" className="hover:text-white transition-colors">전문가 찾기</Link></li>
-                <li><Link href="/campaigns" className="hover:text-white transition-colors">프로젝트 등록</Link></li>
-                <li><Link href="/about" className="hover:text-white transition-colors">플랫폼 소개</Link></li>
+              <ul className="space-y-1 text-gray-300">
+                <li><Link href="/experts" className="inline-flex min-h-11 items-center hover:text-white transition-colors">전문가 찾기</Link></li>
+                <li><Link href="/campaigns" className="inline-flex min-h-11 items-center hover:text-white transition-colors">프로젝트 등록</Link></li>
+                <li><Link href="/about" className="inline-flex min-h-11 items-center hover:text-white transition-colors">플랫폼 소개</Link></li>
               </ul>
             </div>
             
             {/* Company */}
             <div>
               <h4 className="font-bold text-white mb-6">회사</h4>
-              <ul className="space-y-3 text-gray-300">
-                <li><Link href="/about" className="hover:text-white transition-colors">회사소개</Link></li>
-                <li><Link href="/contact" className="hover:text-white transition-colors">문의하기</Link></li>
-                <li><Link href="/careers" className="hover:text-white transition-colors">채용안내</Link></li>
+              <ul className="space-y-1 text-gray-300">
+                <li><Link href="/about" className="inline-flex min-h-11 items-center hover:text-white transition-colors">회사소개</Link></li>
+                <li><Link href="/contact" className="inline-flex min-h-11 items-center hover:text-white transition-colors">문의하기</Link></li>
+                <li><Link href="/careers" className="inline-flex min-h-11 items-center hover:text-white transition-colors">채용안내</Link></li>
               </ul>
             </div>
           </div>
@@ -496,9 +496,9 @@ export default function Home() {
             <p className="text-gray-400 text-sm">
               &copy; 2024 StartupMatch. All rights reserved.
             </p>
-            <div className="flex space-x-6 mt-4 md:mt-0">
-              <Link href="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">이용약관</Link>
-              <Link href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">개인정보처리방침</Link>
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 md:mt-0">
+              <Link href="/terms" className="inline-flex min-h-11 items-center text-gray-400 hover:text-white text-sm transition-colors">이용약관</Link>
+              <Link href="/privacy" className="inline-flex min-h-11 items-center text-gray-400 hover:text-white text-sm transition-colors">개인정보처리방침</Link>
             </div>
           </div>
         </div>

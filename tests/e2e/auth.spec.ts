@@ -1,15 +1,11 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Authentication Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-  })
-
   test('should display login page', async ({ page }) => {
     await page.goto('/auth/login')
     
     // Check for login form elements - 실제 페이지의 텍스트 확인
-    await expect(page.locator('h1, h2, [role="heading"]').first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: '다시 만나서 반가워요!' })).toBeVisible()
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
     await expect(page.locator('button[type="submit"]')).toBeVisible()
@@ -26,14 +22,14 @@ test.describe('Authentication Flow', () => {
     await page.click('button[type="submit"]')
     
     // Check for error message
-    await expect(page.locator('text=/오류|에러|실패/i')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('이메일 또는 비밀번호가 올바르지 않습니다.')).toBeVisible()
   })
 
   test('should navigate to register page', async ({ page }) => {
     await page.goto('/auth/login')
     
     // Click register link
-    await page.click('text=/회원가입|가입/i')
+    await page.getByRole('link', { name: '전문가 가입' }).click()
     
     // Check if navigated to register page
     await expect(page).toHaveURL(/.*register/)
@@ -44,25 +40,26 @@ test.describe('Authentication Flow', () => {
     await page.goto('/auth/register')
     
     // Check for role selection
-    await expect(page.locator('text=/전문가|기관/i')).toBeVisible()
-    
-    // Check for form fields
-    await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '회원가입' })).toBeVisible()
+    const expertButton = page.getByRole('button', { name: '전문가 회원가입 페이지로 이동' })
+    await expect(expertButton).toBeVisible()
+    await expect(page.getByRole('button', { name: '조직 회원가입 페이지로 이동' })).toBeVisible()
+    await expertButton.click()
+    await expect(page).toHaveURL(/\/auth\/register\/expert/)
   })
 
   test('should validate email format', async ({ page }) => {
-    await page.goto('/auth/register')
+    await page.goto('/auth/register/expert')
     
     // Enter invalid email
-    await page.fill('input[type="email"]', 'invalidemail')
-    await page.fill('input[type="password"]', 'ValidPassword123!')
+    const emailField = page.locator('input[type="email"]')
+    await emailField.fill('invalidemail')
     
     // Try to submit
     await page.click('button[type="submit"]')
     
-    // Check for validation error
-    await expect(page.locator('text=/이메일|email/i')).toBeVisible()
+    // Browser-native validation should block malformed email submission.
+    await expect(emailField).not.toHaveJSProperty('validationMessage', '')
   })
 })
 
@@ -72,35 +69,30 @@ test.describe('Navigation', () => {
     
     // Check for hero section
     await expect(page.locator('h1')).toBeVisible()
-    await expect(page.locator('text=/스타트업|전문가/i')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /필요한 전문가를/ })).toBeVisible()
   })
 
-  test('should open mobile menu', async ({ page }) => {
+  test('should show primary CTAs on mobile', async ({ page }) => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/')
     
-    // Click mobile menu button - DashboardLayout의 메뉴 버튼 찾기
-    await page.click('button[aria-label="메뉴 토글"]')
-    
-    // Check if menu is visible
-    await expect(page.locator('text=이용방법')).toBeVisible()
-    await expect(page.locator('text=전문가 찾기')).toBeVisible()
-    await expect(page.locator('text=회사소개')).toBeVisible()
+    await expect(page.getByRole('link', { name: '기관으로 시작하기' }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: '전문가로 시작하기' }).first()).toBeVisible()
   })
 
   test('should have working navigation links', async ({ page }) => {
     await page.goto('/')
     
-    // Check navigation links exist
+    // Check current public links exposed on the homepage footer.
     const links = [
-      { text: '이용방법', href: '#how-it-works' },
-      { text: '전문가 찾기', href: '#features' },
-      { text: '회사소개', href: '#cta' }
+      { text: '전문가 찾기', href: '/experts' },
+      { text: '프로젝트 등록', href: '/campaigns' },
+      { text: '회사소개', href: '/about' }
     ]
     
     for (const link of links) {
-      const element = page.locator(`a:has-text("${link.text}")`)
+      const element = page.locator('footer').getByRole('link', { name: link.text }).first()
       await expect(element).toBeVisible()
       await expect(element).toHaveAttribute('href', link.href)
     }
@@ -146,10 +138,10 @@ test.describe('Responsive Design', () => {
       await menuButton.click()
     }
     
-    // Check button sizes (should be at least 44x44px for touch)
-    const buttons = await page.locator('button').all()
-    for (const button of buttons.slice(0, 3)) { // Check first 3 buttons
-      const box = await button.boundingBox()
+    // Check primary app touch targets rather than dev-overlay controls.
+    const touchTargets = await page.locator('a[href^="/auth/login"]').all()
+    for (const target of touchTargets.slice(0, 2)) {
+      const box = await target.boundingBox()
       if (box) {
         expect(box.width).toBeGreaterThanOrEqual(44)
         expect(box.height).toBeGreaterThanOrEqual(44)

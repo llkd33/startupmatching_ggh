@@ -5,6 +5,36 @@ import { handleSupabaseError } from './error-handler'
 // Re-export browserSupabase as supabase for backward compatibility
 export const supabase = browserSupabase
 
+async function syncUserRecordAfterSignUp(
+  accessToken: string | undefined,
+  role: 'expert' | 'organization',
+  phone?: string
+) {
+  if (!accessToken || typeof window === 'undefined') return
+
+  try {
+    const response = await fetch('/api/auth/backfill-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ role, phone }),
+    })
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      handleSupabaseError(
+        new Error(body?.error || 'Failed to sync user record after sign up'),
+        false,
+        { context: 'sync_user_record_after_signup' }
+      )
+    }
+  } catch (syncError) {
+    handleSupabaseError(syncError as Error, false, { context: 'sync_user_record_after_signup_catch' })
+  }
+}
+
 // Helper functions for common operations
 export const auth = {
   // Sign up with role
@@ -20,59 +50,9 @@ export const auth = {
       },
     })
 
-    // Trigger가 작동하지 않을 경우를 대비해 직접 users 테이블에 추가
+    // Keep profile/user table writes on the server so RLS does not leak 403s into signup.
     if (data?.user && !error) {
-      try {
-        // users 테이블에 레코드 생성/업데이트
-        const { error: userError } = await supabase
-          .from('users')
-          .upsert({
-            id: data.user.id,
-            email: data.user.email,
-            role: role,
-            phone: metadata?.phone
-          }, { onConflict: 'id' })
-        
-        if (userError && !userError.message.includes('duplicate')) {
-          handleSupabaseError(userError, false, { context: 'create_user_record' })
-        }
-      } catch (userErr) {
-        handleSupabaseError(userErr as Error, false, { context: 'create_user_record_catch' })
-      }
-      
-      // 프로필 테이블에도 레코드 생성 (스키마 컬럼에 맞게 최소 필드만 입력)
-      try {
-        if (role === 'expert') {
-          const { error: profileError } = await supabase
-            .from('expert_profiles')
-            .upsert({
-              user_id: data.user.id,
-              name: metadata?.name || '',
-              is_profile_complete: false
-            }, { onConflict: 'user_id' })
-          
-          if (profileError && !profileError.message.includes('duplicate')) {
-            handleSupabaseError(profileError, false, { context: 'create_expert_profile' })
-          }
-        } else if (role === 'organization') {
-          const { error: profileError } = await supabase
-            .from('organization_profiles')
-            .upsert({
-              user_id: data.user.id,
-              organization_name: metadata?.organizationName || '',
-              business_number: metadata?.businessNumber,
-              representative_name: metadata?.representativeName || '',
-              contact_position: metadata?.contactPosition,
-              is_profile_complete: false
-            }, { onConflict: 'user_id' })
-
-          if (profileError && !profileError.message.includes('duplicate')) {
-            handleSupabaseError(profileError, false, { context: 'create_organization_profile' })
-          }
-        }
-      } catch (profileErr) {
-        handleSupabaseError(profileErr as Error, false, { context: 'create_profile_catch' })
-      }
+      await syncUserRecordAfterSignUp(data.session?.access_token, role, metadata?.phone)
     }
 
     return { data, error }
