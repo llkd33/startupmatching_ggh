@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { 
@@ -31,7 +31,6 @@ interface AnalyticsStats {
 
 export default function DashboardAnalyticsPage() {
   const router = useRouter()
-  const supabase = createClientComponentClient()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<AnalyticsStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +90,8 @@ export default function DashboardAnalyticsPage() {
         .from('organization_profiles')
         .select('id')
         .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
 
       if (orgError || !orgProfile) {
@@ -210,6 +211,8 @@ export default function DashboardAnalyticsPage() {
         .from('expert_profiles')
         .select('id')
         .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
 
       if (expertError || !expertProfile) {
@@ -497,4 +500,3 @@ export default function DashboardAnalyticsPage() {
     </div>
   )
 }
-

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import { 
   Users, 
   Briefcase, 
@@ -29,7 +29,6 @@ export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30');
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchAnalytics();

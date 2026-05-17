@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '@/lib/supabase';
 import { Search, Eye, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';

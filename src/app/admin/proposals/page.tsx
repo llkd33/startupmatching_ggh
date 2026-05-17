@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, memo } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '@/lib/supabase';
 import { Search, FileText, DollarSign, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

@@ -130,6 +130,8 @@ export default function FastDashboardPage() {
           .from('expert_profiles')
           .select('is_profile_complete')
           .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
         
         setProfileComplete(profile?.is_profile_complete ?? false)
@@ -158,6 +160,8 @@ export default function FastDashboardPage() {
         .from('expert_profiles')
         .select('id, skills, service_regions, hashtags')
         .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
       
       if (expertProfileData) {
@@ -287,6 +291,8 @@ export default function FastDashboardPage() {
           .from('expert_profiles')
           .select('id')
           .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle()
         
         if (expertProfile) {

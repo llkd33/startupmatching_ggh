@@ -48,10 +48,13 @@ interface ExpertProfileResponse {
     user_id: string
     name?: string | null
     bio?: string | null
+    introduction?: string | null
     career_history?: DetailedProfileData['career'] | null
     education?: DetailedProfileData['education'] | null
     skills?: string[] | null
     hashtags?: string[] | null
+    phone?: string | null
+    portfolio?: string | null
     portfolio_url?: string | null
     is_profile_complete?: boolean | null
   }
@@ -62,7 +65,6 @@ export default function SimplifiedExpertProfilePage() {
   const router = useRouter()
   const { success, error: showError } = useToast()
   const [loading, setLoading] = useState(false)
-  const [expertId, setExpertId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [savedStep, setSavedStep] = useState(0)
   
@@ -127,7 +129,6 @@ export default function SimplifiedExpertProfilePage() {
         return
       }
 
-      setExpertId(profile?.id || null)
       setUserId(user.id)
     
       // Load existing profile data if available
@@ -136,16 +137,16 @@ export default function SimplifiedExpertProfilePage() {
 
         setQuickProfileData({
           name: profile.name || fallbackName || user.email?.split('@')[0] || '',
-          phone: user.phone || '',
-          bio: profile.bio || '',
+          phone: user.phone || profile.phone || '',
+          bio: profile.introduction || profile.bio || '',
           skills: skills.slice(0, 3)
         })
 
         setDetailedProfileData({
           career: profile.career_history || [],
           education: profile.education || [],
-          portfolio: profile.portfolio_url || '',
-          introduction: profile.bio || ''
+          portfolio: profile.portfolio || profile.portfolio_url || '',
+          introduction: profile.introduction || profile.bio || ''
         })
       
         // Load saved step from localStorage
@@ -168,8 +169,6 @@ export default function SimplifiedExpertProfilePage() {
   }
 
   const saveProgress = async (currentStep: number) => {
-    if (!expertId) return
-    
     if (userId) {
       localStorage.setItem(`expert-profile-step-${userId}`, currentStep.toString())
     }
@@ -195,11 +194,6 @@ export default function SimplifiedExpertProfilePage() {
   }
 
   const completeProfile = async (skipDetails = false) => {
-    if (!expertId) {
-      showError('전문가 프로필을 찾을 수 없습니다.')
-      return
-    }
-
     setLoading(true)
 
     try {
@@ -208,10 +202,10 @@ export default function SimplifiedExpertProfilePage() {
         phone: quickProfileData.phone,
         bio: quickProfileData.bio,
         skills: quickProfileData.skills,
-        career: [],
-        education: [],
-        portfolio: '',
-        introduction: '',
+        career: detailedProfileData.career,
+        education: detailedProfileData.education,
+        portfolio: detailedProfileData.portfolio,
+        introduction: detailedProfileData.introduction,
         complete: true
       }
 
@@ -252,7 +246,7 @@ export default function SimplifiedExpertProfilePage() {
       errors.name = '이름을 입력해주세요 (최소 2자)'
     }
     
-    if (!quickProfileData.phone || !/^01[0-9]-?[0-9]{4}-?[0-9]{4}$/.test(quickProfileData.phone)) {
+    if (!quickProfileData.phone || !/^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/.test(quickProfileData.phone)) {
       errors.phone = '올바른 전화번호를 입력해주세요 (예: 010-1234-5678)'
     }
     
