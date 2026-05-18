@@ -5,6 +5,15 @@ import { handleSupabaseError } from './error-handler'
 // Re-export browserSupabase as supabase for backward compatibility
 export const supabase = browserSupabase
 
+const isAuthSessionMissingError = (error: unknown) => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error as { name?: unknown }).name === 'AuthSessionMissingError'
+  )
+}
+
 async function syncUserRecordAfterSignUp(
   accessToken: string | undefined,
   role: 'expert' | 'organization',
@@ -74,14 +83,31 @@ export const auth = {
   // Get current user
   async getUser() {
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        if (!isAuthSessionMissingError(sessionError)) {
+          console.error('Error getting session:', sessionError)
+        }
+        return null
+      }
+
+      if (!session) {
+        return null
+      }
+
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) {
-        console.error('Error getting user:', error)
+        if (!isAuthSessionMissingError(error)) {
+          console.error('Error getting user:', error)
+        }
         return null
       }
       return user
     } catch (err) {
-      console.error('Exception getting user:', err)
+      if (!isAuthSessionMissingError(err)) {
+        console.error('Exception getting user:', err)
+      }
       return null
     }
   },
