@@ -419,7 +419,7 @@ export default function FastDashboardPage() {
           </p>
         </div>
         <Button asChild>
-          <Link href={userRole === 'expert' ? '/dashboard/campaigns' : '/dashboard/campaigns/new'}>
+          <Link href={userRole === 'expert' ? '/dashboard/campaigns' : '/dashboard/campaigns/create'}>
             <PlusCircle className="mr-2 h-4 w-4" />
             {userRole === 'expert' ? '캠페인 찾기' : '새 캠페인'}
           </Link>

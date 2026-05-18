@@ -10,6 +10,17 @@ import { useToast } from '@/components/ui/toast-provider'
 import { QuickProfileStep } from '@/components/expert/QuickProfileStep'
 import { DetailedProfileStep } from '@/components/expert/DetailedProfileStep'
 
+function getRedirectPath() {
+  if (typeof window === 'undefined') return '/dashboard'
+
+  const redirect = new URLSearchParams(window.location.search).get('redirect')
+  if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//')) {
+    return '/dashboard'
+  }
+
+  return redirect
+}
+
 interface QuickProfileData {
   name: string
   phone: string
@@ -125,7 +136,7 @@ export default function SimplifiedExpertProfilePage() {
       const { user, profile, fallbackName } = await requestExpertProfile('GET')
 
       if (profile?.is_profile_complete) {
-        router.push('/dashboard')
+        router.push(getRedirectPath())
         return
       }
 
@@ -231,7 +242,7 @@ export default function SimplifiedExpertProfilePage() {
         ? '프로필이 저장되었습니다! 나중에 상세 정보를 추가할 수 있습니다.'
         : '프로필이 성공적으로 완성되었습니다!'
       )
-      router.push('/dashboard')
+      router.push(getRedirectPath())
     } catch (error: any) {
       showError(`프로필 업데이트 중 오류가 발생했습니다: ${error.message}`)
     } finally {

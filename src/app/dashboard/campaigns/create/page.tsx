@@ -7,16 +7,22 @@ import { supabase } from '@/lib/supabase'
 import CampaignForm from '@/components/campaign/CampaignForm'
 import { Button } from '@/components/ui/button'
 
+type OrganizationProfileResponse = {
+  profile?: {
+    id: string
+    is_profile_complete?: boolean | null
+  }
+}
+
 export default function CreateCampaignPage() {
   const { user, loading, isOrganization } = useAuth()
   const router = useRouter()
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [profileComplete, setProfileComplete] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
-  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     if (!loading) {
-      setAuthChecked(true)
       if (!user || !isOrganization) {
         console.log('Auth check failed - redirecting to login', { user, isOrganization })
         router.push('/auth/login')
@@ -32,17 +38,36 @@ export default function CreateCampaignPage() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('organization_profiles')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle()
+        const { data: { session } } = await supabase.auth.getSession()
 
-        if (error) {
-          console.error('Failed to load organization profile:', error)
+        if (!session) {
+          router.push('/auth/login')
+          return
         }
 
-        setOrganizationId(data?.id || null)
+        const response = await fetch('/api/profile/organization', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        })
+
+        if (response.status === 401) {
+          router.push('/auth/login')
+          return
+        }
+
+        if (response.status === 403) {
+          router.push('/dashboard')
+          return
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to load organization profile')
+        }
+
+        const data = await response.json() as OrganizationProfileResponse
+        setOrganizationId(data.profile?.id || null)
+        setProfileComplete(data.profile?.is_profile_complete === true)
       } catch (err) {
         console.error('Error loading organization profile:', err)
       } finally {
@@ -53,7 +78,7 @@ export default function CreateCampaignPage() {
     if (user && isOrganization) {
       loadOrganizationProfile()
     }
-  }, [user, isOrganization])
+  }, [user, isOrganization, router])
 
   if (loading || loadingProfile) {
     return (
@@ -70,7 +95,7 @@ export default function CreateCampaignPage() {
     return null
   }
 
-  if (!organizationId) {
+  if (!organizationId || !profileComplete) {
     return (
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
@@ -81,7 +106,7 @@ export default function CreateCampaignPage() {
             <p className="text-yellow-800 mb-4">
               캠페인을 생성하려면 먼저 기관 프로필을 완성해주세요.
             </p>
-            <Button onClick={() => router.push('/dashboard/organization')}>
+            <Button onClick={() => router.push('/profile/organization/complete?redirect=/dashboard/campaigns/create')}>
               프로필 완성하기 →
             </Button>
           </div>

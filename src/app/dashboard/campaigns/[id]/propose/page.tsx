@@ -46,6 +46,14 @@ interface Campaign {
   }
 }
 
+interface ExpertProfileResponse {
+  profile?: {
+    id: string
+    is_profile_complete?: boolean | null
+    [key: string]: unknown
+  }
+}
+
 export default function ProposePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -103,34 +111,41 @@ export default function ProposePage() {
   }, [id])
 
   const checkAuthAndLoadData = async (campaignId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user
     
-    if (!user) {
+    if (!session || !user) {
       router.push('/auth/login')
       return
     }
 
-    // Check if user is an expert
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Get expert profile
+    const profileResponse = await fetch('/api/profile/expert', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
 
-    if (userData?.role !== 'expert') {
+    if (profileResponse.status === 401) {
+      router.push('/auth/login')
+      return
+    }
+
+    if (profileResponse.status === 403) {
       router.push('/dashboard')
       return
     }
 
-    // Get expert profile
-    const { data: expertData } = await supabase
-      .from('expert_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
+    if (!profileResponse.ok) {
+      setError('전문가 프로필을 불러올 수 없습니다.')
+      setLoading(false)
+      return
+    }
 
-    if (!expertData) {
-      router.push('/profile/expert/complete')
+    const { profile: expertData } = await profileResponse.json() as ExpertProfileResponse
+
+    if (!expertData?.is_profile_complete) {
+      router.push(`/profile/expert/complete?redirect=${encodeURIComponent(`/dashboard/campaigns/${campaignId}/propose`)}`)
       return
     }
 

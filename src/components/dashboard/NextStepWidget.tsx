@@ -156,7 +156,7 @@ export function getNextStepForUser(
         description: '캠페인을 만들면 전문가들이 제안서를 보낼 수 있어요',
         action: {
           label: '캠페인 만들기',
-          href: '/dashboard/campaigns/new'
+          href: '/dashboard/campaigns/create'
         },
         icon: <ArrowRight className="h-5 w-5 text-blue-600" />
       }
@@ -178,4 +178,3 @@ export function getNextStepForUser(
 
   return null
 }
-

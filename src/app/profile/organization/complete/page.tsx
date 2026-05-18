@@ -18,6 +18,17 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+function getRedirectPath() {
+  if (typeof window === 'undefined') return '/dashboard'
+
+  const redirect = new URLSearchParams(window.location.search).get('redirect')
+  if (!redirect || !redirect.startsWith('/') || redirect.startsWith('//')) {
+    return '/dashboard'
+  }
+
+  return redirect
+}
+
 const industries = [
   'IT/소프트웨어',
   '제조업',
@@ -139,7 +150,7 @@ export default function CompleteOrganizationProfilePage() {
       const { profile } = await requestOrganizationProfile('GET')
 
       if (profile?.is_profile_complete) {
-        router.push('/dashboard')
+        router.push(getRedirectPath())
         return
       }
 
@@ -176,7 +187,7 @@ export default function CompleteOrganizationProfilePage() {
 
       // 성공 시 대시보드로 이동
       success('프로필이 성공적으로 저장되었습니다!')
-      router.push('/dashboard')
+      router.push(getRedirectPath())
     } catch (error) {
       const errorMessage = getErrorMessage(error, '프로필 저장 중 오류가 발생했습니다')
       setError('root', {
