@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { organizationProfileSchema, type OrganizationProfileInput } from '@/lib/validations/auth'
-import { supabase, db } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SimpleProgressBar } from '@/components/ui/progress-steps'
 import { useToast } from '@/components/ui/toast-provider'
 import { HelpCircle } from 'lucide-react'
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
 
 const industries = [
   'IT/소프트웨어',
@@ -36,11 +40,32 @@ const employeeCounts = [
   '1000명 이상'
 ]
 
+type OrganizationProfileResponse = {
+  user?: {
+    id: string
+    email: string
+    role: string
+    phone: string | null
+  }
+  profile?: {
+    id: string
+    user_id: string
+    organization_name?: string | null
+    business_number?: string | null
+    representative_name?: string | null
+    contact_position?: string | null
+    industry?: string | null
+    employee_count?: string | null
+    website?: string | null
+    description?: string | null
+    is_profile_complete?: boolean | null
+  }
+}
+
 export default function CompleteOrganizationProfilePage() {
   const router = useRouter()
   const { success, error: showError } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
   const [completedFields, setCompletedFields] = useState(0)
 
   const {
@@ -76,77 +101,84 @@ export default function CompleteOrganizationProfilePage() {
     setCompletedFields(completed)
   }, [watchedFields])
 
-  const checkAuthAndLoadProfile = async () => {
+  const requestOrganizationProfile = async (
+    method: 'GET' | 'PATCH',
+    body?: Record<string, unknown>
+  ): Promise<OrganizationProfileResponse> => {
     const { data: { session } } = await supabase.auth.getSession()
-    const user = session?.user
 
-    if (!user) {
+    if (!session) {
       router.push('/auth/login')
-      return
+      throw new Error('로그인이 필요합니다.')
     }
 
-    setUserId(user.id)
+    const response = await fetch('/api/profile/organization', {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    })
 
-    // 기존 프로필 데이터 로드 (있는 경우)
-    const { data: profile } = await supabase
-      .from('organization_profiles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single()
-
-    if (profile?.is_profile_complete) {
-      router.push('/dashboard')
-      return
+    if (response.status === 401) {
+      router.push('/auth/login')
+      throw new Error('로그인이 필요합니다.')
     }
 
-    if (profile) {
-      setValue('organizationName', profile.organization_name || '')
-      setValue('businessNumber', profile.business_number || '')
-      setValue('representativeName', profile.representative_name || '')
-      setValue('contactPosition', profile.contact_position || '')
-      setValue('industry', profile.industry || '')
-      setValue('employeeCount', profile.employee_count || '')
-      setValue('website', profile.website || '')
-      setValue('description', profile.description || '')
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null)
+      throw new Error(errorBody?.error || '조직 프로필을 불러오지 못했습니다.')
+    }
+
+    return response.json()
+  }
+
+  const checkAuthAndLoadProfile = async () => {
+    try {
+      const { profile } = await requestOrganizationProfile('GET')
+
+      if (profile?.is_profile_complete) {
+        router.push('/dashboard')
+        return
+      }
+
+      if (profile) {
+        setValue('organizationName', profile.organization_name || '')
+        setValue('businessNumber', profile.business_number || '')
+        setValue('representativeName', profile.representative_name || '')
+        setValue('contactPosition', profile.contact_position || '')
+        setValue('industry', profile.industry || '')
+        setValue('employeeCount', profile.employee_count || '')
+        setValue('website', profile.website || '')
+        setValue('description', profile.description || '')
+      }
+    } catch (error) {
+      showError(getErrorMessage(error, '조직 프로필을 불러오는 중 오류가 발생했습니다.'))
     }
   }
 
   const onSubmit = async (data: OrganizationProfileInput) => {
-    if (!userId) return
-
     setIsLoading(true)
 
     try {
-      // 프로필 업데이트 또는 생성
-      const { error: profileError } = await supabase
-        .from('organization_profiles')
-        .upsert({
-          user_id: userId,
-          organization_name: data.organizationName,
-          business_number: data.businessNumber || null,
-          representative_name: data.representativeName,
-          contact_position: data.contactPosition || null,
-          industry: data.industry,
-          employee_count: data.employeeCount,
-          website: data.website || null,
-          description: data.description || null,
-          is_profile_complete: true,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' })
-
-      if (profileError) {
-        throw profileError
-      }
+      await requestOrganizationProfile('PATCH', {
+        organizationName: data.organizationName,
+        businessNumber: data.businessNumber,
+        representativeName: data.representativeName,
+        contactPosition: data.contactPosition,
+        industry: data.industry,
+        employeeCount: data.employeeCount,
+        website: data.website,
+        description: data.description,
+        complete: true,
+      })
 
       // 성공 시 대시보드로 이동
       success('프로필이 성공적으로 저장되었습니다!')
-      if (typeof window !== 'undefined' && window.history.length > 1) {
-        router.back()
-      } else {
-        router.push('/dashboard')
-      }
-    } catch (error: any) {
-      const errorMessage = error.message || '프로필 저장 중 오류가 발생했습니다'
+      router.push('/dashboard')
+    } catch (error) {
+      const errorMessage = getErrorMessage(error, '프로필 저장 중 오류가 발생했습니다')
       setError('root', {
         message: errorMessage
       })
