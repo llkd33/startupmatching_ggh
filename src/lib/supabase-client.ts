@@ -4,6 +4,7 @@ import { Database } from '@/types/supabase'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey)
 
 // Client-side Supabase client - cookie-based for SSR compatibility
 export function createBrowserSupabaseClient() {
@@ -110,23 +111,25 @@ let client: SupabaseBrowserClient
 
 if (typeof window !== 'undefined') {
   // Client-side: 환경 변수 확인 후 클라이언트 생성
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!hasSupabaseConfig) {
     console.error('Missing Supabase environment variables:', {
       url: supabaseUrl ? 'set' : 'missing',
       key: supabaseAnonKey ? 'set' : 'missing'
     })
-    // 개발 환경에서는 경고만, 프로덕션에서는 에러
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Missing Supabase environment variables')
-    }
   }
   
   if (!globalForSupabase.__browserSupabase) {
-    try {
-      globalForSupabase.__browserSupabase = createBrowserSupabaseClient()
-    } catch (error) {
-      console.error('Failed to create Supabase client:', error)
-      // Fallback: placeholder 클라이언트 생성 (에러 방지)
+    if (hasSupabaseConfig) {
+      try {
+        globalForSupabase.__browserSupabase = createBrowserSupabaseClient()
+      } catch (error) {
+        console.error('Failed to create Supabase client:', error)
+        // Fallback: placeholder 클라이언트 생성 (에러 방지)
+        globalForSupabase.__browserSupabase = createClient<Database>(buildUrl, buildKey, {
+          auth: { persistSession: false }
+        })
+      }
+    } else {
       globalForSupabase.__browserSupabase = createClient<Database>(buildUrl, buildKey, {
         auth: { persistSession: false }
       })
