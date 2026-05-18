@@ -446,7 +446,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit((data) => onSubmit(data, false))}>
+          <form onSubmit={(event) => event.preventDefault()}>
             <MultiStepWizard
               steps={wizardSteps}
               onComplete={async () => {
@@ -472,9 +472,11 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
               showProgressBar={true}
               allowNavigation={true}
               allowSkip={false}
+              completeLabel={initialData?.id ? '수정 완료' : '캠페인 게시'}
+              completeLoadingText={initialData?.id ? '수정 중...' : '게시 중...'}
             />
 
-            {/* 폼 액션 버튼 (마지막 단계에서만 표시) */}
+            {/* 보조 액션 */}
             <div className="mt-8 pt-6 border-t flex justify-end space-x-3">
           <Button
             type="button"
@@ -503,14 +505,6 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
             className="min-h-[44px]"
           >
             임시 저장
-          </Button>
-          <Button
-            type="submit"
-            disabled={isSubmitting || loading}
-            isLoading={isSubmitting || loading}
-            className="min-h-[44px]"
-          >
-            {isSubmitting || loading ? '저장 중...' : '캠페인 게시'}
           </Button>
         </div>
       </form>

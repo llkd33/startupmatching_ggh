@@ -24,6 +24,9 @@ interface MultiStepWizardProps {
   showProgressBar?: boolean
   allowNavigation?: boolean
   allowSkip?: boolean // 건너뛰기 허용 여부
+  completeLabel?: string
+  completeLoadingText?: string
+  nextLabel?: string
   className?: string
 }
 
@@ -36,6 +39,9 @@ export function MultiStepWizard({
   showProgressBar = true,
   allowNavigation = true,
   allowSkip = false,
+  completeLabel = '완료',
+  completeLoadingText = '완료 중...',
+  nextLabel = '다음 단계',
   className
 }: MultiStepWizardProps) {
   const [currentStep, setCurrentStep] = useState(initialStep)
@@ -201,17 +207,17 @@ export function MultiStepWizard({
             type="button"
             onClick={handleNext}
             isLoading={isLoading}
-            loadingText={isLastStep ? "완료 중..." : "처리 중..."}
+            loadingText={isLastStep ? completeLoadingText : "처리 중..."}
             className="min-w-[120px]"
           >
             {isLastStep ? (
               <>
-                완료
+                {completeLabel}
                 <ChevronRight className="w-4 h-4 ml-2" />
               </>
             ) : (
               <>
-                다음 단계
+                {nextLabel}
                 <ChevronRight className="w-4 h-4 ml-2" />
               </>
             )}

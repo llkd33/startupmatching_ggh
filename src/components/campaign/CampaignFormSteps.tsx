@@ -288,7 +288,7 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
             <Input
               id="location"
               {...register('location')}
-              placeholder="예: 서울, 전국, 원격"
+              placeholder="예: 서울시 강남구, 경기도 성남시, 전국, 원격"
               className="min-h-[44px]"
             />
           </div>
@@ -309,5 +309,4 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
     </div>
   )
 }
-
 

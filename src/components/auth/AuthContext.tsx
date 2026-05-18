@@ -39,20 +39,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fallbackRole: UserRole = metadataRole ?? 'organization'
 
     try {
-      const { error: upsertError } = await browserSupabase
-        .from('users')
-        .upsert(
-          {
-            id: supabaseUser.id,
-            email: supabaseUser.email ?? '',
-            role: fallbackRole,
-            phone: supabaseUser.user_metadata?.phone ?? null,
-          },
-          { onConflict: 'id' }
-        )
+      const { data: { session } } = await browserSupabase.auth.getSession()
+      if (!session?.access_token) {
+        return fallbackRole
+      }
 
-      if (upsertError) {
-        handleSupabaseError(upsertError, false, { context: 'ensure_user_record' })
+      const response = await fetch('/api/auth/backfill-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          role: fallbackRole,
+          phone: supabaseUser.user_metadata?.phone ?? null,
+        }),
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        handleSupabaseError(
+          new Error(body?.error || 'Failed to sync user record'),
+          false,
+          { context: 'ensure_user_record' }
+        )
       }
 
       return fallbackRole

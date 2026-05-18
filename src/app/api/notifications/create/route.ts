@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+
+function createAdminClient() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase admin environment variables are not configured')
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient()
+    const adminClient = createAdminClient()
     
     // Verify authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -37,7 +55,8 @@ export async function POST(request: NextRequest) {
       user_id: n.user_id,
       type: n.type,
       title: n.title,
-      message: n.content, // Map content to message field
+      message: n.content,
+      content: n.content,
       data: n.data || {},
       action_url: n.action_url,
       action_text: n.action_text,
@@ -45,7 +64,7 @@ export async function POST(request: NextRequest) {
     }))
 
     // Insert notifications
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
       .from('notifications')
       .insert(notificationRecords)
       .select()
@@ -70,4 +89,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
