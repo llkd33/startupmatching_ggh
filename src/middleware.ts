@@ -18,15 +18,13 @@ interface CacheEntry {
 const adminCache = new Map<string, CacheEntry>();
 const CACHE_TTL = 60000; // 1분 캐시
 
-// 주기적으로 만료된 캐시 정리 (메모리 누수 방지)
-setInterval(() => {
-  const now = Date.now();
+function pruneExpiredAdminCache(now: number) {
   for (const [key, value] of adminCache.entries()) {
     if (now - value.timestamp > CACHE_TTL) {
       adminCache.delete(key);
     }
   }
-}, CACHE_TTL); // 1분마다 정리
+}
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -90,9 +88,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
+    const now = Date.now();
+    pruneExpiredAdminCache(now);
+
     // 캐시 확인
     const cachedEntry = adminCache.get(user.id);
-    const now = Date.now();
 
     if (cachedEntry && (now - cachedEntry.timestamp) < CACHE_TTL) {
       // 캐시가 유효한 경우
