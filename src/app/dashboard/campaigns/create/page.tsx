@@ -24,12 +24,12 @@ type OrganizationProfileResponse = {
 }
 
 export default function CreateCampaignPage() {
-  const { user, session, role, loading } = useAuth()
+  const { user, session, loading } = useAuth()
   const router = useRouter()
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [profileComplete, setProfileComplete] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
-  const isOrganization = role === 'organization'
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (loading) {
@@ -38,17 +38,8 @@ export default function CreateCampaignPage() {
 
     if (!user) {
       router.replace('/auth/login')
-      return
     }
-
-    if (role === null) {
-      return
-    }
-
-    if (!isOrganization) {
-      router.replace('/dashboard')
-    }
-  }, [user, loading, role, isOrganization, router])
+  }, [user, loading, router])
 
   useEffect(() => {
     let cancelled = false
@@ -65,21 +56,8 @@ export default function CreateCampaignPage() {
         return
       }
 
-      if (role === null) {
-        if (!cancelled) {
-          setLoadingProfile(true)
-        }
-        return
-      }
-
-      if (!isOrganization) {
-        if (!cancelled) {
-          setLoadingProfile(false)
-        }
-        return
-      }
-
       if (!cancelled) {
+        setLoadError(null)
         setLoadingProfile(true)
       }
 
@@ -110,7 +88,7 @@ export default function CreateCampaignPage() {
         }
 
         if (!response.ok) {
-          throw new Error('Failed to load organization profile')
+          throw new Error('기관 프로필을 불러오지 못했습니다.')
         }
 
         const data = await response.json() as OrganizationProfileResponse
@@ -120,6 +98,9 @@ export default function CreateCampaignPage() {
         }
       } catch (err) {
         console.error('Error loading organization profile:', err)
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : '기관 프로필을 불러오지 못했습니다.')
+        }
       } finally {
         if (!cancelled) {
           setLoadingProfile(false)
@@ -132,9 +113,9 @@ export default function CreateCampaignPage() {
     return () => {
       cancelled = true
     }
-  }, [user?.id, session?.access_token, loading, role, isOrganization, router])
+  }, [user?.id, session?.access_token, loading, router])
 
-  if (loading || loadingProfile || (user && role === null)) {
+  if (loading || loadingProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -145,23 +126,23 @@ export default function CreateCampaignPage() {
     )
   }
 
-  if (!user || !isOrganization) {
+  if (!user) {
     return null
   }
 
-  if (!organizationId || !profileComplete) {
+  if (loadError || !organizationId) {
     return (
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-6">
-            <h3 className="text-lg font-medium text-yellow-900 mb-2">
-              프로필 완성 필요
+          <div className="bg-red-50 border border-red-200 rounded-md p-6">
+            <h3 className="text-lg font-medium text-red-900 mb-2">
+              캠페인 생성 준비 중 오류가 발생했습니다
             </h3>
-            <p className="text-yellow-800 mb-4">
-              캠페인을 생성하려면 먼저 기관 프로필을 완성해주세요.
+            <p className="text-red-800 mb-4">
+              {loadError || '기관 프로필을 찾을 수 없습니다.'}
             </p>
-            <Button onClick={() => router.push('/profile/organization/complete?redirect=/dashboard/campaigns/create')}>
-              프로필 완성하기 →
+            <Button onClick={() => window.location.reload()}>
+              다시 시도
             </Button>
           </div>
         </div>
@@ -178,6 +159,27 @@ export default function CreateCampaignPage() {
             새로운 전문가 매칭 캠페인을 생성해보세요.
           </p>
         </div>
+
+        {!profileComplete && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-md p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-base font-medium text-yellow-900">
+                  기관 프로필을 완성하면 매칭 품질이 좋아집니다
+                </h3>
+                <p className="text-sm text-yellow-800 mt-1">
+                  캠페인은 지금 바로 만들 수 있고, 프로필은 나중에 완성해도 됩니다.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => router.push('/profile/organization/complete?redirect=/dashboard/campaigns/create')}
+              >
+                프로필 완성하기
+              </Button>
+            </div>
+          </div>
+        )}
 
         <CampaignForm organizationId={organizationId} />
       </div>
