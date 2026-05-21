@@ -381,6 +381,7 @@ export default function FastDashboardPage() {
 
   const currentRole = authRole || userRole || 'organization'
   const nextStep = getNextStepForUser(currentRole, stats, profileComplete)
+  const activityLabel = stats.proposals + stats.campaigns + stats.messages > 0 ? '활발' : '시작하기'
 
   return (
     <div className="container mx-auto p-6 space-y-6 animate-in fade-in duration-500">
@@ -479,7 +480,7 @@ export default function FastDashboardPage() {
         />
         <EnhancedStatCard
           title="이번 달 활동"
-          value={statsLoading ? '-' : (stats.proposals + stats.campaigns + stats.messages > 0 ? '활발' : '시작하기')}
+          value={activityLabel}
           icon={Activity}
           loading={statsLoading}
           description="전체 활동 요약"
@@ -655,71 +656,63 @@ export default function FastDashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {campaignsLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 bg-gray-100 animate-pulse rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-3">
-                {recommendedCampaigns.map((campaign: any) => (
-                  <Card key={campaign.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <Badge variant="outline" className="text-xs">
-                          {campaign.type === 'mentoring' ? '멘토링' :
-                           campaign.type === 'consulting' ? '컨설팅' :
-                           campaign.type === 'development' ? '개발' :
-                           campaign.type === 'service' ? '서비스' : campaign.type}
+            <div className="grid gap-4 md:grid-cols-3">
+              {recommendedCampaigns.map((campaign: any) => (
+                <Card key={campaign.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <Badge variant="outline" className="text-xs">
+                        {campaign.type === 'mentoring' ? '멘토링' :
+                         campaign.type === 'consulting' ? '컨설팅' :
+                         campaign.type === 'development' ? '개발' :
+                         campaign.type === 'service' ? '서비스' : campaign.type}
+                      </Badge>
+                      {campaign.matchScore > 0 && (
+                        <Badge className="bg-purple-100 text-purple-700 text-xs">
+                          매칭도 {campaign.matchScore}%
                         </Badge>
-                        {campaign.matchScore > 0 && (
-                          <Badge className="bg-purple-100 text-purple-700 text-xs">
-                            매칭도 {campaign.matchScore}%
-                          </Badge>
+                      )}
+                    </div>
+                    <CardTitle className="text-base line-clamp-2 mb-1">
+                      {campaign.title}
+                    </CardTitle>
+                    <CardDescription className="text-xs line-clamp-1">
+                      {campaign.organization_profiles?.organization_name || '기관'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                      {campaign.description}
+                    </p>
+                    {campaign.budget_min && campaign.budget_max && (
+                      <div className="flex items-center gap-1 text-sm font-medium text-green-600 mb-2">
+                        <DollarSign className="h-3 w-3" />
+                        ₩{campaign.budget_min.toLocaleString()} ~ ₩{campaign.budget_max.toLocaleString()}
+                      </div>
+                    )}
+                    {campaign.keywords && campaign.keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {campaign.keywords.slice(0, 3).map((keyword: string, idx: number) => (
+                          <span key={idx} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
+                            #{keyword}
+                          </span>
+                        ))}
+                        {campaign.keywords.length > 3 && (
+                          <span className="text-xs text-gray-500">
+                            +{campaign.keywords.length - 3}
+                          </span>
                         )}
                       </div>
-                      <CardTitle className="text-base line-clamp-2 mb-1">
-                        {campaign.title}
-                      </CardTitle>
-                      <CardDescription className="text-xs line-clamp-1">
-                        {campaign.organization_profiles?.organization_name || '기관'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-                        {campaign.description}
-                      </p>
-                      {campaign.budget_min && campaign.budget_max && (
-                        <div className="flex items-center gap-1 text-sm font-medium text-green-600 mb-2">
-                          <DollarSign className="h-3 w-3" />
-                          ₩{campaign.budget_min.toLocaleString()} ~ ₩{campaign.budget_max.toLocaleString()}
-                        </div>
-                      )}
-                      {campaign.keywords && campaign.keywords.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {campaign.keywords.slice(0, 3).map((keyword: string, idx: number) => (
-                            <span key={idx} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
-                              #{keyword}
-                            </span>
-                          ))}
-                          {campaign.keywords.length > 3 && (
-                            <span className="text-xs text-gray-500">
-                              +{campaign.keywords.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <Button className="w-full" size="sm" asChild>
-                        <Link href={`/dashboard/campaigns/${campaign.id}/propose`}>
-                          제안서 작성하기
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                    )}
+                    <Button className="w-full" size="sm" asChild>
+                      <Link href={`/dashboard/campaigns/${campaign.id}/propose`}>
+                        제안서 작성하기
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

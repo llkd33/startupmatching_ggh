@@ -1,11 +1,10 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { LucideIcon, ArrowUpRight, ArrowDownRight, TrendingUp } from 'lucide-react'
+import { LucideIcon, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface EnhancedStatCardProps {
   title: string
@@ -31,19 +30,29 @@ export function EnhancedStatCard({
   description,
   className
 }: EnhancedStatCardProps) {
-  const [displayValue, setDisplayValue] = useState<number | string>(0)
+  const [displayValue, setDisplayValue] = useState<number | string>(value)
   const [isAnimating, setIsAnimating] = useState(false)
+  const displayValueRef = useRef<number | string>(value)
 
   // 숫자 카운트업 애니메이션
   useEffect(() => {
     if (loading || typeof value !== 'number') {
+      displayValueRef.current = value
       setDisplayValue(value)
+      setIsAnimating(false)
+      return
+    }
+
+    const startValue = typeof displayValueRef.current === 'number' ? displayValueRef.current : 0
+    const endValue = value
+
+    if (startValue === endValue) {
+      setDisplayValue(endValue)
+      setIsAnimating(false)
       return
     }
 
     setIsAnimating(true)
-    const startValue = typeof displayValue === 'number' ? displayValue : 0
-    const endValue = value
     const duration = 800 // ms
     const steps = 30
     const stepValue = (endValue - startValue) / steps
@@ -53,9 +62,12 @@ export function EnhancedStatCard({
     const timer = setInterval(() => {
       currentStep++
       const newValue = Math.round(startValue + stepValue * currentStep)
-      setDisplayValue(Math.min(newValue, endValue))
+      const nextValue = stepValue >= 0 ? Math.min(newValue, endValue) : Math.max(newValue, endValue)
+      displayValueRef.current = nextValue
+      setDisplayValue(nextValue)
 
       if (currentStep >= steps) {
+        displayValueRef.current = endValue
         setDisplayValue(endValue)
         setIsAnimating(false)
         clearInterval(timer)
@@ -67,6 +79,7 @@ export function EnhancedStatCard({
 
   const content = (
     <Card 
+      aria-busy={loading}
       className={cn(
         "transition-all duration-300",
         href && "hover:shadow-lg hover:scale-[1.02] cursor-pointer",
@@ -88,48 +101,42 @@ export function EnhancedStatCard({
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-16 mb-2" />
-        ) : (
-          <>
-            <div className="flex items-baseline gap-2">
-              <div className={cn(
-                "text-2xl font-bold transition-all duration-300",
-                isAnimating && "scale-110"
-              )}>
-                {displayValue}
-              </div>
-              {trend && (
-                <div className={cn(
-                  "flex items-center gap-1 text-xs font-medium",
-                  trend.value >= 0 ? "text-green-600" : "text-red-600"
-                )}>
-                  {trend.value >= 0 ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
-                  {Math.abs(trend.value)}%
-                  {trend.period && (
-                    <span className="text-muted-foreground ml-1">
-                      {trend.period}
-                    </span>
-                  )}
-                </div>
+        <div className="flex items-baseline gap-2">
+          <div className={cn(
+            "text-2xl font-bold transition-all duration-300",
+            isAnimating && "scale-110"
+          )}>
+            {displayValue}
+          </div>
+          {trend && (
+            <div className={cn(
+              "flex items-center gap-1 text-xs font-medium",
+              trend.value >= 0 ? "text-green-600" : "text-red-600"
+            )}>
+              {trend.value >= 0 ? (
+                <ArrowUpRight className="h-3 w-3" />
+              ) : (
+                <ArrowDownRight className="h-3 w-3" />
+              )}
+              {Math.abs(trend.value)}%
+              {trend.period && (
+                <span className="text-muted-foreground ml-1">
+                  {trend.period}
+                </span>
               )}
             </div>
-            {description && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {description}
-              </p>
-            )}
-            {href && (
-              <div className="flex items-center gap-1 text-xs text-primary mt-2 font-medium">
-                자세히 보기
-                <ArrowUpRight className="h-3 w-3" />
-              </div>
-            )}
-          </>
+          )}
+        </div>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {description}
+          </p>
+        )}
+        {href && (
+          <div className="flex items-center gap-1 text-xs text-primary mt-2 font-medium">
+            자세히 보기
+            <ArrowUpRight className="h-3 w-3" />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -145,4 +152,3 @@ export function EnhancedStatCard({
 
   return content
 }
-
