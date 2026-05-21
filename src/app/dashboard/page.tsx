@@ -25,7 +25,6 @@ import {
 import { EnhancedStatCard } from '@/components/dashboard/EnhancedStatCard'
 import { NextStepWidget, getNextStepForUser } from '@/components/dashboard/NextStepWidget'
 import { ErrorAlert } from '@/components/ui/error-alert'
-import { DashboardSkeleton } from '@/components/ui/loading-states'
 
 // 개발 모드 체크
 function isDevMode() {
@@ -36,8 +35,8 @@ function isDevMode() {
 export default function FastDashboardPage() {
   const router = useRouter()
   const { user, role: authRole, loading: authLoading } = useAuth()
-  const [userRole, setUserRole] = useState<string | null>(null)
-  const [userName, setUserName] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('organization')
+  const [userName, setUserName] = useState<string>('사용자')
   const [userId, setUserId] = useState<string | null>(null)
   const [stats, setStats] = useState({
     campaigns: 0,
@@ -53,7 +52,6 @@ export default function FastDashboardPage() {
     under_review: 0
   })
   const [statsLoading, setStatsLoading] = useState(true)
-  const [pageReady, setPageReady] = useState(false)
   const [profileComplete, setProfileComplete] = useState<boolean | undefined>(undefined)
   const [expertProfile, setExpertProfile] = useState<any>(null)
   const [recommendedCampaigns, setRecommendedCampaigns] = useState<any[]>([])
@@ -72,7 +70,6 @@ export default function FastDashboardPage() {
       setUserRole(mockUser.role || 'expert')
       setUserName(mockUser.name || '개발자')
       setUserId('dev-user-id')
-      setPageReady(true)
       
       // 가짜 데이터 지연 로드
       setTimeout(() => {
@@ -106,7 +103,6 @@ export default function FastDashboardPage() {
     setUserRole(role)
     setUserName(name)
     setUserId(user.id)
-    setPageReady(true)
     setError(null)
 
     if (!shouldLoadBackgroundData) {
@@ -383,12 +379,8 @@ export default function FastDashboardPage() {
     }
   }
 
-  // 페이지 준비 전에는 스켈레톤 로더 표시
-  if (!pageReady) {
-    return <DashboardSkeleton />
-  }
-
-  const nextStep = getNextStepForUser(userRole, stats, profileComplete)
+  const currentRole = authRole || userRole || 'organization'
+  const nextStep = getNextStepForUser(currentRole, stats, profileComplete)
 
   return (
     <div className="container mx-auto p-6 space-y-6 animate-in fade-in duration-500">
@@ -402,9 +394,9 @@ export default function FastDashboardPage() {
             label: "다시 시도",
             onClick: () => {
               setError(null)
-              if (userId && userRole) {
-                loadStatsInBackground(userId, userRole)
-                loadProfileStatus(userId, userRole)
+              if (userId && currentRole) {
+                loadStatsInBackground(userId, currentRole)
+                loadProfileStatus(userId, currentRole)
               }
             }
           }}
@@ -416,19 +408,19 @@ export default function FastDashboardPage() {
         <div>
           <h1 className="text-3xl font-bold">안녕하세요, {userName}님!</h1>
           <p className="text-muted-foreground">
-            {userRole === 'expert' ? '전문가' : '기관'} 대시보드
+            {currentRole === 'expert' ? '전문가' : '기관'} 대시보드
           </p>
         </div>
         <Button asChild>
-          <Link href={userRole === 'expert' ? '/dashboard/campaigns' : '/dashboard/campaigns/create'}>
+          <Link href={currentRole === 'expert' ? '/dashboard/campaigns' : '/dashboard/campaigns/create'}>
             <PlusCircle className="mr-2 h-4 w-4" />
-            {userRole === 'expert' ? '캠페인 찾기' : '새 캠페인'}
+            {currentRole === 'expert' ? '캠페인 찾기' : '새 캠페인'}
           </Link>
         </Button>
       </div>
 
       {/* 프로필 완성 배너 - 전문가 전용 */}
-      {userRole === 'expert' && profileComplete === false && (
+      {currentRole === 'expert' && profileComplete === false && (
         <Card className="border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50">
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -458,16 +450,16 @@ export default function FastDashboardPage() {
       {/* 통계 카드 - 개선된 버전 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <EnhancedStatCard
-          title={userRole === 'expert' ? '진행 중 제안' : '활성 캠페인'}
-          value={userRole === 'expert' ? stats.proposals : stats.campaigns}
+          title={currentRole === 'expert' ? '진행 중 제안' : '활성 캠페인'}
+          value={currentRole === 'expert' ? stats.proposals : stats.campaigns}
           icon={Briefcase}
           loading={statsLoading}
-          href={userRole === 'expert' ? '/dashboard/proposals' : '/dashboard/campaigns'}
-          trend={userRole === 'expert' && stats.proposals > 0 ? {
+          href={currentRole === 'expert' ? '/dashboard/proposals' : '/dashboard/campaigns'}
+          trend={currentRole === 'expert' && stats.proposals > 0 ? {
             value: 12,
             period: '이번 주'
           } : undefined}
-          description={userRole === 'expert' ? '제출한 제안서 수' : '진행 중인 캠페인 수'}
+          description={currentRole === 'expert' ? '제출한 제안서 수' : '진행 중인 캠페인 수'}
         />
         <EnhancedStatCard
           title="새 메시지"
@@ -502,7 +494,7 @@ export default function FastDashboardPage() {
             <CardDescription>자주 사용하는 기능에 빠르게 접근하세요</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {userRole === 'expert' ? (
+            {currentRole === 'expert' ? (
               <>
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <Link href="/dashboard/campaigns">
@@ -584,7 +576,7 @@ export default function FastDashboardPage() {
           </CardContent>
         </Card>
 
-        {userRole === 'organization' ? (
+        {currentRole === 'organization' ? (
           <Card>
             <CardHeader>
               <CardTitle>캠페인 인사이트</CardTitle>
@@ -642,7 +634,7 @@ export default function FastDashboardPage() {
       </div>
 
       {/* 추천 캠페인 섹션 - 전문가 전용 */}
-      {userRole === 'expert' && recommendedCampaigns.length > 0 && (
+      {currentRole === 'expert' && recommendedCampaigns.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -733,7 +725,7 @@ export default function FastDashboardPage() {
       )}
 
       {/* 추천 캠페인이 없을 때 안내 - 전문가 전용 */}
-      {userRole === 'expert' && !campaignsLoading && recommendedCampaigns.length === 0 && expertProfile && expertProfile.skills && expertProfile.skills.length > 0 && (
+      {currentRole === 'expert' && !campaignsLoading && recommendedCampaigns.length === 0 && expertProfile && expertProfile.skills && expertProfile.skills.length > 0 && (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="pt-6">
             <div className="text-center py-4">
