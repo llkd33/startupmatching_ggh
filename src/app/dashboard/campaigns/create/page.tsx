@@ -24,49 +24,88 @@ type OrganizationProfileResponse = {
 }
 
 export default function CreateCampaignPage() {
-  const { user, loading, isOrganization } = useAuth()
+  const { user, session, role, loading } = useAuth()
   const router = useRouter()
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [profileComplete, setProfileComplete] = useState(false)
   const [loadingProfile, setLoadingProfile] = useState(true)
+  const isOrganization = role === 'organization'
 
   useEffect(() => {
-    if (!loading) {
-      if (!user || !isOrganization) {
-        console.log('Auth check failed - redirecting to login', { user, isOrganization })
-        router.push('/auth/login')
-      }
+    if (loading) {
+      return
     }
-  }, [user, loading, isOrganization, router])
+
+    if (!user) {
+      router.replace('/auth/login')
+      return
+    }
+
+    if (role === null) {
+      return
+    }
+
+    if (!isOrganization) {
+      router.replace('/dashboard')
+    }
+  }, [user, loading, role, isOrganization, router])
 
   useEffect(() => {
+    let cancelled = false
+
     const loadOrganizationProfile = async () => {
-      if (!user?.id || !isOrganization) {
-        setLoadingProfile(false)
+      if (loading) {
         return
       }
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
+      if (!user?.id) {
+        if (!cancelled) {
+          setLoadingProfile(false)
+        }
+        return
+      }
 
-        if (!session) {
-          router.push('/auth/login')
+      if (role === null) {
+        if (!cancelled) {
+          setLoadingProfile(true)
+        }
+        return
+      }
+
+      if (!isOrganization) {
+        if (!cancelled) {
+          setLoadingProfile(false)
+        }
+        return
+      }
+
+      if (!cancelled) {
+        setLoadingProfile(true)
+      }
+
+      try {
+        const accessToken = session?.access_token || (
+          await supabase.auth.getSession()
+        ).data.session?.access_token
+
+        if (!accessToken) {
+          router.replace('/auth/login')
           return
         }
 
         const response = await fetch('/api/profile/organization', {
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         })
 
         if (response.status === 401) {
-          router.push('/auth/login')
+          router.replace('/auth/login')
           return
         }
 
         if (response.status === 403) {
-          router.push('/dashboard')
+          router.replace('/dashboard')
           return
         }
 
@@ -75,21 +114,27 @@ export default function CreateCampaignPage() {
         }
 
         const data = await response.json() as OrganizationProfileResponse
-        setOrganizationId(data.profile?.id || null)
-        setProfileComplete(data.profile?.is_profile_complete === true)
+        if (!cancelled) {
+          setOrganizationId(data.profile?.id || null)
+          setProfileComplete(data.profile?.is_profile_complete === true)
+        }
       } catch (err) {
         console.error('Error loading organization profile:', err)
       } finally {
-        setLoadingProfile(false)
+        if (!cancelled) {
+          setLoadingProfile(false)
+        }
       }
     }
 
-    if (user && isOrganization) {
-      loadOrganizationProfile()
-    }
-  }, [user, isOrganization, router])
+    loadOrganizationProfile()
 
-  if (loading || loadingProfile) {
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, session?.access_token, loading, role, isOrganization, router])
+
+  if (loading || loadingProfile || (user && role === null)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
