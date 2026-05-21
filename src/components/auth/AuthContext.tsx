@@ -73,6 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const fetchAndSetRole = async (userId: string, metaRole?: UserRole) => {
+    // Set metadata role immediately for fast UI updates
+    if (metaRole && mountedRef.current) {
+      setRole(metaRole)
+    }
+
     // Prevent concurrent role updates
     if (roleUpdateInProgress.current) {
       return
@@ -81,11 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     roleUpdateInProgress.current = true
 
     try {
-      // Set metadata role immediately for fast UI updates
-      if (metaRole && mountedRef.current) {
-        setRole(metaRole)
-      }
-
       // Fetch role from database
       const { data: userRow, error: roleError } = await browserSupabase
         .from('users')
@@ -165,9 +165,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session)
         setUser(session.user)
 
-        // Fetch and set role
         const metaRole = session.user.user_metadata?.role as UserRole | undefined
-        await fetchAndSetRole(session.user.id, metaRole)
+        if (metaRole) {
+          setRole(metaRole)
+        }
+
+        setLoading(false)
+
+        // Verify database role in the background so the UI is not blocked by network latency.
+        void fetchAndSetRole(session.user.id, metaRole)
       } catch (error) {
         if (mountedRef.current) {
           handleSupabaseError(error as Error, true, { context: 'auth_initialization' })
@@ -190,15 +196,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         const metaRole = session.user.user_metadata?.role as UserRole | undefined
-        await fetchAndSetRole(session.user.id, metaRole)
+        if (metaRole) {
+          setRole(metaRole)
+        }
+        void fetchAndSetRole(session.user.id, metaRole)
       } else {
         setRole(null)
       }
 
       // Update loading state for sign in/out events
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        setLoading(false)
-      }
+      setLoading(false)
     })
 
     return () => {

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/auth/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,7 @@ function isDevMode() {
 
 export default function FastDashboardPage() {
   const router = useRouter()
+  const { user, role: authRole, loading: authLoading } = useAuth()
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userName, setUserName] = useState<string>('')
   const [userId, setUserId] = useState<string | null>(null)
@@ -57,14 +59,15 @@ export default function FastDashboardPage() {
   const [recommendedCampaigns, setRecommendedCampaigns] = useState<any[]>([])
   const [campaignsLoading, setCampaignsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const initializedDashboardRef = useRef<string | null>(null)
 
   useEffect(() => {
-    initializeDashboard()
-  }, [])
-
-  const initializeDashboard = async () => {
-    // 개발 모드 빠른 처리
     if (isDevMode()) {
+      if (initializedDashboardRef.current === 'dev') {
+        return
+      }
+
+      initializedDashboardRef.current = 'dev'
       const mockUser = JSON.parse(localStorage.getItem('dev_user') || '{}')
       setUserRole(mockUser.role || 'expert')
       setUserName(mockUser.name || '개발자')
@@ -85,43 +88,44 @@ export default function FastDashboardPage() {
       return
     }
 
-    // 실제 인증 - 최소한의 체크
-    try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) throw sessionError
-      
-      if (!session) {
-        router.push('/auth/login')
-        return
-      }
-
-      // 메타데이터에서 빠르게 가져오기
-      const role = session.user.user_metadata?.role || 'expert'
-      const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || '사용자'
-      
-      setUserRole(role)
-      setUserName(name)
-      setUserId(session.user.id)
-      setPageReady(true)
-      
-      // 통계와 프로필 정보는 백그라운드에서 로드
-      loadStatsInBackground(session.user.id, role)
-      loadProfileStatus(session.user.id, role)
-      
-      // 전문가인 경우 프로필 정보와 추천 캠페인 로드
-      if (role === 'expert') {
-        loadExpertProfile(session.user.id)
-      }
-    } catch (error: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Init error:', error)
-      }
-      setError('대시보드를 불러오는 중 오류가 발생했습니다.')
-      // 에러가 있어도 기본 UI는 표시
-      setPageReady(true)
+    if (authLoading) {
+      return
     }
-  }
+
+    if (!user) {
+      router.replace('/auth/login')
+      return
+    }
+
+    const role = authRole || user.user_metadata?.role || 'expert'
+    const name = user.user_metadata?.name || user.email?.split('@')[0] || '사용자'
+    const dashboardKey = `${user.id}:${role}`
+    const shouldLoadBackgroundData = initializedDashboardRef.current !== dashboardKey
+
+    initializedDashboardRef.current = dashboardKey
+    setUserRole(role)
+    setUserName(name)
+    setUserId(user.id)
+    setPageReady(true)
+    setError(null)
+
+    if (!shouldLoadBackgroundData) {
+      return
+    }
+
+    setStatsLoading(true)
+    setCampaignsLoading(false)
+    setProfileComplete(undefined)
+    setExpertProfile(null)
+    setRecommendedCampaigns([])
+
+    void loadStatsInBackground(user.id, role)
+    void loadProfileStatus(user.id, role)
+
+    if (role === 'expert') {
+      void loadExpertProfile(user.id)
+    }
+  }, [authLoading, authRole, router, user])
 
   const loadProfileStatus = async (userId: string, role: string) => {
     try {
@@ -280,9 +284,6 @@ export default function FastDashboardPage() {
   }
 
   const loadStatsInBackground = async (userId: string, role: string) => {
-    // 300ms 후에 통계 로드 시작 (UI 먼저 표시)
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
     try {
       if (role === 'expert') {
         // 전문가: 제안서 상태별 통계, 메시지 카운트
