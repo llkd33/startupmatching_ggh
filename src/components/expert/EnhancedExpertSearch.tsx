@@ -154,8 +154,12 @@ export default function EnhancedExpertSearch({
 
       const transformedData = (data || []).map(expert => ({
         ...expert,
-        skills: expert.skills || [],
-        hashtags: expert.hashtags || [],
+        name: expert.name || '',
+        bio: expert.bio || '',
+        title: expert.title || '',
+        company: expert.company || '',
+        skills: Array.isArray(expert.skills) ? expert.skills.filter(Boolean) : [],
+        hashtags: Array.isArray(expert.hashtags) ? expert.hashtags.filter(Boolean) : [],
         experience_years: expert.experience_years || 0,
         rating_average: expert.rating_average || 0,
         total_reviews: expert.total_reviews || 0,

@@ -21,18 +21,23 @@ export function useRealtimeNotifications(userId: string) {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
 
   useEffect(() => {
-    if (!userId) return
+    const activeUserId = userId.trim()
+
+    if (!activeUserId) {
+      setChannel(null)
+      return
+    }
 
     // Create a channel for user notifications
     const notificationChannel = supabase
-      .channel(`user-notifications-${userId}`)
+      .channel(`user-notifications-${activeUserId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${userId}`,
+          filter: `user_id=eq.${activeUserId}`,
         },
         (payload) => {
           const newNotification = payload.new as Notification
@@ -60,7 +65,7 @@ export function useRealtimeNotifications(userId: string) {
           event: 'UPDATE',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${userId}`,
+          filter: `user_id=eq.${activeUserId}`,
         },
         (payload) => {
           const updatedNotification = payload.new as Notification
@@ -98,13 +103,19 @@ export function useRealtimeNotifications(userId: string) {
 
   // Load initial notifications
   useEffect(() => {
-    if (!userId) return
+    const activeUserId = userId.trim()
+
+    if (!activeUserId) {
+      setNotifications([])
+      setUnreadCount(0)
+      return
+    }
 
     const loadNotifications = async () => {
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', activeUserId)
         .order('created_at', { ascending: false })
         .limit(50)
 

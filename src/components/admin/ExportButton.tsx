@@ -54,7 +54,7 @@ export function ExportButton<T extends Record<string, any>>({
         downloadCSV(data, columns, fullFilename)
         toast.success('CSV 파일이 다운로드되었습니다')
       } else {
-        downloadExcel(data, columns, fullFilename, sheetName)
+        await downloadExcel(data, columns, fullFilename, sheetName)
         toast.success('Excel 파일이 다운로드되었습니다')
       }
 
@@ -144,7 +144,7 @@ export function SimpleExportButton<T extends Record<string, any>>({
         downloadCSV(data, columns, fullFilename)
         toast.success('CSV 파일이 다운로드되었습니다')
       } else {
-        downloadExcel(data, columns, fullFilename, sheetName)
+        await downloadExcel(data, columns, fullFilename, sheetName)
         toast.success('Excel 파일이 다운로드되었습니다')
       }
     } catch (error) {

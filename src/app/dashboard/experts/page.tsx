@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import ConnectionRequestForm from '@/components/expert/ConnectionRequestForm'
 import { 
   Search, 
   MapPin, 
@@ -22,6 +22,10 @@ import {
   TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
+
+const ConnectionRequestForm = dynamic(() => import('@/components/expert/ConnectionRequestForm'), {
+  ssr: false,
+})
 
 interface ExpertProfile {
   id: string
@@ -158,8 +162,14 @@ export default function ExpertSearchPage() {
       // Transform the data to match our interface
       const transformedData = (data || []).map(expert => ({
         ...expert,
-        skills: expert.skills || [],
-        hashtags: expert.hashtags || [],
+        name: expert.name || '',
+        bio: expert.bio || '',
+        title: expert.title || '',
+        company: expert.company || '',
+        location: expert.location || '',
+        availability_status: expert.availability_status || 'available',
+        skills: Array.isArray(expert.skills) ? expert.skills.filter(Boolean) : [],
+        hashtags: Array.isArray(expert.hashtags) ? expert.hashtags.filter(Boolean) : [],
         career_history: expert.career_history || [],
         education: expert.education || [],
         // Ensure all numeric fields have defaults
@@ -882,9 +892,9 @@ export default function ExpertSearchPage() {
       {showConnectionForm && selectedExpert && organizationProfile && (
         <ConnectionRequestForm
           expertId={selectedExpert.id}
-          expertName={selectedExpert.name}
+          expertName={selectedExpert.name || '전문가'}
           organizationId={organizationProfile.id}
-          organizationName={organizationProfile.name}
+          organizationName={organizationProfile.organization_name || organizationProfile.name || '기관'}
           onClose={handleConnectionClose}
           onSuccess={handleConnectionSuccess}
         />

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr/dist/module/createServerClient';
 
 // Production-safe logging (only logs in development)
 const isDev = process.env.NODE_ENV === 'development';

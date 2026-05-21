@@ -332,11 +332,12 @@ function ProposalsPageContent() {
     let filtered = proposals
 
     if (searchTerm) {
+      const search = searchTerm.toLowerCase()
       filtered = filtered.filter(proposal =>
-        proposal.campaigns.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.campaigns.organization_profiles.organization_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        proposal.proposal_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (proposal.expert_profiles?.name && proposal.expert_profiles.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        (proposal.campaigns?.title || '').toLowerCase().includes(search) ||
+        (proposal.campaigns?.organization_profiles?.organization_name || '').toLowerCase().includes(search) ||
+        (proposal.proposal_text || '').toLowerCase().includes(search) ||
+        (proposal.expert_profiles?.name || '').toLowerCase().includes(search)
       )
     }
 

@@ -1,11 +1,20 @@
 'use client'
 
 import { useAuth } from '@/components/auth/AuthContext'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import CampaignForm from '@/components/campaign/CampaignForm'
 import { Button } from '@/components/ui/button'
+
+const CampaignForm = dynamic(() => import('@/components/campaign/CampaignForm'), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-md border border-gray-200 bg-white p-8 text-center text-gray-500">
+      캠페인 양식을 불러오는 중...
+    </div>
+  ),
+})
 
 type OrganizationProfileResponse = {
   profile?: {

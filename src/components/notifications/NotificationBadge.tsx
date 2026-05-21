@@ -101,12 +101,8 @@ export default function NotificationBadge({ userId }: NotificationBadgeProps) {
       let activeUserId = propUserId
 
       if (!activeUserId) {
-        try {
-          const { data } = await supabase.auth.getUser()
-          activeUserId = getValidUserId(data.user?.id)
-        } catch {
-          activeUserId = null
-        }
+        const { data: { session } } = await supabase.auth.getSession()
+        activeUserId = getValidUserId(session?.user?.id)
       }
 
       if (!isActive) {

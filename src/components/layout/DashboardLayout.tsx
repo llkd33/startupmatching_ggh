@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import NotificationBadge from '@/components/notifications/NotificationBadge'
@@ -22,9 +22,7 @@ import {
   Users,
   PlusCircle,
   ChevronLeft,
-  Bell,
   TrendingUp,
-  Calendar,
   FolderOpen,
   CheckSquare,
   Bookmark
@@ -37,7 +35,6 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const { user, role, signOut } = useAuth()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -154,7 +151,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </Button>
             )}
 
-            <NotificationBadge userId={user?.id || ''} />
+            <NotificationBadge userId={user?.id ?? null} />
 
             {/* User menu */}
             <div className="flex items-center gap-2">

@@ -3,9 +3,8 @@
  * CSV 및 Excel 형식으로 데이터를 내보내는 기능 제공
  */
 
-import * as XLSX from 'xlsx'
-
 export type ExportFormat = 'csv' | 'xlsx'
+type XlsxModule = typeof import('xlsx')
 
 export interface ExportColumn<T> {
   key: keyof T | string
@@ -57,11 +56,21 @@ export function toCSV<T extends Record<string, any>>(
 /**
  * 데이터를 Excel 워크북으로 변환
  */
-export function toExcel<T extends Record<string, any>>(
+export async function toExcel<T extends Record<string, any>>(
   data: T[],
   columns: ExportColumn<T>[],
   sheetName: string = 'Sheet1'
-): XLSX.WorkBook {
+): Promise<import('xlsx').WorkBook> {
+  const XLSX = await import('xlsx')
+  return createWorkbook(XLSX, data, columns, sheetName)
+}
+
+function createWorkbook<T extends Record<string, any>>(
+  XLSX: XlsxModule,
+  data: T[],
+  columns: ExportColumn<T>[],
+  sheetName: string
+): import('xlsx').WorkBook {
   // 헤더 배열
   const headers = columns.map((col) => col.header)
 
@@ -135,13 +144,14 @@ export function downloadCSV<T extends Record<string, any>>(
 /**
  * Excel 파일 다운로드
  */
-export function downloadExcel<T extends Record<string, any>>(
+export async function downloadExcel<T extends Record<string, any>>(
   data: T[],
   columns: ExportColumn<T>[],
   filename: string,
   sheetName: string = 'Sheet1'
-): void {
-  const workbook = toExcel(data, columns, sheetName)
+): Promise<void> {
+  const XLSX = await import('xlsx')
+  const workbook = createWorkbook(XLSX, data, columns, sheetName)
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
   downloadFile(
     excelBuffer,

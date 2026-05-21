@@ -24,8 +24,15 @@ jest.mock('next/navigation', () => ({
 }))
 
 describe('useErrorHandler Hook', () => {
+  let consoleErrorSpy: jest.SpyInstance
+
   beforeEach(() => {
     jest.clearAllMocks()
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore()
   })
 
   it('handles errors and shows toast', () => {
@@ -119,7 +126,7 @@ describe('useErrorHandler Hook', () => {
     await act(async () => {
       try {
         await result.current.handleAsync(mockAsyncFn)
-      } catch (error) {
+      } catch {
         // Expected to throw
       }
     })
@@ -180,7 +187,7 @@ describe('useErrorHandler Hook', () => {
     await act(async () => {
       try {
         await result.current.handleAsync(mockAsyncFn)
-      } catch (error) {
+      } catch {
         // Expected to fail
       }
     })

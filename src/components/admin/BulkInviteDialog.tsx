@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Upload, FileSpreadsheet, UserPlus, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import * as XLSX from 'xlsx'
 
 interface InviteUser {
   email: string
@@ -70,6 +69,7 @@ export function BulkInviteDialog({ onSuccess }: { onSuccess?: () => void }) {
     }
 
     try {
+      const XLSX = await import('xlsx')
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: 'array' })
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -639,4 +639,3 @@ export function BulkInviteDialog({ onSuccess }: { onSuccess?: () => void }) {
     </Dialog>
   )
 }
-

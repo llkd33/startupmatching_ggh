@@ -1,11 +1,11 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { toast, ToastProvider } from '../toast-custom'
 
 // Mock Sonner
 jest.mock('sonner', () => ({
-  Toaster: ({ children, ...props }: any) => (
-    <div data-testid="toaster" {...props}>
+  Toaster: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="toaster">
       {children}
     </div>
   ),

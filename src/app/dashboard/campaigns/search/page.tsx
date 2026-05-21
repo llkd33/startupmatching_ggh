@@ -137,12 +137,12 @@ export default function EnhancedCampaignSearchPage() {
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
       filtered = filtered.filter(campaign =>
-        campaign.title.toLowerCase().includes(searchLower) ||
-        campaign.description.toLowerCase().includes(searchLower) ||
+        (campaign.title || '').toLowerCase().includes(searchLower) ||
+        (campaign.description || '').toLowerCase().includes(searchLower) ||
         campaign.required_skills?.some(skill => 
           skill.toLowerCase().includes(searchLower)
         ) ||
-        campaign.organization_profiles?.company_name.toLowerCase().includes(searchLower)
+        (campaign.organization_profiles?.company_name || '').toLowerCase().includes(searchLower)
       )
     }
 
