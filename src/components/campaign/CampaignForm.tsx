@@ -222,16 +222,29 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
         toast.success('캠페인이 수정되었습니다.')
       } else {
-        // Create new campaign
-        const { data: createdCampaign, error } = await supabase
-          .from('campaigns')
-          .insert([campaignData])
-          .select()
-          .single()
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
 
-        if (error) throw error
+        if (!accessToken) {
+          throw new Error('로그인 세션이 만료되었습니다. 다시 로그인해주세요.')
+        }
 
-        newCampaign = createdCampaign
+        const response = await fetch('/api/campaigns', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(campaignData),
+        })
+
+        const responseBody = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          throw new Error(responseBody?.error || '캠페인 생성 중 오류가 발생했습니다.')
+        }
+
+        newCampaign = responseBody?.campaign
 
         // 자동 매칭 및 알림 발송 (비동기, 백그라운드)
         if (newCampaign && !isDraft) {
