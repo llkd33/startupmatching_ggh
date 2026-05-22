@@ -1,9 +1,89 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Mail, Phone, MapPin, MessageSquare, Clock, Send } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, MessageSquare, Send, Loader2 } from 'lucide-react'
+import { toast } from '@/components/ui/toast-custom'
+
+const SUPPORT_EMAIL = 'support@startupmatch.kr'
+
+type ContactFormState = {
+  name: string
+  email: string
+  category: string
+  message: string
+}
+
+const INITIAL_STATE: ContactFormState = {
+  name: '',
+  email: '',
+  category: '일반 문의',
+  message: ''
+}
 
 export default function ContactPage() {
+  const [form, setForm] = useState<ContactFormState>(INITIAL_STATE)
+  const [submitting, setSubmitting] = useState(false)
+
+  const updateField = <K extends keyof ContactFormState>(key: K, value: ContactFormState[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
+      toast.error('이름, 이메일, 메시지는 필수 입력 항목입니다.')
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(form.email)) {
+      toast.error('올바른 이메일 주소를 입력해주세요.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const html = `
+        <h2>문의 유형: ${form.category}</h2>
+        <p><strong>이름:</strong> ${form.name}</p>
+        <p><strong>이메일:</strong> ${form.email}</p>
+        <p><strong>메시지:</strong></p>
+        <p>${form.message.replace(/\n/g, '<br/>')}</p>
+      `
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: SUPPORT_EMAIL,
+          subject: `[문의] ${form.category} - ${form.name}`,
+          html
+        })
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok || !data?.success) {
+        if (data?.skipped) {
+          toast.success('문의가 접수되었습니다. 곧 답변드리겠습니다.')
+          setForm(INITIAL_STATE)
+          return
+        }
+        throw new Error(data?.error || '문의 전송에 실패했습니다.')
+      }
+
+      toast.success('문의가 성공적으로 전송되었습니다.', '24시간 내에 답변드리겠습니다.')
+      setForm(INITIAL_STATE)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '문의 전송 중 오류가 발생했습니다.'
+      toast.error(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       {/* Header */}
@@ -84,60 +164,87 @@ export default function ContactPage() {
             <h3 className="text-2xl font-bold mb-6 text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               문의 남기기
             </h3>
-            
-            <form className="space-y-6">
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700 mb-2">
                     이름 *
                   </label>
                   <input
+                    id="contact-name"
                     type="text"
+                    required
+                    value={form.name}
+                    onChange={(e) => updateField('name', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                     placeholder="홍길동"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700 mb-2">
                     이메일 *
                   </label>
                   <input
+                    id="contact-email"
                     type="email"
+                    required
+                    value={form.email}
+                    onChange={(e) => updateField('email', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                     placeholder="email@example.com"
                   />
                 </div>
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="contact-category" className="block text-sm font-medium text-gray-700 mb-2">
                   문의 유형 *
                 </label>
-                <select className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all">
+                <select
+                  id="contact-category"
+                  value={form.category}
+                  onChange={(e) => updateField('category', e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                >
                   <option>일반 문의</option>
                   <option>기술 지원</option>
                   <option>파트너십 제안</option>
                   <option>기타</option>
                 </select>
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700 mb-2">
                   메시지 *
                 </label>
                 <textarea
+                  id="contact-message"
                   rows={6}
+                  required
+                  value={form.message}
+                  onChange={(e) => updateField('message', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-none"
                   placeholder="문의하실 내용을 자세히 적어주세요..."
                 />
               </div>
-              
+
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center"
+                disabled={submitting}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-medium hover:shadow-lg transition-all flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Send className="w-5 h-5 mr-2" />
-                문의 보내기
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    전송 중...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5 mr-2" />
+                    문의 보내기
+                  </>
+                )}
               </button>
             </form>
           </div>

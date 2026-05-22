@@ -22,6 +22,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from '@/components/ui/toast-custom'
 
 const ConnectionRequestForm = dynamic(() => import('@/components/expert/ConnectionRequestForm'), {
   ssr: false,
@@ -376,11 +377,11 @@ export default function ExpertSearchPage() {
 
   const handleConnectionRequest = (expert: ExpertProfile) => {
     if (!organizationProfile) {
-      alert('기관 프로필을 먼저 완성해주세요.')
+      toast.error('기관 프로필을 먼저 완성해주세요.')
       router.push('/profile/organization/complete')
       return
     }
-    
+
     setSelectedExpert(expert)
     setShowConnectionForm(true)
   }
@@ -388,7 +389,7 @@ export default function ExpertSearchPage() {
   const handleConnectionSuccess = () => {
     setShowConnectionForm(false)
     setSelectedExpert(null)
-    alert('연결 요청이 성공적으로 전송되었습니다!')
+    toast.success('연결 요청이 성공적으로 전송되었습니다.')
   }
 
   const handleConnectionClose = () => {

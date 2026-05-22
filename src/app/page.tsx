@@ -270,7 +270,7 @@ export default function Home() {
       </section>
 
       {/* Process Section */}
-      <section className="relative py-32 px-4">
+      <section id="how-it-works" className="relative py-32 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-6xl font-black mb-6">

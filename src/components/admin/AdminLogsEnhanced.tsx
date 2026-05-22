@@ -17,6 +17,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { SkeletonTable } from '@/components/ui/skeleton'
+import { toast } from '@/components/ui/toast-custom'
 
 interface AdminLog {
   id: string
@@ -126,7 +127,7 @@ export default function AdminLogsEnhanced() {
       document.body.removeChild(a)
     } catch (error) {
       console.error('Error exporting logs:', error)
-      alert('CSV 내보내기에 실패했습니다.')
+      toast.error('CSV 내보내기에 실패했습니다.')
     } finally {
       setExporting(false)
     }

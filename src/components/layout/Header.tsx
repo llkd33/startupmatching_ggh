@@ -46,13 +46,13 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="#how-it-works" className="text-gray-700 hover:text-primary transition">
+            <Link href="/#how-it-works" className="text-gray-700 hover:text-primary transition">
               이용방법
             </Link>
-            <Link href="#features" className="text-gray-700 hover:text-primary transition">
+            <Link href="/experts" className="text-gray-700 hover:text-primary transition">
               전문가 찾기
             </Link>
-            <Link href="#cta" className="text-gray-700 hover:text-primary transition">
+            <Link href="/about" className="text-gray-700 hover:text-primary transition">
               회사소개
             </Link>
           </div>
@@ -97,21 +97,24 @@ export default function Header() {
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-16 left-0 w-full bg-white shadow-lg border-t">
             <div className="px-4 py-4 space-y-1">
-              <Link 
-                href="#how-it-works" 
+              <Link
+                href="/#how-it-works"
                 className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 이용방법
               </Link>
-              <Link 
-                href="#features" 
+              <Link
+                href="/experts"
                 className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 전문가 찾기
               </Link>
-              <Link 
-                href="#cta" 
+              <Link
+                href="/about"
                 className="block px-3 py-3 text-gray-700 hover:text-primary hover:bg-gray-50 rounded-md transition-colors min-h-[44px] flex items-center"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 회사소개
               </Link>

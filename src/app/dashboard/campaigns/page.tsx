@@ -394,7 +394,12 @@ export default function CampaignsPage() {
               userRole === 'organization' ? (
                 <NoCampaigns onCreate={() => router.push('/dashboard/campaigns/create')} />
               ) : (
-                <NoCampaigns onCreate={() => {}} />
+                <NoCampaigns
+                  title="조건에 맞는 캠페인이 없습니다"
+                  description="다른 키워드로 검색하거나 관심 분야의 캠페인을 찾아보세요"
+                  actionLabel="캠페인 검색하기"
+                  onCreate={() => router.push('/dashboard/campaigns/search')}
+                />
               )
             ) : (
               <NoSearchResults onClear={clearFilters} />

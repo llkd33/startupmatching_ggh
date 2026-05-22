@@ -133,30 +133,42 @@ export default function CareersPage() {
                 location: "서울",
                 description: "파트너십 구축 및 사업 개발"
               }
-            ].map((job, index) => (
-              <div key={index} className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-xl font-bold mb-2 group-hover:text-blue-600 transition-colors">
-                      {job.title}
-                    </h4>
-                    <p className="text-gray-600 mb-3">{job.description}</p>
-                    <div className="flex flex-wrap gap-3">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
-                        {job.team}
-                      </span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-sm">
-                        {job.type}
-                      </span>
-                      <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm">
-                        {job.location}
-                      </span>
+            ].map((job, index) => {
+              const mailto = `mailto:careers@startupmatch.kr?subject=${encodeURIComponent(
+                `[${job.team}] ${job.title} 지원`
+              )}&body=${encodeURIComponent(
+                `안녕하세요, ${job.title} 포지션에 지원하고 싶습니다.\n\n이름:\n연락처:\n자기소개:\n포트폴리오:\n`
+              )}`
+              return (
+                <a
+                  key={index}
+                  href={mailto}
+                  className="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all cursor-pointer group"
+                  aria-label={`${job.title} 포지션 지원하기`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-xl font-bold mb-2 group-hover:text-blue-600 transition-colors">
+                        {job.title}
+                      </h4>
+                      <p className="text-gray-600 mb-3">{job.description}</p>
+                      <div className="flex flex-wrap gap-3">
+                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
+                          {job.team}
+                        </span>
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-sm">
+                          {job.type}
+                        </span>
+                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm">
+                          {job.location}
+                        </span>
+                      </div>
                     </div>
+                    <ArrowLeft className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors transform rotate-180" />
                   </div>
-                  <ArrowLeft className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors transform rotate-180" />
-                </div>
-              </div>
-            ))}
+                </a>
+              )
+            })}
           </div>
         </div>
       </section>

@@ -79,6 +79,45 @@ export default function AdminDashboard({
     window.location.reload();
   };
 
+  const handleDownloadReport = () => {
+    const rows: Array<[string, string | number]> = [
+      ['항목', '값'],
+      ['전체 사용자', stats.totalUsers],
+      ['전문가', stats.experts],
+      ['기관', stats.organizations],
+      ['전체 캠페인', stats.campaigns],
+      ['활성 캠페인', stats.activeCampaigns],
+      ['제안서', stats.proposals],
+      ['수락된 제안서', stats.acceptedProposals],
+      ['이번 달 수익(원)', stats.revenue],
+      ['성장률(%)', stats.growthRate],
+      ['활성 사용자', stats.activeUsers],
+      ['오늘 신규 가입', stats.newUsersToday],
+      ['대기중 검증', stats.pendingVerifications],
+    ];
+
+    const csv = rows
+      .map((row) =>
+        row
+          .map((cell) => {
+            const value = String(cell ?? '');
+            return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+          })
+          .join(',')
+      )
+      .join('\n');
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `admin-report-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
   const quickActions = [
     { label: '사용자 관리', href: '/admin/users', icon: Users, color: 'text-blue-600' },
     { label: '캠페인 관리', href: '/admin/campaigns', icon: Briefcase, color: 'text-purple-600' },
@@ -172,7 +211,7 @@ export default function AdminDashboard({
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             새로고침
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleDownloadReport}>
             <Download className="w-4 h-4 mr-2" />
             리포트 다운로드
           </Button>
@@ -246,9 +285,11 @@ export default function AdminDashboard({
               <CardTitle>사용자 증가 추이</CardTitle>
               <CardDescription>최근 30일간 사용자 가입 현황</CardDescription>
             </div>
-            <Button variant="outline" size="sm">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              상세 분석
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/admin/analytics">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                상세 분석
+              </Link>
             </Button>
           </div>
         </CardHeader>
@@ -327,8 +368,10 @@ export default function AdminDashboard({
                     }`}>
                       {campaign.status}
                     </span>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/campaigns/${campaign.id}`} aria-label="캠페인 상세 보기">
+                        <Eye className="w-4 h-4" />
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -370,8 +413,10 @@ export default function AdminDashboard({
                     }`}>
                       {proposal.status}
                     </span>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/proposals/${proposal.id}`} aria-label="제안서 상세 보기">
+                        <Eye className="w-4 h-4" />
+                      </Link>
                     </Button>
                   </div>
                 </div>

@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { toast } from '@/components/ui/toast-custom'
+import ConnectionRequestForm from '@/components/expert/ConnectionRequestForm'
 import {
   User,
   Briefcase,
@@ -36,18 +39,96 @@ interface ExpertProfile {
   availability_schedule: AvailabilitySchedule | null
 }
 
+interface ViewerInfo {
+  userId: string
+  role: string | null
+  organizationId: string | null
+  organizationName: string | null
+}
+
 export default function ExpertProfilePage() {
   const params = useParams()
+  const router = useRouter()
   const expertId = params.id as string
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<ExpertProfile | null>(null)
   const [hashtags, setHashtags] = useState<string[]>([])
+  const [viewer, setViewer] = useState<ViewerInfo | null>(null)
+  const [showProposalDialog, setShowProposalDialog] = useState(false)
 
   useEffect(() => {
     if (expertId) {
       loadProfile()
+      loadViewer()
     }
   }, [expertId])
+
+  const loadViewer = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setViewer(null)
+        return
+      }
+
+      const userResult: any = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+      const userData = userResult.data
+
+      let organizationId: string | null = null
+      let organizationName: string | null = null
+
+      if (userData?.role === 'organization') {
+        const orgResult: any = await supabase
+          .from('organization_profiles')
+          .select('id, organization_name')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        const orgProfile = orgResult.data
+
+        organizationId = orgProfile?.id ?? null
+        organizationName = orgProfile?.organization_name ?? null
+      }
+
+      setViewer({
+        userId: user.id,
+        role: userData?.role ?? null,
+        organizationId,
+        organizationName
+      })
+    } catch (error) {
+      console.error('Error loading viewer:', error)
+    }
+  }
+
+  const handleProposalClick = () => {
+    if (!viewer) {
+      toast.error('로그인이 필요합니다.')
+      router.push('/auth/login')
+      return
+    }
+
+    if (viewer.role !== 'organization') {
+      toast.error('기관 계정만 제안을 보낼 수 있습니다.')
+      return
+    }
+
+    if (!viewer.organizationId || !viewer.organizationName) {
+      toast.error('기관 프로필을 먼저 완성해주세요.')
+      router.push('/profile/organization/complete')
+      return
+    }
+
+    setShowProposalDialog(true)
+  }
+
+  const handleProposalSuccess = () => {
+    setShowProposalDialog(false)
+    toast.success('연결 요청이 성공적으로 전송되었습니다.')
+  }
 
   const loadProfile = async () => {
     setLoading(true)
@@ -305,10 +386,28 @@ export default function ExpertProfilePage() {
 
         {/* Contact Button */}
         <div className="flex justify-center">
-          <Button size="lg" className="px-8">
+          <Button size="lg" className="px-8" onClick={handleProposalClick}>
             제안서 보내기
           </Button>
         </div>
+
+        {viewer?.organizationId && viewer.organizationName && profile && (
+          <Dialog open={showProposalDialog} onOpenChange={setShowProposalDialog}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{profile.name}님에게 제안 보내기</DialogTitle>
+              </DialogHeader>
+              <ConnectionRequestForm
+                expertId={expertId}
+                expertName={profile.name}
+                organizationId={viewer.organizationId}
+                organizationName={viewer.organizationName}
+                onClose={() => setShowProposalDialog(false)}
+                onSuccess={handleProposalSuccess}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   )

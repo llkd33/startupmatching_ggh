@@ -153,14 +153,24 @@ export function NoMessages({ onStartChat }: { onStartChat?: () => void }) {
   )
 }
 
-export function NoCampaigns({ onCreate }: { onCreate: () => void }) {
+export function NoCampaigns({
+  onCreate,
+  title,
+  description,
+  actionLabel
+}: {
+  onCreate: () => void
+  title?: string
+  description?: string
+  actionLabel?: string
+}) {
   return (
     <EmptyState
       type="campaigns"
-      title="아직 캠페인이 없습니다"
-      description="첫 번째 캠페인을 만들어 전문가를 찾아보세요"
+      title={title ?? "아직 캠페인이 없습니다"}
+      description={description ?? "첫 번째 캠페인을 만들어 전문가를 찾아보세요"}
       action={{
-        label: "캠페인 만들기",
+        label: actionLabel ?? "캠페인 만들기",
         onClick: onCreate
       }}
     />

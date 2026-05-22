@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
 import { Plus, X, Briefcase, GraduationCap, MapPin, Hash, User, Check, Clock } from 'lucide-react'
 import { AvailabilityCalendar, AvailabilitySchedule } from '@/components/calendar/AvailabilityCalendar'
+import { toast } from '@/components/ui/toast-custom'
 
 interface CareerItem {
   id: string
@@ -275,14 +276,14 @@ export default function ExpertProfileEditPage() {
 
       if (error) throw error
 
-      alert('프로필이 저장되었습니다!')
+      toast.success('프로필이 저장되었습니다.')
       if (typeof window !== 'undefined' && window.history.length > 1) {
         router.back()
       } else {
         router.push('/dashboard')
       }
     } catch (error: any) {
-      alert('프로필 저장 중 오류가 발생했습니다: ' + error.message)
+      toast.error('프로필 저장 중 오류가 발생했습니다.', error.message)
     } finally {
       setSaving(false)
     }

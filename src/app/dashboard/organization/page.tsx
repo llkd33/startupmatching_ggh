@@ -46,6 +46,7 @@ export default function OrganizationProfilePage() {
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [requestingVerification, setRequestingVerification] = useState(false)
 
   useEffect(() => {
     loadOrganizationProfile()
@@ -265,6 +266,65 @@ export default function OrganizationProfilePage() {
     }
   }
 
+  const handleVerificationRequest = async () => {
+    if (!organizationData?.id) {
+      setError('기관 프로필을 먼저 저장해주세요.')
+      return
+    }
+
+    if (!formData.organization_name.trim() || !formData.business_number.trim()) {
+      setError('기관명과 사업자등록번호를 입력한 후 인증을 요청해주세요.')
+      return
+    }
+
+    setRequestingVerification(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('로그인 정보를 확인할 수 없습니다.')
+        return
+      }
+
+      const html = `
+        <h2>기관 인증 요청</h2>
+        <p><strong>기관명:</strong> ${formData.organization_name}</p>
+        <p><strong>대표자명:</strong> ${formData.representative_name || '-'}</p>
+        <p><strong>사업자번호:</strong> ${formData.business_number}</p>
+        <p><strong>업종:</strong> ${formData.industry || '-'}</p>
+        <p><strong>웹사이트:</strong> ${formData.website || '-'}</p>
+        <p><strong>요청자 이메일:</strong> ${user.email}</p>
+        <p><strong>요청자 ID:</strong> ${user.id}</p>
+        <p><strong>기관 프로필 ID:</strong> ${organizationData.id}</p>
+      `
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'support@startupmatch.kr',
+          subject: `[인증 요청] ${formData.organization_name}`,
+          html
+        })
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok && !data?.skipped) {
+        throw new Error(data?.error || '인증 요청 전송에 실패했습니다.')
+      }
+
+      setSuccess('인증 요청이 접수되었습니다. 검토 후 결과를 안내드리겠습니다.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '인증 요청 중 오류가 발생했습니다.'
+      setError(message)
+    } finally {
+      setRequestingVerification(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -350,8 +410,20 @@ export default function OrganizationProfilePage() {
                 <p className="text-gray-600">
                   기관 인증이 완료되지 않았습니다. 인증 후 모든 기능을 이용할 수 있습니다.
                 </p>
-                <Button variant="outline" size="sm">
-                  인증 요청
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleVerificationRequest}
+                  disabled={requestingVerification}
+                >
+                  {requestingVerification ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      요청 중...
+                    </>
+                  ) : (
+                    '인증 요청'
+                  )}
                 </Button>
               </div>
             )}
