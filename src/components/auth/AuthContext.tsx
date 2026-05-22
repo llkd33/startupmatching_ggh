@@ -113,9 +113,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRole(metaRole)
         }
       } else if (userRow?.role) {
-        // Update with database role if different from metadata
+        const databaseRole = userRow.role
+
+        if (metaRole && databaseRole !== metaRole && databaseRole !== 'admin') {
+          const { data: { user } } = await browserSupabase.auth.getUser()
+          if (user) {
+            const ensuredRole = await ensureUserRecord(user)
+            if (mountedRef.current) {
+              setRole(ensuredRole)
+            }
+          } else if (mountedRef.current) {
+            setRole(metaRole)
+          }
+          return
+        }
+
         if (mountedRef.current) {
-          setRole(userRow.role)
+          setRole(databaseRole)
         }
       } else {
         // No row found - ensure user record exists and use metadata as fallback

@@ -128,7 +128,11 @@ async function syncUserRecord(
     throw existingUserError
   }
 
-  const role = normalizeRole(existingUser?.role) || normalizeRole(user.user_metadata?.role) || 'organization'
+  const existingRole = normalizeRole(existingUser?.role)
+  const metadataRole = normalizeRole(user.user_metadata?.role)
+  const role = existingRole === 'admin'
+    ? 'admin'
+    : metadataRole || existingRole || 'organization'
   const metadataDefaults = getMetadataDefaults(user)
   const phone =
     explicitPhone !== undefined

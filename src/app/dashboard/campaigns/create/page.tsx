@@ -83,8 +83,7 @@ export default function CreateCampaignPage() {
         }
 
         if (response.status === 403) {
-          router.replace('/dashboard')
-          return
+          throw new Error('기관 계정으로 확인되지 않아 캠페인을 만들 수 없습니다. 다시 로그인한 뒤 시도해주세요.')
         }
 
         if (!response.ok) {
