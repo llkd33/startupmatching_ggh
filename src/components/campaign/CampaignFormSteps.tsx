@@ -158,7 +158,9 @@ export function CampaignDetailsStep({ formData, errors, register, setValue, watc
             <Input
               id="budgetMin"
               type="number"
-              {...register('budgetMin', { valueAsNumber: true })}
+              {...register('budgetMin', {
+                setValueAs: (v: unknown) => (v === '' || v === null || v === undefined ? undefined : Number(v))
+              })}
               placeholder="1000000"
               className={cn(errors.budgetMin && 'border-red-500', 'min-h-[44px]')}
             />
@@ -172,7 +174,9 @@ export function CampaignDetailsStep({ formData, errors, register, setValue, watc
             <Input
               id="budgetMax"
               type="number"
-              {...register('budgetMax', { valueAsNumber: true })}
+              {...register('budgetMax', {
+                setValueAs: (v: unknown) => (v === '' || v === null || v === undefined ? undefined : Number(v))
+              })}
               placeholder="5000000"
               className={cn(errors.budgetMax && 'border-red-500', 'min-h-[44px]')}
             />
@@ -298,7 +302,13 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
             <Input
               id="requiredExperts"
               type="number"
-              {...register('requiredExperts', { valueAsNumber: true })}
+              {...register('requiredExperts', {
+                setValueAs: (v: unknown) => {
+                  if (v === '' || v === null || v === undefined) return 1
+                  const n = Number(v)
+                  return Number.isFinite(n) && n >= 1 ? n : 1
+                }
+              })}
               placeholder="1"
               min={1}
               className="min-h-[44px]"

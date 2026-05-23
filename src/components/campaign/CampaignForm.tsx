@@ -467,17 +467,27 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
                 if (loading || isSubmitting) {
                   return
                 }
-                
+
                 const isValid = await trigger()
                 if (isValid) {
                   const formData = watch()
                   await onSubmit(formData, false)
                 } else {
-                  // Validation 실패 시 에러 표시
-                  setSubmitError('필수 정보를 모두 입력해주세요.')
+                  // Validation 실패 시 첫 번째 에러 메시지 노출
+                  const firstError = Object.values(errors)[0] as any
+                  const firstErrorMessage = firstError?.message
+                  const fallbackMessage = '필수 정보를 모두 입력해주세요.'
+                  const message = typeof firstErrorMessage === 'string' ? firstErrorMessage : fallbackMessage
+
+                  setSubmitError(message)
                   toast.error('입력한 정보를 확인해주세요.', {
-                    description: '필수 항목이 누락되었습니다.'
+                    description: message
                   })
+
+                  // 에러 영역으로 스크롤
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }
                 }
               }}
               onSaveProgress={saveProgress}
