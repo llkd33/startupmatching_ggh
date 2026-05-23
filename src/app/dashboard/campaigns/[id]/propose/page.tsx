@@ -44,6 +44,16 @@ interface Campaign {
   } | null
 }
 
+const normalizeCampaign = (campaign: Campaign | null): Campaign | null => {
+  if (!campaign) return null
+
+  return {
+    ...campaign,
+    keywords: Array.isArray(campaign.keywords) ? campaign.keywords : [],
+    organization_profiles: campaign.organization_profiles ?? null,
+  }
+}
+
 interface ExpertProfileResponse {
   profile?: {
     id: string
@@ -214,7 +224,7 @@ export default function ProposePage() {
 
       if (error) throw error
 
-      setCampaign(data as Campaign | null)
+      setCampaign(normalizeCampaign(data as Campaign | null))
     } catch (error) {
       // 개발 모드에서만 로그 출력
       if (process.env.NODE_ENV === 'development') {
