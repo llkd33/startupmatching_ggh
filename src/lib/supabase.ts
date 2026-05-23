@@ -532,21 +532,18 @@ export const db = {
     },
 
     async markAsRead(messageIds: string[]) {
-      const { data, error } = await supabase
-        .from('messages')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .in('id', messageIds)
+      const { data, error } = await (supabase as any)
+        .rpc('mark_messages_read', { p_message_ids: messageIds })
       
       return { data, error }
     },
 
-    async markAllAsRead(campaignId: string, userId: string) {
-      const { data, error } = await supabase
-        .from('messages')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq('campaign_id', campaignId)
-        .eq('receiver_id', userId)
-        .eq('is_read', false)
+    async markAllAsRead(campaignId: string, _userId: string) {
+      const { data, error } = await (supabase as any)
+        .rpc('mark_messages_as_read', {
+          p_campaign_id: campaignId,
+          p_sender_id: null,
+        })
       
       return { data, error }
     },

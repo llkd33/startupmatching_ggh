@@ -99,11 +99,8 @@ export default function AcceptInvitePage() {
   const loadInvitation = async () => {
     try {
       // 토큰으로 초대 정보 조회
-      const { data, error } = await supabase
-        .from('user_invitations')
-        .select('*')
-        .eq('token', token)
-        .eq('status', 'pending')
+      const { data, error } = await (supabase as any)
+        .rpc('get_invitation_by_token', { p_token: token })
         .single()
 
       if (error || !data) {
@@ -688,4 +685,3 @@ function generateWelcomeEmailHTML(
 </html>
   `
 }
-

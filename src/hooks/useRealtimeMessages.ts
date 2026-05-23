@@ -61,10 +61,8 @@ export function useRealtimeMessages(campaignId: string, userId: string) {
 
           // Mark as read if receiver
           if (newMessage.receiver_id === userId && !newMessage.is_read) {
-            await supabase
-              .from('messages')
-              .update({ is_read: true, read_at: new Date().toISOString() })
-              .eq('id', newMessage.id)
+            await (supabase as any)
+              .rpc('mark_messages_read', { p_message_ids: [newMessage.id] })
           }
         }
       )
@@ -128,15 +126,11 @@ export function useRealtimeMessages(campaignId: string, userId: string) {
     if (unreadMessages.length === 0) return
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({
-          is_read: true,
-          read_at: new Date().toISOString()
+      const { error } = await (supabase as any)
+        .rpc('mark_messages_as_read', {
+          p_campaign_id: campaignId,
+          p_sender_id: null,
         })
-        .eq('campaign_id', campaignId)
-        .eq('receiver_id', userId)
-        .eq('is_read', false)
 
       if (!error) {
         // Update local state
@@ -157,13 +151,8 @@ export function useRealtimeMessages(campaignId: string, userId: string) {
   // Mark specific message as read
   const markAsRead = useCallback(async (messageId: string) => {
     try {
-      const { error } = await supabase
-        .from('messages')
-        .update({
-          is_read: true,
-          read_at: new Date().toISOString()
-        })
-        .eq('id', messageId)
+      const { error } = await (supabase as any)
+        .rpc('mark_messages_read', { p_message_ids: [messageId] })
 
       if (!error) {
         setMessages(prev =>

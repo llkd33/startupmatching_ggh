@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { db, auth } from '@/lib/supabase'
+import { db, auth, supabase } from '@/lib/supabase'
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages'
 import { notifyMessageReceived } from '@/lib/notifications'
-import { uploadFile, formatFileSize, getFileCategory, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/upload'
+import { formatFileSize, getFileCategory, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from '@/lib/upload'
 import { PaperAirplaneIcon, PaperClipIcon, XMarkIcon, DocumentIcon, PhotoIcon, CheckIcon } from '@heroicons/react/24/solid'
 import { ArrowDownTrayIcon, CheckIcon as CheckOutlineIcon } from '@heroicons/react/24/outline'
 
@@ -28,6 +28,7 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName, cam
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [signedFileUrls, setSignedFileUrls] = useState<Record<string, string>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -47,6 +48,35 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName, cam
 
   useEffect(() => {
     scrollToBottom()
+  }, [messages])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const signPrivateFileUrls = async () => {
+      const entries = await Promise.all(
+        messages
+          .filter((message) => message.file_url && !message.file_url.startsWith('http'))
+          .map(async (message) => {
+            const { data, error } = await supabase.storage
+              .from('messages')
+              .createSignedUrl(message.file_url!, 60 * 60)
+
+            if (error || !data?.signedUrl) return null
+            return [message.id, data.signedUrl] as const
+          })
+      )
+
+      if (!cancelled) {
+        setSignedFileUrls(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, string]>))
+      }
+    }
+
+    signPrivateFileUrls()
+
+    return () => {
+      cancelled = true
+    }
   }, [messages])
 
   const loadCurrentUser = async () => {
@@ -114,10 +144,18 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName, cam
       // Upload file if attached
       if (attachedFile) {
         setUploadProgress(10)
-        const uploadedFile = await uploadFile(attachedFile.file, 'ATTACHMENTS', currentUser.id)
+        const fileExt = attachedFile.file.name.split('.').pop()
+        const fileNameForPath = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `messages/${campaignId}/${fileNameForPath}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('messages')
+          .upload(filePath, attachedFile.file)
+
+        if (uploadError) throw uploadError
         setUploadProgress(90)
 
-        fileUrl = uploadedFile.url
+        fileUrl = filePath
         fileName = attachedFile.file.name
         fileSize = attachedFile.file.size
         messageType = getFileCategory(attachedFile.file.type) === 'image' ? 'image' : 'file'
@@ -182,14 +220,25 @@ export default function ChatWindow({ campaignId, otherUserId, otherUserName, cam
 
   // Render file attachment in message
   const renderFileAttachment = (message: any, isOwnMessage: boolean) => {
-    const fileUrl = message.file_url
+    const storedFileUrl = message.file_url
     const fileName = message.file_name
     const fileSize = message.file_size
     const messageType = message.message_type || message.type
 
-    if (!fileUrl) return null
+    if (!storedFileUrl) return null
 
     const isImage = messageType === 'image'
+    const fileUrl = storedFileUrl.startsWith('http')
+      ? storedFileUrl
+      : signedFileUrls[message.id]
+
+    if (!fileUrl) {
+      return (
+        <div className={`mt-2 text-xs ${isOwnMessage ? 'text-indigo-100' : 'text-muted-foreground'}`}>
+          {fileName || '첨부 파일'} 링크를 준비하는 중입니다.
+        </div>
+      )
+    }
 
     if (isImage) {
       return (

@@ -354,7 +354,83 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_invitation_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          id: string
+          email: string
+          name: string | null
+          phone: string | null
+          role: 'expert' | 'organization' | 'admin' | null
+          organization_name: string | null
+          position: string | null
+          status: 'pending' | 'accepted' | 'expired' | 'cancelled'
+          expires_at: string
+          accepted_at: string | null
+        }[]
+      }
+      get_unread_notification_count: {
+        Args: { user_uuid?: string }
+        Returns: number
+      }
+      get_unread_message_count: {
+        Args: { user_uuid?: string }
+        Returns: number
+      }
+      mark_notification_read: {
+        Args: { notification_id: string }
+        Returns: void
+      }
+      mark_all_notifications_read: {
+        Args: Record<PropertyKey, never>
+        Returns: void
+      }
+      send_message: {
+        Args: {
+          p_campaign_id: string
+          p_sender_id: string
+          p_receiver_id: string
+          p_content: string
+          p_proposal_id?: string | null
+          p_message_type?: string | null
+        }
+        Returns: string
+      }
+      mark_messages_as_read: {
+        Args: { p_campaign_id: string; p_sender_id?: string | null }
+        Returns: number
+      }
+      mark_messages_read: {
+        Args: { p_message_ids: string[] }
+        Returns: number
+      }
+      update_expert_hashtags: {
+        Args: { p_expert_id: string }
+        Returns: void
+      }
+      match_campaign_experts: {
+        Args: { p_campaign_id: string; p_stage?: number; p_limit?: number }
+        Returns: {
+          expert_id: string
+          user_id: string
+          name: string
+          skills: string[]
+          hashtags: string[]
+          bio: string | null
+          hourly_rate: number | null
+          rating: number
+          total_projects: number
+          match_score: number
+        }[]
+      }
+      check_notification_preference: {
+        Args: { p_user_id: string; p_notification_type: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: { p_action_type: string; p_max_requests?: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

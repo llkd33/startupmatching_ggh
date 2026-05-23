@@ -93,6 +93,7 @@ export default function ChatPage() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
+  const [signedFileUrls, setSignedFileUrls] = useState<Record<string, string>>({})
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -118,6 +119,35 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom()
+  }, [messages])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const signPrivateFileUrls = async () => {
+      const entries = await Promise.all(
+        messages
+          .filter((message) => message.file_url && !message.file_url.startsWith('http'))
+          .map(async (message) => {
+            const { data, error } = await supabase.storage
+              .from('messages')
+              .createSignedUrl(message.file_url!, 60 * 60)
+
+            if (error || !data?.signedUrl) return null
+            return [message.id, data.signedUrl] as const
+          })
+      )
+
+      if (!cancelled) {
+        setSignedFileUrls(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, string]>))
+      }
+    }
+
+    signPrivateFileUrls()
+
+    return () => {
+      cancelled = true
+    }
   }, [messages])
 
   const checkAuthAndLoadData = async () => {
@@ -325,16 +355,11 @@ export default function ChatPage() {
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
       const filePath = `messages/${campaignId}/${fileName}`
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('messages')
         .upload(filePath, file)
 
       if (uploadError) throw uploadError
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('messages')
-        .getPublicUrl(filePath)
 
       // Send message with file
       const { error: messageError } = await db.messages.send(
@@ -344,7 +369,7 @@ export default function ChatPage() {
         otherParticipant.id,
         `파일: ${file.name}`,
         'file',
-        urlData.publicUrl,
+        filePath,
         file.name,
         file.size
       )
@@ -385,10 +410,7 @@ export default function ChatPage() {
     if (unreadMessageIds.length === 0) return
 
     try {
-      await supabase
-        .from('messages')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .in('id', unreadMessageIds)
+      await db.messages.markAsRead(unreadMessageIds)
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error marking messages as read:', error)
@@ -618,6 +640,9 @@ export default function ChatPage() {
                 const isSystemMessage = message.message_type === 'system'
                 const isEditing = editingMessageId === message.id
                 const isHovered = hoveredMessageId === message.id
+                const fileHref = message.file_url?.startsWith('http')
+                  ? message.file_url
+                  : signedFileUrls[message.id]
                 
                 if (isSystemMessage) {
                   return (
@@ -673,9 +698,13 @@ export default function ChatPage() {
                           {message.file_url && (
                             <div className="mb-2">
                               <a
-                                href={message.file_url}
+                                href={fileHref || '#'}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                aria-disabled={!fileHref}
+                                onClick={(event) => {
+                                  if (!fileHref) event.preventDefault()
+                                }}
                                 className="flex items-center gap-2 text-sm underline"
                               >
                                 <FileIcon className="h-4 w-4" />
