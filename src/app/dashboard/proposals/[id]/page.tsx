@@ -34,7 +34,7 @@ interface ProposalDetail {
   estimated_budget: number | null
   estimated_start_date: string | null
   estimated_end_date: string | null
-  portfolio_links: string[]
+  portfolio_links: string[] | null
   status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
   response_message: string | null
   submitted_at: string
@@ -44,8 +44,8 @@ interface ProposalDetail {
     title: string
     description: string
     type: string
-    category: string
-    keywords: string[]
+    category: string | null
+    keywords: string[] | null
     budget_min: number | null
     budget_max: number | null
     start_date: string | null
@@ -54,23 +54,23 @@ interface ProposalDetail {
     required_experts: number
     status: string
     organization_profiles: {
-      organization_name: string
-      representative_name: string
-      industry: string
-      user_id: string
-    }
-  }
+      organization_name: string | null
+      representative_name: string | null
+      industry: string | null
+      user_id: string | null
+    } | null
+  } | null
   expert_profiles: {
-    name: string
-    title: string
-    bio: string
+    name: string | null
+    title: string | null
+    bio: string | null
     hourly_rate: number | null
-    experience_years: number
-    skills: string[]
+    experience_years: number | null
+    skills: string[] | null
     users: {
-      email: string
-    }
-  }
+      email: string | null
+    } | null
+  } | null
 }
 
 export default function ProposalDetailPage() {
@@ -92,30 +92,35 @@ export default function ProposalDetailPage() {
   }, [id])
 
   const checkAuthAndLoadProposal = async (proposalId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    setUserId(user.id)
+      if (authError) throw authError
 
-    // Get user role
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
+      if (!user) {
+        router.push('/auth/login')
+        return
+      }
 
-    if (userError) {
-      console.error('Failed to load user role:', userError)
-      return
-    }
+      setUserId(user.id)
 
-    if (userData) {
-      setUserRole(userData.role)
+      // Get user role
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (userError && process.env.NODE_ENV === 'development') {
+        console.error('Failed to load user role:', userError)
+      }
+
+      const metadataRole = user.user_metadata?.role as string | undefined
+      setUserRole((userData as { role?: string } | null)?.role || metadataRole || null)
       await loadProposal(proposalId)
+    } catch (error) {
+      console.error('Error loading proposal auth:', error)
+      setLoading(false)
     }
   }
 
@@ -170,7 +175,7 @@ export default function ProposalDetailPage() {
           status: action === 'accept' ? 'accepted' : 'rejected',
           response_message: responseMessage.trim() || null,
           reviewed_at: new Date().toISOString()
-        })
+        } as never)
         .eq('id', proposal.id)
 
       if (error) throw error
@@ -202,7 +207,7 @@ export default function ProposalDetailPage() {
         .update({
           status: 'withdrawn',
           reviewed_at: new Date().toISOString()
-        })
+        } as never)
         .eq('id', proposal.id)
 
       if (error) throw error
@@ -251,7 +256,7 @@ export default function ProposalDetailPage() {
     if (!proposal || !userId) return false
     
     if (userRole === 'organization') {
-      return proposal.campaigns.organization_profiles.user_id === userId
+      return proposal.campaigns?.organization_profiles?.user_id === userId
     }
     
     return false
@@ -299,6 +304,20 @@ export default function ProposalDetailPage() {
     )
   }
 
+  const campaign = proposal.campaigns
+  const organizationProfile = campaign?.organization_profiles
+  const expertProfile = proposal.expert_profiles
+  const campaignTitle = campaign?.title || '캠페인 정보 없음'
+  const campaignDescription = campaign?.description || ''
+  const organizationName = organizationProfile?.organization_name || '기관 정보 없음'
+  const industry = organizationProfile?.industry || '미지정'
+  const keywords = Array.isArray(campaign?.keywords) ? campaign.keywords : []
+  const expertName = expertProfile?.name || '전문가 정보 없음'
+  const expertTitle = expertProfile?.title || '미지정'
+  const expertExperienceYears = expertProfile?.experience_years ?? 0
+  const expertSkills = Array.isArray(expertProfile?.skills) ? expertProfile.skills : []
+  const portfolioLinks = Array.isArray(proposal.portfolio_links) ? proposal.portfolio_links : []
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
@@ -337,9 +356,9 @@ export default function ProposalDetailPage() {
                     })} 제출
                   </span>
                 </div>
-                <CardTitle className="text-xl">{proposal.campaigns.title}</CardTitle>
+                <CardTitle className="text-xl">{campaignTitle}</CardTitle>
                 <CardDescription>
-                  {proposal.campaigns.organization_profiles.organization_name}
+                  {organizationName}
                 </CardDescription>
               </div>
               
@@ -448,46 +467,46 @@ export default function ProposalDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="font-medium mb-2">{proposal.campaigns.title}</h4>
-              <p className="text-sm text-gray-600 mb-4">{proposal.campaigns.description}</p>
+              <h4 className="font-medium mb-2">{campaignTitle}</h4>
+              <p className="text-sm text-gray-600 mb-4">{campaignDescription}</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-700">기관</p>
-                <p className="text-sm">{proposal.campaigns.organization_profiles.organization_name}</p>
+                <p className="text-sm">{organizationName}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">업종</p>
-                <p className="text-sm">{proposal.campaigns.organization_profiles.industry || '미지정'}</p>
+                <p className="text-sm">{industry}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">프로젝트 유형</p>
-                <p className="text-sm">{proposal.campaigns.type}</p>
+                <p className="text-sm">{campaign?.type || '미지정'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">필요 전문가 수</p>
-                <p className="text-sm">{proposal.campaigns.required_experts}명</p>
+                <p className="text-sm">{campaign?.required_experts || 0}명</p>
               </div>
             </div>
 
-            {proposal.campaigns.budget_min && proposal.campaigns.budget_max && (
+            {campaign?.budget_min && campaign?.budget_max && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-1">예산 범위</p>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-gray-400" />
                   <span className="text-sm">
-                    ₩{proposal.campaigns.budget_min.toLocaleString()} - ₩{proposal.campaigns.budget_max.toLocaleString()}
+                    ₩{campaign.budget_min.toLocaleString()} - ₩{campaign.budget_max.toLocaleString()}
                   </span>
                 </div>
               </div>
             )}
 
-            {proposal.campaigns.keywords.length > 0 && (
+            {keywords.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">키워드</p>
                 <div className="flex flex-wrap gap-2">
-                  {proposal.campaigns.keywords.map((keyword, index) => (
+                  {keywords.map((keyword, index) => (
                     <Badge key={index} variant="secondary" className="text-xs">
                       #{keyword}
                     </Badge>
@@ -510,36 +529,36 @@ export default function ProposalDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-700">이름</p>
-                <p className="text-sm">{proposal.expert_profiles.name}</p>
+                <p className="text-sm">{expertName}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">직책</p>
-                <p className="text-sm">{proposal.expert_profiles.title}</p>
+                <p className="text-sm">{expertTitle}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">경력</p>
-                <p className="text-sm">{proposal.expert_profiles.experience_years}년</p>
+                <p className="text-sm">{expertExperienceYears}년</p>
               </div>
-              {proposal.expert_profiles.hourly_rate && (
+              {expertProfile?.hourly_rate && (
                 <div>
                   <p className="text-sm font-medium text-gray-700">시급</p>
-                  <p className="text-sm">₩{proposal.expert_profiles.hourly_rate.toLocaleString()}/시간</p>
+                  <p className="text-sm">₩{expertProfile.hourly_rate.toLocaleString()}/시간</p>
                 </div>
               )}
             </div>
 
-            {proposal.expert_profiles.bio && (
+            {expertProfile?.bio && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">소개</p>
-                <p className="text-sm text-gray-600">{proposal.expert_profiles.bio}</p>
+                <p className="text-sm text-gray-600">{expertProfile.bio}</p>
               </div>
             )}
 
-            {proposal.expert_profiles.skills.length > 0 && (
+            {expertSkills.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">기술 스택</p>
                 <div className="flex flex-wrap gap-2">
-                  {proposal.expert_profiles.skills.map((skill, index) => (
+                  {expertSkills.map((skill, index) => (
                     <Badge key={index} variant="outline" className="text-xs">
                       {skill}
                     </Badge>
@@ -599,11 +618,11 @@ export default function ProposalDetailPage() {
               )}
             </div>
 
-            {proposal.portfolio_links.length > 0 && (
+            {portfolioLinks.length > 0 && (
               <div className="pt-4 border-t">
                 <p className="text-sm font-medium text-gray-700 mb-3">포트폴리오 링크</p>
                 <div className="space-y-2">
-                  {proposal.portfolio_links.map((link, index) => (
+                  {portfolioLinks.map((link, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <LinkIcon className="h-4 w-4 text-gray-400" />
                       <a

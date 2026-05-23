@@ -14,10 +14,8 @@ import {
   Calendar,
   DollarSign,
   LinkIcon,
-  Building2,
   MapPin,
   Users,
-  Clock,
   Plus,
   X
 } from 'lucide-react'
@@ -30,8 +28,8 @@ interface Campaign {
   title: string
   description: string
   type: string
-  category: string
-  keywords: string[]
+  category: string | null
+  keywords: string[] | null
   budget_min: number | null
   budget_max: number | null
   start_date: string | null
@@ -40,10 +38,10 @@ interface Campaign {
   required_experts: number
   status: string
   organization_profiles: {
-    organization_name: string
-    representative_name: string
-    industry: string
-  }
+    organization_name: string | null
+    representative_name: string | null
+    industry: string | null
+  } | null
 }
 
 interface ExpertProfileResponse {
@@ -153,7 +151,7 @@ export default function ProposePage() {
 
     // Check if already submitted proposal
     // RLS 정책 문제로 인해 406 에러가 발생할 수 있으므로, 에러를 무시하고 계속 진행
-    let existingProposal = null
+    let existingProposal: { id: string } | null = null
     try {
       const { data, error: proposalCheckError } = await supabase
         .from('proposals')
@@ -178,7 +176,7 @@ export default function ProposePage() {
         // 에러가 발생해도 계속 진행 (제안서가 없을 수도 있고, INSERT는 작동할 수 있음)
         existingProposal = null
       } else {
-        existingProposal = data
+        existingProposal = data as { id: string } | null
       }
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
@@ -216,7 +214,7 @@ export default function ProposePage() {
 
       if (error) throw error
 
-      setCampaign(data)
+      setCampaign(data as Campaign | null)
     } catch (error) {
       // 개발 모드에서만 로그 출력
       if (process.env.NODE_ENV === 'development') {
@@ -282,7 +280,7 @@ export default function ProposePage() {
 
       const { data: insertedData, error } = await supabase
         .from('proposals')
-        .insert(proposalData)
+        .insert(proposalData as never)
         .select()
 
       if (error) {
@@ -319,7 +317,8 @@ export default function ProposePage() {
       }
 
       // 기관에 이메일 알림 발송 (비동기, 실패해도 계속 진행)
-      if (insertedData && insertedData[0]) {
+      const insertedProposal = (insertedData || [])[0] as { id: string } | undefined
+      if (insertedProposal) {
         try {
           await fetch('/api/proposals/notify-organization', {
             method: 'POST',
@@ -327,7 +326,7 @@ export default function ProposePage() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              proposalId: insertedData[0].id,
+              proposalId: insertedProposal.id,
               campaignId: campaign.id,
               expertId: expertProfile.id
             })
@@ -446,6 +445,9 @@ export default function ProposePage() {
     )
   }
 
+  const organizationName = campaign.organization_profiles?.organization_name || '기관 정보 없음'
+  const keywords = Array.isArray(campaign.keywords) ? campaign.keywords : []
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
@@ -495,7 +497,7 @@ export default function ProposePage() {
                 </div>
                 <CardTitle className="text-xl mb-2">{campaign.title}</CardTitle>
                 <CardDescription>
-                  {campaign.organization_profiles.organization_name}
+                  {organizationName}
                 </CardDescription>
               </div>
             </div>
@@ -528,11 +530,11 @@ export default function ProposePage() {
               )}
             </div>
 
-            {campaign.keywords.length > 0 && (
+            {keywords.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">키워드</p>
                 <div className="flex flex-wrap gap-2">
-                  {campaign.keywords.map((keyword, index) => (
+                  {keywords.map((keyword, index) => (
                     <span
                       key={index}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"

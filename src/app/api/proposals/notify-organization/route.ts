@@ -17,6 +17,19 @@ const getAdminClient = () => {
   })
 }
 
+interface OrganizationProfileWithUser {
+  organization_name?: string | null
+  users?: { email?: string | null } | { email?: string | null }[] | null
+}
+
+const pickFirst = <T,>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -72,10 +85,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const organizationEmail = campaignData.organization_profiles.users.email
-    const organizationName = campaignData.organization_profiles.organization_name
-    const expertName = expertData.name
+    const organizationProfile = pickFirst(
+      campaignData.organization_profiles as OrganizationProfileWithUser | OrganizationProfileWithUser[] | null
+    )
+    const organizationUser = pickFirst(organizationProfile?.users)
+    const organizationEmail = organizationUser?.email
+    const organizationName = organizationProfile?.organization_name || '기관'
+    const expertName = expertData.name || '전문가'
     const campaignTitle = campaignData.title
+
+    if (!organizationEmail) {
+      console.warn('Organization email not found. Proposal email notification skipped.', { campaignId, proposalId })
+      return NextResponse.json({
+        success: true,
+        message: 'Proposal created but email notification skipped (organization email not found)'
+      })
+    }
 
     // 이메일 발송
     const resendApiKey = process.env.RESEND_API_KEY
@@ -180,4 +205,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

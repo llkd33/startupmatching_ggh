@@ -453,6 +453,9 @@ export async function sendSelectionResultEmails(
       .eq('status', 'accepted')
       .single()
 
+    const campaignOrganization = campaign.organization_profiles as { organization_name?: string | null } | null
+    const organizationName = campaignOrganization?.organization_name || '기관'
+
     if (selectedProposal) {
       const expert = selectedProposal.expert_profiles as any
       await sendEmail({
@@ -461,7 +464,7 @@ export async function sendSelectionResultEmails(
         html: generateSelectionEmailHTML(
           expert.name,
           campaign.title,
-          (campaign.organization_profiles as any).organization_name,
+          organizationName,
           campaignId,
           true
         ),
@@ -491,7 +494,7 @@ export async function sendSelectionResultEmails(
             html: generateSelectionEmailHTML(
               expert.name,
               campaign.title,
-              (campaign.organization_profiles as any).organization_name,
+              organizationName,
               campaignId,
               false,
               proposal.response_message || undefined
@@ -717,10 +720,12 @@ export async function handleCampaignCreated(campaignId: string): Promise<void> {
     }
 
     // 4. 알림 및 이메일 발송
+    const campaignOrganization = campaign.organization_profiles as { organization_name?: string | null } | null
+
     await notifyMatchedExperts(campaignId, matchedExperts, {
       title: campaign.title,
       description: campaign.description,
-      organization_name: (campaign.organization_profiles as any).organization_name,
+      organization_name: campaignOrganization?.organization_name || '기관',
       budget_range: campaign.budget_min && campaign.budget_max
         ? `₩${campaign.budget_min.toLocaleString()} - ₩${campaign.budget_max.toLocaleString()}`
         : undefined,

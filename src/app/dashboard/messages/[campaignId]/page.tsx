@@ -22,13 +22,10 @@ import {
   X,
   Edit2,
   Trash2,
-  Check,
   FileIcon,
   Download
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
-import { ko } from 'date-fns/locale'
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages'
 import { MessageThreadSkeleton } from '@/components/ui/loading-states'
 import { notifyMessageReceived } from '@/lib/notifications'
@@ -62,9 +59,9 @@ interface Campaign {
   description: string
   status: string
   organization_profiles: {
-    organization_name: string
-    user_id: string
-  }
+    organization_name: string | null
+    user_id: string | null
+  } | null
 }
 
 interface Participant {
@@ -72,6 +69,19 @@ interface Participant {
   name: string
   type: 'expert' | 'organization'
   email: string
+}
+
+interface ThreadRow {
+  participant_1: string
+  participant_2: string
+}
+
+interface ParticipantUserRow {
+  id: string
+  email: string
+  role: string
+  expert_profiles?: { name: string | null }[] | null
+  organization_profiles?: { organization_name: string | null }[] | null
 }
 
 export default function ChatPage() {
@@ -111,7 +121,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (realtimeMessages) {
-      setMessages(realtimeMessages)
+      setMessages(realtimeMessages as Message[])
       scrollToBottom()
       markMessagesAsRead()
     }
@@ -177,10 +187,10 @@ export default function ChatPage() {
           organization_profiles(organization_name, user_id)
         `)
         .eq('id', campaignId)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
-      setCampaign(data)
+      setCampaign(data as Campaign | null)
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Error loading campaign:', error)
@@ -205,9 +215,12 @@ export default function ChatPage() {
         return
       }
 
-      const otherUserId = threadData.participant_1 === currentUserId 
-        ? threadData.participant_2 
-        : threadData.participant_1
+      const thread = threadData as ThreadRow | null
+      if (!thread) return
+
+      const otherUserId = thread.participant_1 === currentUserId
+        ? thread.participant_2
+        : thread.participant_1
 
       // Get other participant details
       const { data: userData, error: userError } = await supabase
@@ -218,17 +231,19 @@ export default function ChatPage() {
           organization_profiles(organization_name)
         `)
         .eq('id', otherUserId)
-        .single()
+        .maybeSingle()
 
       if (userError) throw userError
+      const otherUser = userData as ParticipantUserRow | null
+      if (!otherUser) return
 
       const participant: Participant = {
-        id: userData.id,
-        email: userData.email,
-        type: userData.role as 'expert' | 'organization',
-        name: userData.role === 'expert' 
-          ? userData.expert_profiles?.[0]?.name || userData.email
-          : userData.organization_profiles?.[0]?.organization_name || userData.email
+        id: otherUser.id,
+        email: otherUser.email,
+        type: otherUser.role as 'expert' | 'organization',
+        name: otherUser.role === 'expert'
+          ? otherUser.expert_profiles?.[0]?.name || otherUser.email
+          : otherUser.organization_profiles?.[0]?.organization_name || otherUser.email
       }
 
       setOtherParticipant(participant)
@@ -476,6 +491,8 @@ export default function ChatPage() {
     )
   }
 
+  const organizationName = campaign.organization_profiles?.organization_name || '기관 정보 없음'
+
   return (
     <div className="container mx-auto px-4 py-4 max-w-4xl">
       <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -543,7 +560,7 @@ export default function ChatPage() {
                       {campaign.status === 'active' ? '진행중' : campaign.status}
                     </Badge>
                     <span className="text-xs text-gray-500">
-                      {campaign.organization_profiles.organization_name}
+                      {organizationName}
                     </span>
                   </div>
                 </div>

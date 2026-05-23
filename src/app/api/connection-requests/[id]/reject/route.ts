@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
+interface OrganizationProfileRow {
+  name?: string | null
+}
+
+const pickFirst = <T,>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Initialize Supabase client
     const supabase = createServerSupabaseClient()
     
-    const requestId = params.id
+    const { id: requestId } = await params
     const url = new URL(request.url)
     const token = url.searchParams.get('token')
 
@@ -37,6 +49,11 @@ export async function GET(
     if (new Date(connectionRequest.expires_at) < new Date()) {
       return new NextResponse('만료된 요청입니다.', { status: 410 })
     }
+
+    const organizationProfile = pickFirst(
+      connectionRequest.organization_profiles as OrganizationProfileRow | OrganizationProfileRow[] | null
+    )
+    const organizationName = organizationProfile?.name || '기관'
 
     // Update request status to rejected
     const { error: updateError } = await supabase
@@ -105,7 +122,7 @@ export async function GET(
         <div class="container">
           <div class="info-icon">ℹ️</div>
           <h1>연결 요청을 거절했습니다</h1>
-          <p>${connectionRequest.organization_profiles.name}에 거절 의사가 전달되었습니다.</p>
+          <p>${organizationName}에 거절 의사가 전달되었습니다.</p>
           <p>향후 더 적합한 기회가 있을 것입니다.</p>
           <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard" class="btn">대시보드로 이동</a>
         </div>
