@@ -34,11 +34,12 @@ import { PageLoading } from '@/components/ui/loading-states'
 
 interface Campaign {
   id: string
+  organization_id: string
   title: string
   description: string
   type: string
-  category: string
-  keywords: string[]
+  category: string | null
+  keywords: string[] | null
   budget_min: number | null
   budget_max: number | null
   start_date: string | null
@@ -47,12 +48,14 @@ interface Campaign {
   required_experts: number
   status: string
   created_at: string
-  organization_profiles: {
-    organization_name: string
-    representative_name: string
-    industry: string
-    user_id: string
-  }
+  organization_profiles: OrganizationProfileSummary | null
+}
+
+interface OrganizationProfileSummary {
+  organization_name: string | null
+  representative_name: string | null
+  industry: string | null
+  user_id: string | null
 }
 
 interface Proposal {
@@ -64,14 +67,16 @@ interface Proposal {
   estimated_end_date: string | null
   status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
   submitted_at: string
-  expert_profiles: {
-    name: string
-    title: string
-    hourly_rate: number | null
-    users: {
-      email: string
-    }
-  }
+  expert_profiles: ProposalExpertProfile | null
+}
+
+interface ProposalExpertProfile {
+  name: string | null
+  title: string | null
+  hourly_rate: number | null
+  users: {
+    email: string | null
+  } | null
 }
 
 interface ExpertProfileSummary {
@@ -131,7 +136,32 @@ export default function CampaignDetailPage() {
       .maybeSingle()
 
     if (error) throw error
-    setCampaign(data)
+
+    const campaignData = data as Campaign | null
+    if (!campaignData) {
+      setCampaign(null)
+      return
+    }
+
+    if (!campaignData.organization_profiles && campaignData.organization_id) {
+      const { data: organizationData, error: organizationError } = await supabase
+        .from('organization_profiles')
+        .select('organization_name, representative_name, industry, user_id')
+        .eq('id', campaignData.organization_id)
+        .maybeSingle()
+
+      if (organizationError && process.env.NODE_ENV === 'development') {
+        console.error('Failed to load campaign organization profile:', organizationError)
+      }
+
+      setCampaign({
+        ...campaignData,
+        organization_profiles: organizationData as OrganizationProfileSummary | null,
+      })
+      return
+    }
+
+    setCampaign(campaignData)
   }, [])
 
   const loadProposals = useCallback(async (campaignId: string) => {
@@ -334,7 +364,7 @@ export default function CampaignDetailPage() {
   }
 
   const canManageCampaign = () => {
-    return userRole === 'organization' && campaign?.organization_profiles.user_id === userId
+    return userRole === 'organization' && campaign?.organization_profiles?.user_id === userId
   }
 
   const canSubmitProposal = () => {
@@ -423,6 +453,12 @@ export default function CampaignDetailPage() {
     )
   }
 
+  const organizationProfile = campaign.organization_profiles
+  const organizationName = organizationProfile?.organization_name || '기관 정보 없음'
+  const representativeName = organizationProfile?.representative_name || '미지정'
+  const industry = organizationProfile?.industry || '미지정'
+  const keywords = Array.isArray(campaign.keywords) ? campaign.keywords : []
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* Header */}
@@ -460,7 +496,7 @@ export default function CampaignDetailPage() {
                 <CardDescription className="text-base">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
-                    {campaign.organization_profiles.organization_name}
+                    {organizationName}
                   </div>
                 </CardDescription>
               </div>
@@ -567,11 +603,11 @@ export default function CampaignDetailPage() {
               )}
             </div>
 
-            {campaign.keywords.length > 0 && (
+            {keywords.length > 0 && (
               <div>
                 <p className="font-medium text-gray-700 mb-2">키워드</p>
                 <div className="flex flex-wrap gap-2">
-                  {campaign.keywords.map((keyword, index) => (
+                  {keywords.map((keyword, index) => (
                     <span
                       key={index}
                       className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm"
@@ -597,15 +633,15 @@ export default function CampaignDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-700">기관명</p>
-                <p className="text-sm">{campaign.organization_profiles.organization_name}</p>
+                <p className="text-sm">{organizationName}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">대표자</p>
-                <p className="text-sm">{campaign.organization_profiles.representative_name}</p>
+                <p className="text-sm">{representativeName}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">업종</p>
-                <p className="text-sm">{campaign.organization_profiles.industry || '미지정'}</p>
+                <p className="text-sm">{industry}</p>
               </div>
             </div>
           </CardContent>
@@ -640,95 +676,102 @@ export default function CampaignDetailPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {proposals.map((proposal) => (
-                  <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={getProposalStatusColor(proposal.status)}>
-                              <div className="flex items-center gap-1">
-                                {getProposalStatusIcon(proposal.status)}
-                                {getProposalStatusText(proposal.status)}
-                              </div>
-                            </Badge>
-                            <span className="text-sm text-gray-500">
-                              {formatDistanceToNow(new Date(proposal.submitted_at), {
-                                addSuffix: true,
-                                locale: ko
-                              })}
-                            </span>
+                {proposals.map((proposal) => {
+                  const expertProfile = proposal.expert_profiles
+                  const expertName = expertProfile?.name || '전문가 정보 없음'
+                  const expertTitle = expertProfile?.title || '미지정'
+                  const hourlyRate = expertProfile?.hourly_rate || null
+
+                  return (
+                    <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={getProposalStatusColor(proposal.status)}>
+                                <div className="flex items-center gap-1">
+                                  {getProposalStatusIcon(proposal.status)}
+                                  {getProposalStatusText(proposal.status)}
+                                </div>
+                              </Badge>
+                              <span className="text-sm text-gray-500">
+                                {formatDistanceToNow(new Date(proposal.submitted_at), {
+                                  addSuffix: true,
+                                  locale: ko
+                                })}
+                              </span>
+                            </div>
+                            <CardTitle className="text-lg">
+                              {expertName}
+                            </CardTitle>
+                            <CardDescription>
+                              {expertTitle}
+                            </CardDescription>
                           </div>
-                          <CardTitle className="text-lg">
-                            {proposal.expert_profiles.name}
-                          </CardTitle>
-                          <CardDescription>
-                            {proposal.expert_profiles.title}
-                          </CardDescription>
+
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/dashboard/proposals/${proposal.id}`}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/dashboard/messages/${campaign.id}`}>
+                                <MessageCircle className="h-4 w-4" />
+                              </Link>
+                            </Button>
+
+                            {canManageCampaign() && proposal.status === 'pending' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleProposalAction(proposal.id, 'accept')}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  승인
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleProposalAction(proposal.id, 'reject')}
+                                >
+                                  거절
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
+                      </CardHeader>
+
+                      <CardContent>
+                        <p className="text-sm text-gray-700 line-clamp-3 mb-4">
+                          {proposal.proposal_text}
+                        </p>
                         
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/dashboard/proposals/${proposal.id}`}>
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/dashboard/messages/${campaign.id}`}>
-                              <MessageCircle className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          
-                          {canManageCampaign() && proposal.status === 'pending' && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => handleProposalAction(proposal.id, 'accept')}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                승인
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleProposalAction(proposal.id, 'reject')}
-                              >
-                                거절
-                              </Button>
-                            </>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {proposal.estimated_budget && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <DollarSign className="h-4 w-4" />
+                              ₩{proposal.estimated_budget.toLocaleString()}
+                            </div>
+                          )}
+                          {hourlyRate && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Clock className="h-4 w-4" />
+                              ₩{hourlyRate.toLocaleString()}/시간
+                            </div>
+                          )}
+                          {proposal.estimated_start_date && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Calendar className="h-4 w-4" />
+                              {new Date(proposal.estimated_start_date).toLocaleDateString()} 시작
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent>
-                      <p className="text-sm text-gray-700 line-clamp-3 mb-4">
-                        {proposal.proposal_text}
-                      </p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {proposal.estimated_budget && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <DollarSign className="h-4 w-4" />
-                            ₩{proposal.estimated_budget.toLocaleString()}
-                          </div>
-                        )}
-                        {proposal.expert_profiles.hourly_rate && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Clock className="h-4 w-4" />
-                            ₩{proposal.expert_profiles.hourly_rate.toLocaleString()}/시간
-                          </div>
-                        )}
-                        {proposal.estimated_start_date && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Calendar className="h-4 w-4" />
-                            {new Date(proposal.estimated_start_date).toLocaleDateString()} 시작
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </TabsContent>
