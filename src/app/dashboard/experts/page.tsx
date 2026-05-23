@@ -807,8 +807,10 @@ export default function ExpertSearchPage() {
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>
+                      {/* 전문가에게 바로 메시지 보내기 기능 - 추후 오픈 예정
+                          기능 오픈 시 주석을 해제하세요.
                       {userRole === 'organization' && (
-                        <Button 
+                        <Button
                           size="sm"
                           onClick={() => handleConnectionRequest(expert)}
                           className="text-xs sm:text-sm"
@@ -817,6 +819,7 @@ export default function ExpertSearchPage() {
                           연결 요청
                         </Button>
                       )}
+                      */}
                     </div>
                   </div>
                 </CardHeader>

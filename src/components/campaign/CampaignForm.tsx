@@ -103,10 +103,24 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
       setShowDraftPrompt(true)
     }
 
-    // 저장된 단계 복구
+    // 저장된 단계 복구 - 단, Step 1 필수값이 비어있으면 Step 1부터 시작
     const saved = localStorage.getItem(`campaign-step-${organizationId}`)
     if (saved) {
-      setSavedStep(parseInt(saved))
+      const step = parseInt(saved)
+      const draftRaw = localStorage.getItem(autoSaveKey)
+      let draftTitle = ''
+      let draftDescription = ''
+      if (draftRaw) {
+        try {
+          const parsed = JSON.parse(draftRaw)
+          draftTitle = parsed?.data?.title ?? ''
+          draftDescription = parsed?.data?.description ?? ''
+        } catch {
+          // ignore parse errors
+        }
+      }
+      const step1Complete = draftTitle.length >= 5 && draftDescription.length >= 20
+      setSavedStep(step1Complete ? step : 0)
       setShowTemplateSelector(false) // 저장된 단계가 있으면 템플릿 선택 건너뛰기
     }
   }, [autoSaveKey, initialData?.id, organizationId])
@@ -301,14 +315,16 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     return isValid
   }
 
-  // Step 2 검증: 상세 정보 (선택사항이므로 항상 통과)
+  // Step 2 검증: 상세 정보. Step 1 필수값 누락 시 진행 차단.
   const validateStep2 = async () => {
-    return true
+    const isValid = await trigger(['title', 'description', 'type'])
+    return isValid
   }
 
-  // Step 3 검증: 추가 정보 (선택사항이므로 항상 통과)
+  // Step 3 검증: 추가 정보. Step 1 필수값 누락 시 진행 차단.
   const validateStep3 = async () => {
-    return true
+    const isValid = await trigger(['title', 'description', 'type'])
+    return isValid
   }
 
   const saveProgress = async (currentStep: number) => {

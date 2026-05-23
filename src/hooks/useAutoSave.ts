@@ -76,11 +76,10 @@ export function useAutoSave<T = any>({
 
     dataRef.current = data
 
-    // 저장 중 표시
-    setState(prev => ({ ...prev, isSaving: true }))
-
-    // 딜레이 후 저장
+    // 딜레이 후 저장 (디바운스 중에는 isSaving = false 유지, 실제 저장 직전에만 true)
     timeoutRef.current = setTimeout(() => {
+      setState(prev => ({ ...prev, isSaving: true }))
+
       try {
         const storageKey = key
         const timestamp = new Date().toISOString()

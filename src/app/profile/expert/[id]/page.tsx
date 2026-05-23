@@ -384,7 +384,8 @@ export default function ExpertProfilePage() {
           </Card>
         )}
 
-        {/* Contact Button */}
+        {/* 전문가에게 바로 제안 보내기 기능 - 추후 오픈 예정
+            아래 코드는 의도적으로 비활성화되어 있습니다. 기능 오픈 시 주석을 해제하세요.
         <div className="flex justify-center">
           <Button size="lg" className="px-8" onClick={handleProposalClick}>
             제안서 보내기
@@ -408,6 +409,7 @@ export default function ExpertProfilePage() {
             </DialogContent>
           </Dialog>
         )}
+        */}
       </div>
     </div>
   )

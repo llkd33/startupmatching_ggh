@@ -422,7 +422,8 @@ export default function ExpertDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Contact Card */}
+          {/* Contact Card - 전문가에게 바로 메시지 보내기 기능은 추후 오픈 예정
+              아래 코드는 의도적으로 비활성화되어 있습니다. 기능 오픈 시 주석을 해제하세요.
           <Card>
             <CardHeader>
               <CardTitle>연락하기</CardTitle>
@@ -434,7 +435,7 @@ export default function ExpertDetailPage() {
                   시간당 ₩{expert.hourly_rate.toLocaleString()}
                 </div>
               )}
-              
+
               {userRole === 'organization' ? (
                 <div className="space-y-3">
                   <Button className="w-full">
@@ -454,6 +455,7 @@ export default function ExpertDetailPage() {
               )}
             </CardContent>
           </Card>
+          */}
 
           {/* Quick Stats */}
           <Card>
