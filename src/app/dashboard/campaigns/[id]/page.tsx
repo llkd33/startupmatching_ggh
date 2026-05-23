@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import type { UserRole } from '@/types/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -73,120 +74,68 @@ interface Proposal {
   }
 }
 
+interface ExpertProfileSummary {
+  id: string
+}
+
+interface ExistingProposalSummary {
+  id: string
+}
+
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [proposals, setProposals] = useState<Proposal[]>([])
-  const [userRole, setUserRole] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [expertProfile, setExpertProfile] = useState<any>(null)
-  const [existingProposal, setExistingProposal] = useState<any>(null)
+  const [expertProfile, setExpertProfile] = useState<ExpertProfileSummary | null>(null)
+  const [existingProposal, setExistingProposal] = useState<ExistingProposalSummary | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [proposalsLoading, setProposalsLoading] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [closeDialogOpen, setCloseDialogOpen] = useState(false)
 
-  useEffect(() => {
-    if (id) {
-      checkAuthAndLoadData(id)
-    }
-  }, [id])
-
-  const checkAuthAndLoadData = async (campaignId: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
-
-    setUserId(user.id)
-
-    // Get user role
+  const loadUserRole = useCallback(async (currentUserId: string): Promise<UserRole | null> => {
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', currentUserId)
       .maybeSingle()
 
     if (userError) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Failed to load user role:', userError)
       }
-      return
+      return null
     }
 
-    if (userData) {
-      setUserRole(userData.role)
+    const userRoleData = userData as { role?: UserRole } | null
+    return userRoleData?.role || null
+  }, [])
 
-      if (userData.role === 'expert') {
-        // Get expert profile
-        const { data: expertData, error: expertError } = await supabase
-          .from('expert_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle()
+  const loadCampaign = useCallback(async (campaignId: string) => {
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select(`
+        *,
+        organization_profiles(
+          organization_name,
+          representative_name,
+          industry,
+          user_id
+        )
+      `)
+      .eq('id', campaignId)
+      .maybeSingle()
 
-        if (expertError) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Failed to load expert profile:', expertError)
-          }
-        } else {
-          setExpertProfile(expertData)
-        }
+    if (error) throw error
+    setCampaign(data)
+  }, [])
 
-        // Check if already submitted proposal
-        if (expertData) {
-          const { data: proposalData, error: proposalError } = await supabase
-            .from('proposals')
-            .select('*')
-            .eq('campaign_id', campaignId)
-            .eq('expert_id', expertData.id)
-            .maybeSingle()
-
-          if (proposalError) {
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Failed to check existing proposal:', proposalError)
-            }
-          } else {
-            setExistingProposal(proposalData)
-          }
-        }
-      }
-      
-      await Promise.all([
-        loadCampaign(campaignId),
-        loadProposals(campaignId)
-      ])
-    }
-  }
-
-  const loadCampaign = async (campaignId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('campaigns')
-        .select(`
-          *,
-          organization_profiles(
-            organization_name,
-            representative_name,
-            industry,
-            user_id
-          )
-        `)
-        .eq('id', campaignId)
-        .maybeSingle()
-
-      if (error) throw error
-      setCampaign(data)
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error loading campaign:', error)
-      }
-    }
-  }
-
-  const loadProposals = async (campaignId: string) => {
+  const loadProposals = useCallback(async (campaignId: string) => {
+    setProposalsLoading(true)
     try {
       const { data, error } = await supabase
         .from('proposals')
@@ -209,9 +158,96 @@ export default function CampaignDetailPage() {
         console.error('Error loading proposals:', error)
       }
     } finally {
+      setProposalsLoading(false)
+    }
+  }, [])
+
+  const loadExpertContext = useCallback(async (campaignId: string, currentUserId: string) => {
+    const { data: expertData, error: expertError } = await supabase
+      .from('expert_profiles')
+      .select('id')
+      .eq('user_id', currentUserId)
+      .maybeSingle()
+
+    if (expertError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to load expert profile:', expertError)
+      }
+      return
+    }
+
+    const expert = expertData as ExpertProfileSummary | null
+    setExpertProfile(expert)
+
+    if (!expert) {
+      return
+    }
+
+    const { data: proposalData, error: proposalError } = await supabase
+      .from('proposals')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .eq('expert_id', expert.id)
+      .maybeSingle()
+
+    if (proposalError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to check existing proposal:', proposalError)
+      }
+      return
+    }
+
+    setExistingProposal(proposalData as ExistingProposalSummary | null)
+  }, [])
+
+  const checkAuthAndLoadData = useCallback(async (campaignId: string) => {
+    setLoading(true)
+    setLoadError(null)
+    setCampaign(null)
+    setProposals([])
+    setExpertProfile(null)
+    setExistingProposal(null)
+    setUserRole(null)
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+      if (authError) throw authError
+
+      if (!user) {
+        router.push('/auth/login')
+        return
+      }
+
+      setUserId(user.id)
+
+      const metadataRole = user.user_metadata?.role as UserRole | undefined
+      const role = await loadUserRole(user.id) || metadataRole || null
+      setUserRole(role)
+
+      await loadCampaign(campaignId)
+
+      // These secondary reads should not keep the detail page in a full-screen loader.
+      void loadProposals(campaignId)
+
+      if (role === 'expert') {
+        void loadExpertContext(campaignId, user.id)
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading campaign detail:', error)
+      }
+      setLoadError('캠페인 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
       setLoading(false)
     }
-  }
+  }, [loadCampaign, loadExpertContext, loadProposals, loadUserRole, router])
+
+  useEffect(() => {
+    if (id) {
+      checkAuthAndLoadData(id)
+    }
+  }, [id, checkAuthAndLoadData])
 
   const handleProposalAction = async (proposalId: string, action: 'accept' | 'reject') => {
     try {
@@ -220,7 +256,7 @@ export default function CampaignDetailPage() {
         .update({
           status: action === 'accept' ? 'accepted' : 'rejected',
           reviewed_at: new Date().toISOString()
-        })
+        } as never)
         .eq('id', proposalId)
 
       if (error) throw error
@@ -321,7 +357,8 @@ export default function CampaignDetailPage() {
         .maybeSingle()
 
       if (orgError) throw orgError
-      if (!orgProfile) {
+      const organizationProfile = orgProfile as { id: string } | null
+      if (!organizationProfile) {
         toast.error('조직 프로필을 찾을 수 없습니다.')
         setCloseDialogOpen(false)
         return
@@ -334,9 +371,9 @@ export default function CampaignDetailPage() {
         .update({
           status: 'completed',
           updated_at: new Date().toISOString()
-        })
+        } as never)
         .eq('id', campaign.id)
-        .eq('organization_id', orgProfile.id)
+        .eq('organization_id', organizationProfile.id)
 
       if (error) throw error
 
@@ -364,13 +401,22 @@ export default function CampaignDetailPage() {
       <div className="container mx-auto px-4 py-8">
         <Card>
           <CardContent className="text-center py-12">
-            <h3 className="text-lg font-medium mb-2">캠페인을 찾을 수 없습니다</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {loadError ? '캠페인을 불러오지 못했습니다' : '캠페인을 찾을 수 없습니다'}
+            </h3>
             <p className="text-sm text-gray-500 mb-4">
-              요청하신 캠페인이 존재하지 않거나 접근 권한이 없습니다.
+              {loadError || '요청하신 캠페인이 존재하지 않거나 접근 권한이 없습니다.'}
             </p>
-            <Button asChild>
-              <Link href="/dashboard/campaigns">캠페인 목록으로 돌아가기</Link>
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              {loadError && (
+                <Button onClick={() => checkAuthAndLoadData(id)}>
+                  다시 시도
+                </Button>
+              )}
+              <Button variant={loadError ? 'outline' : 'default'} asChild>
+                <Link href="/dashboard/campaigns">캠페인 목록으로 돌아가기</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -569,13 +615,20 @@ export default function CampaignDetailPage() {
         <Tabs defaultValue="proposals" className="space-y-4">
           <TabsList>
             <TabsTrigger value="proposals">
-              제안서 ({proposals.length})
+              제안서 ({proposalsLoading ? '...' : proposals.length})
             </TabsTrigger>
             <TabsTrigger value="stats">통계</TabsTrigger>
           </TabsList>
 
           <TabsContent value="proposals" className="space-y-4">
-            {proposals.length === 0 ? (
+            {proposalsLoading ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4" />
+                  <p className="text-sm text-gray-500">제안서를 불러오는 중...</p>
+                </CardContent>
+              </Card>
+            ) : proposals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-12">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
