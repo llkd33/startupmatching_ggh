@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import type { UserRole } from '@/types/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,16 +20,13 @@ import {
   AlertCircle,
   Eye,
   MessageCircle,
-  Filter,
-  TrendingUp,
-  Users
+  TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { FormSkeleton } from '@/components/ui/loading-states'
 import { NoProposals, NoSearchResults } from '@/components/ui/empty-state'
-import { ResponsiveTable } from '@/components/ui/responsive-table'
 import { handleSupabaseError } from '@/lib/error-handler'
 import { ProposalActions } from '@/components/proposal/ProposalActions'
 
@@ -49,19 +47,48 @@ interface Proposal {
     title: string
     description: string
     status: string
-    organization_profiles: {
-      organization_name: string
-      user_id: string
-    }
-  }
+    organization_profiles: ProposalOrganization | null
+  } | null
   expert_profiles?: {
-    name: string
-    title: string
+    name: string | null
+    title: string | null
     hourly_rate: number | null
     users: {
-      email: string
-    }
-  }
+      email: string | null
+    } | null
+  } | null
+}
+
+interface ProposalOrganization {
+  organization_name: string | null
+  user_id: string | null
+}
+
+type ProposalRow = Omit<Proposal, 'campaigns' | 'expert_profiles'>
+
+interface CampaignRow {
+  id: string
+  title: string
+  description: string
+  status: string
+  organization_id: string | null
+}
+
+interface ExpertRow {
+  id: string
+  name: string | null
+  title: string | null
+  hourly_rate: number | null
+  user_id: string | null
+}
+
+interface OrganizationRow extends ProposalOrganization {
+  id: string
+}
+
+interface UserRow {
+  id: string
+  email: string | null
 }
 
 interface ProposalStats {
@@ -83,7 +110,7 @@ function ProposalsPageContent() {
   const [searchTerm, setSearchTerm] = useState('')
   // URL 쿼리 파라미터에서 status 읽기
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all')
-  const [userRole, setUserRole] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [stats, setStats] = useState<ProposalStats>({
     total: 0,
@@ -96,7 +123,9 @@ function ProposalsPageContent() {
   })
 
   useEffect(() => {
-    checkAuthAndLoadProposals()
+    void checkAuthAndLoadProposals()
+    // Run once on mount; explicit refreshes call loadProposals after actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // URL 쿼리 파라미터 변경 감지
@@ -105,36 +134,74 @@ function ProposalsPageContent() {
     if (statusFromUrl && statusFromUrl !== statusFilter) {
       setStatusFilter(statusFromUrl)
     }
-  }, [searchParams])
+  }, [searchParams, statusFilter])
 
   useEffect(() => {
-    filterProposals()
+    let filtered = proposals
+
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      filtered = filtered.filter(proposal =>
+        (proposal.campaigns?.title || '').toLowerCase().includes(search) ||
+        (proposal.campaigns?.organization_profiles?.organization_name || '').toLowerCase().includes(search) ||
+        (proposal.proposal_text || '').toLowerCase().includes(search) ||
+        (proposal.expert_profiles?.name || '').toLowerCase().includes(search)
+      )
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(proposal => proposal.status === statusFilter)
+    }
+
+    setFilteredProposals(filtered)
   }, [proposals, searchTerm, statusFilter])
 
   const checkAuthAndLoadProposals = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+    setLoading(true)
 
-    setUserId(user.id)
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    // Get user role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+      if (authError) throw authError
 
-    if (userData) {
-      setUserRole(userData.role)
-      await loadProposals(user.id, userData.role)
+      if (!user) {
+        router.push('/auth/login')
+        return
+      }
+
+      setUserId(user.id)
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (userError && process.env.NODE_ENV === 'development') {
+        console.error('Failed to load user role:', userError)
+      }
+
+      const metadataRole = user.user_metadata?.role as UserRole | undefined
+      const role = ((userData as { role?: UserRole } | null)?.role || metadataRole || null)
+      setUserRole(role)
+
+      if (!role) {
+        setProposals([])
+        calculateStats([])
+        return
+      }
+
+      await loadProposals(user.id, role)
+    } catch (error) {
+      handleSupabaseError(error as Error)
+      setProposals([])
+      calculateStats([])
+    } finally {
+      setLoading(false)
     }
   }
 
-  const loadProposals = async (userId: string, role: string) => {
+  const loadProposals = async (userId: string, role: UserRole) => {
     setLoading(true)
     
     try {
@@ -146,33 +213,52 @@ function ProposalsPageContent() {
 
       if (role === 'expert') {
         // For experts, show their own proposals
-        const { data: expertProfile } = await supabase
+        const { data: expertProfile, error: expertError } = await supabase
           .from('expert_profiles')
           .select('id')
           .eq('user_id', userId)
-          .single()
+          .maybeSingle()
 
-        if (expertProfile) {
-          query = query.eq('expert_id', expertProfile.id)
+        if (expertError) throw expertError
+
+        const expert = expertProfile as { id: string } | null
+        if (expert) {
+          query = query.eq('expert_id', expert.id)
+        } else {
+          setProposals([])
+          calculateStats([])
+          return
         }
       } else if (role === 'organization') {
         // For organizations, show proposals for their campaigns
-        const { data: orgProfile } = await supabase
+        const { data: orgProfile, error: orgError } = await supabase
           .from('organization_profiles')
           .select('id')
           .eq('user_id', userId)
-          .single()
+          .maybeSingle()
 
-        if (orgProfile) {
+        if (orgError) throw orgError
+
+        const organization = orgProfile as { id: string } | null
+        if (organization) {
           const { data: campaigns } = await supabase
             .from('campaigns')
             .select('id')
-            .eq('organization_id', orgProfile.id)
+            .eq('organization_id', organization.id)
 
-          if (campaigns && campaigns.length > 0) {
-            const campaignIds = campaigns.map(c => c.id)
+          const organizationCampaigns = (campaigns || []) as { id: string }[]
+          if (organizationCampaigns.length > 0) {
+            const campaignIds = organizationCampaigns.map(c => c.id)
             query = query.in('campaign_id', campaignIds)
+          } else {
+            setProposals([])
+            calculateStats([])
+            return
           }
+        } else {
+          setProposals([])
+          calculateStats([])
+          return
         }
       }
 
@@ -191,15 +277,16 @@ function ProposalsPageContent() {
       }
 
       // 관련 데이터를 batch로 조회하여 성능 최적화 (N+1 쿼리 문제 해결)
-      if (!proposalsData || proposalsData.length === 0) {
+      const proposalRows = (proposalsData || []) as ProposalRow[]
+      if (proposalRows.length === 0) {
         setProposals([])
         calculateStats([])
         return
       }
 
       // 모든 고유 ID 수집
-      const campaignIds = [...new Set(proposalsData.map(p => p.campaign_id).filter(Boolean))]
-      const expertIds = [...new Set(proposalsData.map(p => p.expert_id).filter(Boolean))]
+      const campaignIds = [...new Set(proposalRows.map(p => p.campaign_id).filter(Boolean))]
+      const expertIds = [...new Set(proposalRows.map(p => p.expert_id).filter(Boolean))]
 
       // 병렬로 batch 쿼리 실행
       const [campaignsResult, expertsResult] = await Promise.all([
@@ -220,11 +307,13 @@ function ProposalsPageContent() {
           : Promise.resolve({ data: [], error: null })
       ])
 
-      const campaignsMap = new Map(
-        (campaignsResult.data || []).map(c => [c.id, c])
+      const campaignRows = (campaignsResult.data || []) as CampaignRow[]
+      const expertRows = (expertsResult.data || []) as ExpertRow[]
+      const campaignsMap = new Map<string, CampaignRow>(
+        campaignRows.map(c => [c.id, c])
       )
-      const expertsMap = new Map(
-        (expertsResult.data || []).map(e => [e.id, e])
+      const expertsMap = new Map<string, ExpertRow>(
+        expertRows.map(e => [e.id, e])
       )
 
       // Organization IDs 수집 및 batch 조회
@@ -234,15 +323,16 @@ function ProposalsPageContent() {
           .filter(Boolean)
       )]
 
-      const orgsMap = new Map()
+      const orgsMap = new Map<string, OrganizationRow>()
       if (orgIds.length > 0) {
         const { data: orgs } = await supabase
           .from('organization_profiles')
           .select('id, organization_name, user_id')
           .in('id', orgIds)
-        
-        if (orgs) {
-          orgs.forEach(org => orgsMap.set(org.id, org))
+
+        const organizationRows = (orgs || []) as OrganizationRow[]
+        if (organizationRows.length > 0) {
+          organizationRows.forEach(org => orgsMap.set(org.id, org))
         }
       }
 
@@ -253,27 +343,29 @@ function ProposalsPageContent() {
           .filter(Boolean)
       )]
 
-      const usersMap = new Map()
+      const usersMap = new Map<string, UserRow>()
       if (userIds.length > 0) {
         const { data: users } = await supabase
           .from('users')
           .select('id, email')
           .in('id', userIds)
-        
-        if (users) {
-          users.forEach(u => usersMap.set(u.id, u))
+
+        const userRows = (users || []) as UserRow[]
+        if (userRows.length > 0) {
+          userRows.forEach(u => usersMap.set(u.id, u))
         }
       }
 
       // 데이터 병합
-      const enrichedProposals = proposalsData.map((proposal) => {
+      const enrichedProposals: Proposal[] = proposalRows.map((proposal) => {
         const campaign = campaignsMap.get(proposal.campaign_id)
         const expert = expertsMap.get(proposal.expert_id)
-        const org = campaign ? orgsMap.get(campaign.organization_id) : null
-        const user = expert ? usersMap.get(expert.user_id) : null
+        const org = campaign?.organization_id ? orgsMap.get(campaign.organization_id) || null : null
+        const user = expert?.user_id ? usersMap.get(expert.user_id) || null : null
 
         return {
           ...proposal,
+          portfolio_links: Array.isArray(proposal.portfolio_links) ? proposal.portfolio_links : [],
           campaigns: campaign ? {
             ...campaign,
             organization_profiles: org
@@ -328,26 +420,6 @@ function ProposalsPageContent() {
     })
   }
 
-  const filterProposals = () => {
-    let filtered = proposals
-
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      filtered = filtered.filter(proposal =>
-        (proposal.campaigns?.title || '').toLowerCase().includes(search) ||
-        (proposal.campaigns?.organization_profiles?.organization_name || '').toLowerCase().includes(search) ||
-        (proposal.proposal_text || '').toLowerCase().includes(search) ||
-        (proposal.expert_profiles?.name || '').toLowerCase().includes(search)
-      )
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(proposal => proposal.status === statusFilter)
-    }
-
-    setFilteredProposals(filtered)
-  }
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800'
@@ -385,6 +457,10 @@ function ProposalsPageContent() {
     }
   }
 
+  const goToProposalSource = () => {
+    router.push(userRole === 'expert' ? '/dashboard/campaigns/search' : '/dashboard/campaigns/create')
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
@@ -402,6 +478,19 @@ function ProposalsPageContent() {
               </p>
             </div>
           </div>
+          <Button onClick={goToProposalSource}>
+            {userRole === 'expert' ? (
+              <>
+                <Search className="h-4 w-4 mr-2" />
+                캠페인 찾아 제안하기
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2" />
+                캠페인 등록하기
+              </>
+            )}
+          </Button>
         </div>
         <FormSkeleton />
       </div>
@@ -531,9 +620,7 @@ function ProposalsPageContent() {
             <Card>
               <CardContent className="py-12">
                 {proposals.length === 0 ? (
-                  <NoProposals onBrowse={() => {
-                    router.push(userRole === 'expert' ? '/dashboard/campaigns' : '/dashboard/campaigns/create')
-                  }} />
+                  <NoProposals onBrowse={goToProposalSource} />
                 ) : (
                   <NoSearchResults onClear={() => {
                     setSearchTerm('')
@@ -544,169 +631,183 @@ function ProposalsPageContent() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {filteredProposals.map((proposal) => (
-                <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge className={getStatusColor(proposal.status)}>
-                            <div className="flex items-center gap-1">
-                              {getStatusIcon(proposal.status)}
-                              {getStatusText(proposal.status)}
-                            </div>
-                          </Badge>
-                          <Badge variant="outline">
-                            {proposal.campaigns.status === 'active' ? '진행중' : proposal.campaigns.status}
-                          </Badge>
+              {filteredProposals.map((proposal) => {
+                const campaign = proposal.campaigns
+                const campaignTitle = campaign?.title || '캠페인 정보 없음'
+                const campaignStatus = campaign?.status || 'unknown'
+                const organizationName = campaign?.organization_profiles?.organization_name || '기관 정보 없음'
+                const expertName = proposal.expert_profiles?.name || '전문가'
+                const portfolioLinks = Array.isArray(proposal.portfolio_links) ? proposal.portfolio_links : []
+
+                return (
+                  <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge className={getStatusColor(proposal.status)}>
+                              <div className="flex items-center gap-1">
+                                {getStatusIcon(proposal.status)}
+                                {getStatusText(proposal.status)}
+                              </div>
+                            </Badge>
+                            <Badge variant="outline">
+                              {campaignStatus === 'active' ? '진행중' : campaignStatus}
+                            </Badge>
+                          </div>
+                          <CardTitle className="text-lg mb-2">
+                            {campaignTitle}
+                          </CardTitle>
+                          <CardDescription className="text-sm">
+                            {userRole === 'organization' && (
+                              <span className="font-medium">
+                                {expertName} •
+                              </span>
+                            )}
+                            {organizationName}
+                          </CardDescription>
                         </div>
-                        <CardTitle className="text-lg mb-2">
-                          {proposal.campaigns.title}
-                        </CardTitle>
-                        <CardDescription className="text-sm">
-                          {userRole === 'organization' && proposal.expert_profiles && (
-                            <span className="font-medium">
-                              {proposal.expert_profiles.name} • 
-                            </span>
-                          )}
-                          {proposal.campaigns.organization_profiles.organization_name}
-                        </CardDescription>
+
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/dashboard/proposals/${proposal.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/dashboard/messages/${proposal.campaign_id}`}>
+                              <MessageCircle className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
-                      
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/dashboard/proposals/${proposal.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/dashboard/messages/${proposal.campaign_id}`}>
-                            <MessageCircle className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      {proposal.estimated_budget && (
+                    </CardHeader>
+
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        {proposal.estimated_budget && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <DollarSign className="h-4 w-4" />
+                            ₩{proposal.estimated_budget.toLocaleString()}
+                          </div>
+                        )}
+                        {proposal.estimated_start_date && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Calendar className="h-4 w-4" />
+                            {new Date(proposal.estimated_start_date).toLocaleDateString('ko-KR')} 시작
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <DollarSign className="h-4 w-4" />
-                          ₩{proposal.estimated_budget.toLocaleString()}
+                          <Clock className="h-4 w-4" />
+                          {formatDistanceToNow(new Date(proposal.submitted_at), {
+                            addSuffix: true,
+                            locale: ko
+                          })}
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-700 line-clamp-2 mb-4">
+                        {proposal.proposal_text}
+                      </p>
+
+                      {portfolioLinks.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs font-medium text-gray-600 mb-2">포트폴리오 링크</p>
+                          <div className="flex flex-wrap gap-2">
+                            {portfolioLinks.slice(0, 2).map((link, index) => (
+                              <a
+                                key={index}
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 truncate max-w-48"
+                              >
+                                {link}
+                              </a>
+                            ))}
+                            {portfolioLinks.length > 2 && (
+                              <span className="text-xs text-gray-500">
+                                +{portfolioLinks.length - 2}개 더
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
-                      {proposal.estimated_start_date && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(proposal.estimated_start_date).toLocaleDateString('ko-KR')} 시작
+
+                      {userRole === 'organization' && proposal.status === 'pending' && (
+                        <div className="pt-4 border-t">
+                          <ProposalActions
+                            proposalId={proposal.id}
+                            campaignId={proposal.campaign_id}
+                            expertName={expertName}
+                            onActionComplete={handleActionComplete}
+                          />
                         </div>
                       )}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Clock className="h-4 w-4" />
-                        {formatDistanceToNow(new Date(proposal.submitted_at), {
-                          addSuffix: true,
-                          locale: ko
-                        })}
-                      </div>
-                    </div>
 
-                    <p className="text-sm text-gray-700 line-clamp-2 mb-4">
-                      {proposal.proposal_text}
-                    </p>
-
-                    {proposal.portfolio_links.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-xs font-medium text-gray-600 mb-2">포트폴리오 링크</p>
-                        <div className="flex flex-wrap gap-2">
-                          {proposal.portfolio_links.slice(0, 2).map((link, index) => (
-                            <a
-                              key={index}
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:text-blue-800 truncate max-w-48"
-                            >
-                              {link}
-                            </a>
-                          ))}
-                          {proposal.portfolio_links.length > 2 && (
-                            <span className="text-xs text-gray-500">
-                              +{proposal.portfolio_links.length - 2}개 더
-                            </span>
-                          )}
+                      {proposal.response_message && (
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs font-medium text-gray-600 mb-1">응답 메시지</p>
+                          <p className="text-sm text-gray-700">{proposal.response_message}</p>
                         </div>
-                      </div>
-                    )}
-
-                    {userRole === 'organization' && proposal.status === 'pending' && (
-                      <div className="pt-4 border-t">
-                        <ProposalActions
-                          proposalId={proposal.id}
-                          campaignId={proposal.campaign_id}
-                          expertName={proposal.expert_profiles?.name || '전문가'}
-                          onActionComplete={handleActionComplete}
-                        />
-                      </div>
-                    )}
-
-                    {proposal.response_message && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs font-medium text-gray-600 mb-1">응답 메시지</p>
-                        <p className="text-sm text-gray-700">{proposal.response_message}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="grid">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProposals.map((proposal) => (
-              <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge className={getStatusColor(proposal.status)}>
-                      {getStatusText(proposal.status)}
-                    </Badge>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/proposals/${proposal.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                  <CardTitle className="text-base line-clamp-2">
-                    {proposal.campaigns.title}
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    {proposal.campaigns.organization_profiles.organization_name}
-                  </CardDescription>
-                </CardHeader>
-                
-                <CardContent className="pt-0">
-                  <p className="text-sm text-gray-700 line-clamp-3 mb-3">
-                    {proposal.proposal_text}
-                  </p>
-                  
-                  {proposal.estimated_budget && (
-                    <div className="flex items-center gap-1 text-sm font-medium text-green-600 mb-2">
-                      <DollarSign className="h-3 w-3" />
-                      ₩{proposal.estimated_budget.toLocaleString()}
+            {filteredProposals.map((proposal) => {
+              const campaignTitle = proposal.campaigns?.title || '캠페인 정보 없음'
+              const organizationName = proposal.campaigns?.organization_profiles?.organization_name || '기관 정보 없음'
+
+              return (
+                <Card key={proposal.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge className={getStatusColor(proposal.status)}>
+                        {getStatusText(proposal.status)}
+                      </Badge>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/dashboard/proposals/${proposal.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
-                  )}
-                  
-                  <div className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(proposal.submitted_at), {
-                      addSuffix: true,
-                      locale: ko
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <CardTitle className="text-base line-clamp-2">
+                      {campaignTitle}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {organizationName}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-gray-700 line-clamp-3 mb-3">
+                      {proposal.proposal_text}
+                    </p>
+
+                    {proposal.estimated_budget && (
+                      <div className="flex items-center gap-1 text-sm font-medium text-green-600 mb-2">
+                        <DollarSign className="h-3 w-3" />
+                        ₩{proposal.estimated_budget.toLocaleString()}
+                      </div>
+                    )}
+
+                    <div className="text-xs text-gray-500">
+                      {formatDistanceToNow(new Date(proposal.submitted_at), {
+                        addSuffix: true,
+                        locale: ko
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </TabsContent>
       </Tabs>

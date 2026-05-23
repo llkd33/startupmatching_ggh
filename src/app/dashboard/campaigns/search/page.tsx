@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Search, Filter, Calendar, DollarSign, MapPin, Briefcase, ChevronRight, Star, Users, Clock, TrendingUp } from 'lucide-react'
+import { Search, Filter, Calendar, DollarSign, Briefcase, ChevronRight, Star, Users, TrendingUp, FileText } from 'lucide-react'
 import Link from 'next/link'
-import { useAuth } from '@/components/auth/AuthContext'
 import { useToast } from '@/components/ui/toast-provider'
 import { SelectRoot as Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchAutocomplete } from '@/components/search/SearchAutocomplete'
@@ -44,7 +43,6 @@ interface SearchSuggestion {
 }
 
 export default function EnhancedCampaignSearchPage() {
-  const { user } = useAuth()
   const { error: showError } = useToast()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,10 +67,14 @@ export default function EnhancedCampaignSearchPage() {
   useEffect(() => {
     loadCampaigns()
     loadRecentSearches()
+    // Run once on mount; filter state changes are handled by the separate filtering effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     filterAndSortCampaigns()
+    // filterAndSortCampaigns is derived entirely from these state values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, selectedIndustry, selectedBudget, selectedUrgency, sortBy, campaigns])
 
   const loadRecentSearches = () => {
@@ -102,7 +104,11 @@ export default function EnhancedCampaignSearchPage() {
       if (error) throw error
       
       // Add mock data for demonstration
-      const enhancedCampaigns = (data || []).map((campaign: any) => ({
+      const campaignRows = (data || []) as Array<Campaign & {
+        budget_max?: number | null
+        end_date?: string | null
+      }>
+      const enhancedCampaigns = campaignRows.map((campaign) => ({
         ...campaign,
         proposals_count: Math.floor(Math.random() * 20),
         urgency: calculateUrgency(campaign.deadline || campaign.end_date || new Date().toISOString()),
@@ -558,13 +564,21 @@ export default function EnhancedCampaignSearchPage() {
                   )}
                 </div>
 
-                {/* Action Button */}
-                <Button asChild className="w-full">
-                  <Link href={`/dashboard/campaigns/${campaign.id}`}>
-                    상세보기
-                    <ChevronRight className="h-4 w-4 ml-2" />
-                  </Link>
-                </Button>
+                {/* Action Buttons */}
+                <div className="grid gap-2">
+                  <Button asChild className="w-full">
+                    <Link href={`/dashboard/campaigns/${campaign.id}/propose`}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      제안서 보내기
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={`/dashboard/campaigns/${campaign.id}`}>
+                      상세보기
+                      <ChevronRight className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))

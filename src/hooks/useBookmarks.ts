@@ -121,7 +121,7 @@ export function useBookmarks({ userId, targetType }: UseBookmarksOptions): UseBo
           user_id: userId,
           target_type: type,
           target_id: targetId
-        })
+        } as never)
         .select()
         .single()
 
@@ -199,16 +199,15 @@ export function useIsBookmarked(userId: string, targetId: string, targetType: Bo
           .eq('user_id', userId)
           .eq('target_type', targetType)
           .eq('target_id', targetId)
-          .single()
+          .limit(1)
 
-        if (error && error.code !== 'PGRST116') {
-          // PGRST116 = no rows found, which is expected
+        if (error) {
           if (error.code !== '42P01') {
             console.error('Error checking bookmark:', error)
           }
         }
 
-        setIsBookmarked(!!data)
+        setIsBookmarked((data || []).length > 0)
       } catch (err) {
         console.error('Failed to check bookmark:', err)
       } finally {
@@ -240,7 +239,7 @@ export function useIsBookmarked(userId: string, targetId: string, targetType: Bo
             user_id: userId,
             target_type: targetType,
             target_id: targetId
-          })
+          } as never)
 
         if (error) throw error
         setIsBookmarked(true)
