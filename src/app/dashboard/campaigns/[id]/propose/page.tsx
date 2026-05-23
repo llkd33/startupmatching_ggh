@@ -179,11 +179,10 @@ export default function ProposePage() {
           if (proposalCheckError.code === 'PGRST116') {
             console.log('No existing proposal found (PGRST116) - proceeding')
           } else if (proposalCheckError.code === 'PGRST301' || proposalCheckError.message?.includes('406')) {
-            console.warn('RLS policy issue detected (406). Will attempt to insert anyway.')
-            console.warn('Please apply migration 022_fix_proposals_insert_rls.sql if this persists.')
+            console.warn('RLS policy issue detected while checking existing proposal. Server API will validate duplicates on submit.')
           }
         }
-        // 에러가 발생해도 계속 진행 (제안서가 없을 수도 있고, INSERT는 작동할 수 있음)
+        // 에러가 발생해도 계속 진행 (제출 API에서 중복 여부를 다시 검증)
         existingProposal = null
       } else {
         existingProposal = data as { id: string } | null
@@ -241,8 +240,8 @@ export default function ProposePage() {
     if (!campaign || !expertProfile || submitting) return
 
     // 입력값 검증
-    if (!formData.proposal_text || formData.proposal_text.trim().length < 50) {
-      setError('제안 내용을 최소 50자 이상 입력해주세요.')
+    if (!formData.proposal_text.trim()) {
+      setError('제안 내용을 입력해주세요.')
       return
     }
 
@@ -256,23 +255,10 @@ export default function ProposePage() {
         ? formData.portfolio_links.filter(link => link && typeof link === 'string' && link.trim().length > 0)
         : []
 
-      const proposalData: {
-        campaign_id: string
-        expert_id: string
-        proposal_text: string
-        cover_letter?: string | null // 백워드 호환성을 위해 포함 (deprecated)
-        estimated_budget: null
-        estimated_start_date: null
-        estimated_end_date: null
-        portfolio_links: string[]
-      } = {
+      const proposalData = {
         campaign_id: campaign.id,
         expert_id: expertProfile.id,
         proposal_text: trimmedText,
-        cover_letter: trimmedText, // 백워드 호환성: cover_letter에도 같은 값 설정
-        estimated_budget: null, // 기관에서 설정한 금액 사용
-        estimated_start_date: null, // 기관에서 설정한 일정 사용
-        estimated_end_date: null, // 기관에서 설정한 일정 사용
         portfolio_links: portfolioLinksArray, // 빈 배열로 명시적으로 설정
       }
 
@@ -288,46 +274,35 @@ export default function ProposePage() {
         console.log('Expert Profile:', expertProfile)
       }
 
-      const { data: insertedData, error } = await supabase
-        .from('proposals')
-        .insert(proposalData as never)
-        .select()
-
-      if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Proposal insert error:', error)
-          console.error('Error details:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-          })
-          console.error('Proposal data:', JSON.stringify(proposalData, null, 2))
-          console.error('Expert profile:', expertProfile)
-          console.error('Campaign:', campaign)
-        }
-
-        // 사용자 친화적인 에러 메시지
-        let errorMessage = '제안서 제출 중 오류가 발생했습니다.'
-        if (error.code === '23505') {
-          errorMessage = '이미 제출한 제안서가 있습니다.'
-        } else if (error.code === '23503') {
-          errorMessage = '캠페인 또는 전문가 정보를 찾을 수 없습니다.'
-        } else if (error.message) {
-          errorMessage = error.message
-        }
-
-        setError(errorMessage)
-        toast.error(errorMessage)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        router.push('/auth/login')
         return
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Proposal inserted successfully:', insertedData)
+      const response = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(proposalData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        const errorMessage = result.error || '제안서 제출 중 오류가 발생했습니다.'
+        setError(errorMessage)
+        toast.error(errorMessage)
+        if (response.status === 409 && result.proposalId) {
+          router.push(`/dashboard/proposals/${result.proposalId}`)
+        }
+        return
       }
 
       // 기관에 이메일 알림 발송 (비동기, 실패해도 계속 진행)
-      const insertedProposal = (insertedData || [])[0] as { id: string } | undefined
+      const insertedProposal = result.proposal as { id: string } | undefined
       if (insertedProposal) {
         try {
           await fetch('/api/proposals/notify-organization', {

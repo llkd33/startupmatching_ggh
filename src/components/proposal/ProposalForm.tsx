@@ -67,7 +67,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
       proposal_text: '',
     },
     {
-      proposal_text: { required: true, minLength: 50 },
+      proposal_text: { required: true },
     },
     { mode: 'onBlur', reValidateMode: 'onChange' }
   )
@@ -120,10 +120,6 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         campaign_id: campaignId,
         expert_id: expertId,
         proposal_text: trimmedText,
-        cover_letter: trimmedText, // 백워드 호환성: cover_letter에도 같은 값 설정
-        estimated_budget: null, // 기관에서 설정한 금액 사용
-        estimated_start_date: null, // 기관에서 설정한 일정 사용
-        estimated_end_date: null, // 기관에서 설정한 일정 사용
         portfolio_links: Array.isArray(portfolioLinks) && portfolioLinks.length > 0 
           ? portfolioLinks 
           : [], // 빈 배열로 명시적으로 설정
@@ -133,33 +129,35 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         console.log('Submitting proposal with data:', proposalData)
       }
 
-      const { data: insertedData, error } = await supabase
-        .from('proposals')
-        .insert(proposalData as any)
-        .select()
-
-      if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Proposal insert error:', error)
-          console.error('Error details:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-          })
-          console.error('Proposal data:', JSON.stringify(proposalData, null, 2))
-          console.error('Expert ID:', expertId)
-          console.error('Campaign ID:', campaignId)
-        }
-        throw error
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        router.push('/auth/login')
+        return
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Proposal inserted successfully:', insertedData)
+      const response = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(proposalData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 409 && result.proposalId) {
+          router.push(`/dashboard/proposals/${result.proposalId}`)
+          return
+        }
+
+        throw new Error(result.error || '제안서 제출 중 오류가 발생했습니다.')
       }
 
       // 기관에 이메일 알림 발송 (비동기, 실패해도 계속 진행)
-      if (insertedData && insertedData[0]) {
+      const insertedProposal = result.proposal as { id: string } | undefined
+      if (insertedProposal) {
         try {
           await fetch('/api/proposals/notify-organization', {
             method: 'POST',
@@ -167,7 +165,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              proposalId: insertedData[0].id,
+              proposalId: insertedProposal.id,
               campaignId: campaignId,
               expertId: expertId
             })
@@ -257,7 +255,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
               제안 내용 <span className="text-red-500">*</span>
             </Label>
             <p className="mt-1 text-sm text-gray-500">
-              비즈니스 모델, 시장 진입 전략, 성장 방안 등 멘토링 제안 내용을 자세히 작성해주세요. (최소 50자)
+              비즈니스 모델, 시장 진입 전략, 성장 방안 등 멘토링 제안 내용을 작성해주세요.
             </p>
             <Textarea
               id="proposal_text"
@@ -273,11 +271,8 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
             />
             <div className="flex justify-between items-center mt-1">
               <p id="proposal_text-help" className="text-xs text-gray-500">
-                {formData.proposal_text.length}/최소 50자
+                {formData.proposal_text.length}자
               </p>
-              {formData.proposal_text.length >= 50 && !errors.proposal_text && (
-                <p className="text-xs text-green-600">✓ 충분한 길이입니다</p>
-              )}
             </div>
             {touched.proposal_text && errors.proposal_text && (
               <p id="proposal_text-error" className="text-sm text-red-600 mt-1" role="alert">
@@ -396,7 +391,7 @@ export default function ProposalForm({ campaignId, expertId, campaignData }: Pro
         </Button>
         <Button
           type="submit"
-          disabled={loading || !formData.proposal_text || formData.proposal_text.length < 50}
+          disabled={loading || !formData.proposal_text.trim()}
           className="min-h-[44px] min-w-[120px]"
           isLoading={loading}
           loadingText="제출 중..."
