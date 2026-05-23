@@ -11,7 +11,9 @@ export const campaignSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   location: z.string().optional(),
-  requiredExperts: z.number().min(1, '필요한 전문가 수는 최소 1명입니다'),
+  requiredExperts: z.number({
+    error: '필요한 전문가 수를 입력해주세요'
+  }).min(1, '필요한 전문가 수는 최소 1명입니다'),
 })
 .refine(data => {
   if (data.budgetMin && data.budgetMax) {

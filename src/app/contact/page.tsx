@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Mail, Phone, MapPin, MessageSquare, Send, Loader2 } from 'lucide-react'
 import { toast } from '@/components/ui/toast-custom'
+import { escapeHtml } from '@/lib/html-escape'
 
 const SUPPORT_EMAIL = 'support@startupmatch.kr'
 
@@ -45,12 +46,13 @@ export default function ContactPage() {
 
     setSubmitting(true)
     try {
+      const safeMessage = escapeHtml(form.message).replace(/\n/g, '<br/>')
       const html = `
-        <h2>문의 유형: ${form.category}</h2>
-        <p><strong>이름:</strong> ${form.name}</p>
-        <p><strong>이메일:</strong> ${form.email}</p>
+        <h2>문의 유형: ${escapeHtml(form.category)}</h2>
+        <p><strong>이름:</strong> ${escapeHtml(form.name)}</p>
+        <p><strong>이메일:</strong> ${escapeHtml(form.email)}</p>
         <p><strong>메시지:</strong></p>
-        <p>${form.message.replace(/\n/g, '<br/>')}</p>
+        <p>${safeMessage}</p>
       `
 
       const res = await fetch('/api/send-email', {

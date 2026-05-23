@@ -309,22 +309,10 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     }
   }
 
-  // Step 1 검증: 기본 정보
-  const validateStep1 = async () => {
-    const isValid = await trigger(['title', 'description', 'type'])
-    return isValid
-  }
-
-  // Step 2 검증: 상세 정보. Step 1 필수값 누락 시 진행 차단.
-  const validateStep2 = async () => {
-    const isValid = await trigger(['title', 'description', 'type'])
-    return isValid
-  }
-
-  // Step 3 검증: 추가 정보. Step 1 필수값 누락 시 진행 차단.
-  const validateStep3 = async () => {
-    const isValid = await trigger(['title', 'description', 'type'])
-    return isValid
+  // 모든 단계 진행 전 Step 1의 필수값(title, description, type)을 검증.
+  // Step 2/3의 자체 필드는 모두 선택사항이므로 별도 검증 불필요.
+  const validateStep1Prerequisites = async () => {
+    return trigger(['title', 'description', 'type'])
   }
 
   const saveProgress = async (currentStep: number) => {
@@ -358,7 +346,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           watch={watch}
         />
       ),
-      validation: validateStep1
+      validation: validateStep1Prerequisites
     },
     {
       id: 'details',
@@ -378,7 +366,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           watch={watch}
         />
       ),
-      validation: validateStep2
+      validation: validateStep1Prerequisites
     },
     {
       id: 'additional',
@@ -416,7 +404,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           </Card>
         </div>
       ),
-      validation: validateStep3
+      validation: validateStep1Prerequisites
     }
   ]
 

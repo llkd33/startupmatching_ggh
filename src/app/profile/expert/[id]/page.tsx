@@ -46,6 +46,9 @@ interface ViewerInfo {
   organizationName: string | null
 }
 
+// 전문가에게 바로 제안 보내기 기능 플래그. 추후 오픈 시 true 로 변경.
+const ENABLE_PROPOSAL_DIALOG = false
+
 export default function ExpertProfilePage() {
   const params = useParams()
   const router = useRouter()
@@ -59,7 +62,9 @@ export default function ExpertProfilePage() {
   useEffect(() => {
     if (expertId) {
       loadProfile()
-      loadViewer()
+      if (ENABLE_PROPOSAL_DIALOG) {
+        loadViewer()
+      }
     }
   }, [expertId])
 

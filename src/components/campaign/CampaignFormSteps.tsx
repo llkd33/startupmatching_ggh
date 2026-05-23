@@ -304,15 +304,18 @@ export function CampaignAdditionalStep({ formData, errors, register, setValue, w
               type="number"
               {...register('requiredExperts', {
                 setValueAs: (v: unknown) => {
-                  if (v === '' || v === null || v === undefined) return 1
+                  if (v === '' || v === null || v === undefined) return undefined
                   const n = Number(v)
-                  return Number.isFinite(n) && n >= 1 ? n : 1
+                  return Number.isFinite(n) ? n : undefined
                 }
               })}
               placeholder="1"
               min={1}
-              className="min-h-[44px]"
+              className={cn(errors.requiredExperts && 'border-red-500', 'min-h-[44px]')}
             />
+            {errors.requiredExperts && (
+              <p className="text-sm text-red-600">{errors.requiredExperts.message}</p>
+            )}
           </div>
         </div>
       </div>

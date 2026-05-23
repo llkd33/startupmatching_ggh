@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
+// 익명 호출 시 허용되는 수신자 목록. 내부 운영 주소만 추가하세요.
+// 이 화이트리스트에 없는 주소로는 INTERNAL_API_SECRET 인증된 호출에서만 보낼 수 있습니다.
+const PUBLIC_ALLOWED_RECIPIENTS = new Set([
+  'support@startupmatch.kr'
+])
+
 // Initialize Resend with API key
 const getResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY
@@ -9,6 +15,14 @@ const getResendClient = () => {
     return null
   }
   return new Resend(apiKey)
+}
+
+const normalizeRecipients = (to: unknown): string[] | null => {
+  if (typeof to === 'string') return [to.toLowerCase().trim()]
+  if (Array.isArray(to) && to.every((v) => typeof v === 'string')) {
+    return to.map((v) => v.toLowerCase().trim())
+  }
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -27,13 +41,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify the request is authorized (optional but recommended)
+    // 내부 시크릿이 일치하면 임의 수신자로 발송 가능, 그렇지 않으면 공개 허용 수신자만 가능
     const authHeader = request.headers.get('authorization')
     const internalSecret = process.env.INTERNAL_API_SECRET
-
-    if (internalSecret && authHeader !== `Bearer ${internalSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const isInternalCall = Boolean(
+      internalSecret && authHeader === `Bearer ${internalSecret}`
+    )
 
     // Parse request body
     const body = await request.json()
@@ -45,6 +58,24 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields: to, subject, html' },
         { status: 400 }
       )
+    }
+
+    // Open mail relay 방지: 인증되지 않은 호출은 허용된 수신자에게만 발송
+    const recipients = normalizeRecipients(to)
+    if (!recipients || recipients.length === 0) {
+      return NextResponse.json({ error: 'Invalid recipient' }, { status: 400 })
+    }
+
+    if (!isInternalCall) {
+      const allDisallowed = recipients.some(
+        (recipient) => !PUBLIC_ALLOWED_RECIPIENTS.has(recipient)
+      )
+      if (allDisallowed) {
+        return NextResponse.json(
+          { error: 'Recipient not allowed for unauthenticated calls' },
+          { status: 403 }
+        )
+      }
     }
 
     // Send email via Resend

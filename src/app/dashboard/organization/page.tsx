@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Building2, 
-  Globe, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Users, 
+import {
+  Building2,
+  Globe,
+  Phone,
+  Mail,
+  MapPin,
+  Users,
   CheckCircle2,
   Edit,
   Save,
@@ -24,6 +24,9 @@ import {
   Briefcase,
   Calendar
 } from 'lucide-react'
+import { escapeHtml } from '@/lib/html-escape'
+
+const SUPPORT_EMAIL = 'support@startupmatch.kr'
 
 export default function OrganizationProfilePage() {
   const router = useRouter()
@@ -290,21 +293,21 @@ export default function OrganizationProfilePage() {
 
       const html = `
         <h2>기관 인증 요청</h2>
-        <p><strong>기관명:</strong> ${formData.organization_name}</p>
-        <p><strong>대표자명:</strong> ${formData.representative_name || '-'}</p>
-        <p><strong>사업자번호:</strong> ${formData.business_number}</p>
-        <p><strong>업종:</strong> ${formData.industry || '-'}</p>
-        <p><strong>웹사이트:</strong> ${formData.website || '-'}</p>
-        <p><strong>요청자 이메일:</strong> ${user.email}</p>
-        <p><strong>요청자 ID:</strong> ${user.id}</p>
-        <p><strong>기관 프로필 ID:</strong> ${organizationData.id}</p>
+        <p><strong>기관명:</strong> ${escapeHtml(formData.organization_name)}</p>
+        <p><strong>대표자명:</strong> ${escapeHtml(formData.representative_name || '-')}</p>
+        <p><strong>사업자번호:</strong> ${escapeHtml(formData.business_number)}</p>
+        <p><strong>업종:</strong> ${escapeHtml(formData.industry || '-')}</p>
+        <p><strong>웹사이트:</strong> ${escapeHtml(formData.website || '-')}</p>
+        <p><strong>요청자 이메일:</strong> ${escapeHtml(user.email)}</p>
+        <p><strong>요청자 ID:</strong> ${escapeHtml(user.id)}</p>
+        <p><strong>기관 프로필 ID:</strong> ${escapeHtml(organizationData.id)}</p>
       `
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: 'support@startupmatch.kr',
+          to: SUPPORT_EMAIL,
           subject: `[인증 요청] ${formData.organization_name}`,
           html
         })
@@ -312,7 +315,7 @@ export default function OrganizationProfilePage() {
 
       const data = await res.json().catch(() => null)
 
-      if (!res.ok && !data?.skipped) {
+      if (!res.ok || (data && data.success === false && !data.skipped)) {
         throw new Error(data?.error || '인증 요청 전송에 실패했습니다.')
       }
 
