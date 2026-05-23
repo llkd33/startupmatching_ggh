@@ -208,6 +208,10 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
     let newCampaign: any = null
 
     try {
+      const nextStatus = initialData?.id
+        ? (isDraft ? 'draft' : initialData.status === 'draft' ? 'active' : initialData.status)
+        : (isDraft ? 'draft' : 'active')
+
       const campaignData = {
         title: data.title,
         description: data.description,
@@ -222,7 +226,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
         required_experts: data.requiredExperts,
         organization_id: organizationId,
         attachments,
-        status: isDraft ? 'draft' : 'active'
+        status: nextStatus
       }
 
       if (initialData?.id) {
@@ -423,7 +427,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
         <Card>
           <CardHeader>
-            <CardTitle>캠페인 생성</CardTitle>
+            <CardTitle>{initialData?.id ? '캠페인 수정' : '캠페인 생성'}</CardTitle>
             <CardDescription>
               템플릿을 선택하거나 직접 작성할 수 있습니다.
             </CardDescription>
@@ -457,7 +461,7 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
 
       <Card>
         <CardHeader>
-          <CardTitle>캠페인 생성</CardTitle>
+          <CardTitle>{initialData?.id ? '캠페인 수정' : '캠페인 생성'}</CardTitle>
           <CardDescription>
             {initialData?.id ? '캠페인을 수정합니다.' : '단계별로 캠페인 정보를 입력해주세요.'}
           </CardDescription>
@@ -518,21 +522,23 @@ export default function CampaignForm({ organizationId, initialData }: CampaignFo
           >
             취소
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={async () => {
-              // 임시 저장은 validation 없이 진행
-              if (loading || isSubmitting) return
-              
-              const formData = watch()
-              await onSubmit(formData, true)
-            }}
-            disabled={isSubmitting || loading}
-            className="min-h-[44px]"
-          >
-            임시 저장
-          </Button>
+          {(!initialData?.id || initialData.status === 'draft') && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                // 임시 저장은 validation 없이 진행
+                if (loading || isSubmitting) return
+
+                const formData = watch()
+                await onSubmit(formData, true)
+              }}
+              disabled={isSubmitting || loading}
+              className="min-h-[44px]"
+            >
+              임시 저장
+            </Button>
+          )}
         </div>
       </form>
         </CardContent>
